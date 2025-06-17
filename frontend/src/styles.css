@@ -1,0 +1,330 @@
+/* ---------------------------------------- */
+/*  Variables                             */
+/* ---------------------------------------- */
+:root {
+  --primary-bg: #0a0a0a;
+  --secondary-bg: #141414;
+  --tertiary-bg: #1e1e1e;
+  --accent-color: #FF6B35;
+  --accent-secondary: #F7931E;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #6b7280;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+}
+
+/* ---------------------------------------- */
+/*  Global Reset                          */
+/* ---------------------------------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--primary-bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* ======================================== */
+/*  1) AUTHENTICATION SCREENS (LOGIN / REQUEST) */
+/* ======================================== */
+
+.login-layout {
+  display: flex;
+  height: 100vh;
+  background-color: var(--primary-bg);
+}
+.login-left {
+  flex: 1;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.login-left h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+.login-left p {
+  font-size: 1rem;
+  opacity: 0.9;
+  margin-bottom: 2rem;
+}
+.login-left ul {
+  list-style: none;
+}
+.login-left li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+.login-left li i {
+  font-size: 1rem;
+  color: #fff;
+}
+
+.login-right {
+  flex: 1;
+  max-width: 600px;
+  background: #fff;
+  color: #111;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.login-form-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+.login-form-subtext {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+.login-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+}
+.login-input::placeholder {
+  color: #9ca3af;
+}
+.login-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+}
+.login-button:hover {
+  transform: scale(1.02);
+  background: linear-gradient(to right, #2563eb, #7c3aed);
+}
+.login-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+.login-footer button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.login-message {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.login-message.success { color: var(--success-color); }
+.login-message.error   { color: var(--error-color); }
+
+/* ======================================== */
+/*  2) PORTAL (DASHBOARD + SIDEBAR)         */
+/* ======================================== */
+
+.portal-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+.sidebar {
+  background: linear-gradient(180deg, var(--secondary-bg), var(--primary-bg));
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+.sidebar-header {
+  margin-bottom: 2rem;
+}
+.studio-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.studio-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+.client-badge {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.client-avatar {
+  width: 32px;
+  height: 32px;
+  background: var(--accent-color);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #fff;
+}
+.client-info h4 {
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+  color: #fff;
+}
+.client-info p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+}
+.nav-section + .nav-section {
+  margin-top: 1.5rem;
+}
+.nav-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: linear-gradient(90deg, var(--accent-color), transparent);
+  color: #fff;
+  border-right: 3px solid var(--accent-color);
+}
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent-color);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+}
+.content-header {
+  background: var(--secondary-bg);
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.page-title h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.breadcrumb {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.content-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px,1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.stat-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+.stat-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+.stat-change.positive {
+  color: var(--success-color);
+}
+.stat-change.negative {
+  color: var(--error-color);
+}
+
+/* you can continue adding more portal styles… */
