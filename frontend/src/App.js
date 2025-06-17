@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import Dashboard from './Dashboard';
+import Settings from './Settings';
 import './styles.css';
 
 export default function App() {
-  const [view, setView] = useState('login');
+  const [view, setView] = useState('login');               // 'login' | 'request' | 'dashboard' | 'settings'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [message, setMessage] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const handleLogin = async (e) => {
+  const handleLogin = async e => {
     e.preventDefault();
     setMessage('');
     try {
@@ -20,6 +22,7 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) {
+        setIsAdmin(data.is_admin);
         setView('dashboard');
       } else {
         setMessage(data.error || 'Login failed');
@@ -29,8 +32,9 @@ export default function App() {
     }
   };
 
-  const handleAccessRequest = async (e) => {
+  const handleAccessRequest = async e => {
     e.preventDefault();
+    setMessage('');
     try {
       const res = await fetch('http://localhost:5000/request-access', {
         method: 'POST',
@@ -40,12 +44,26 @@ export default function App() {
       const data = await res.json();
       setMessage(data.message || data.error);
     } catch {
-      setMessage('Request failed. Please try again.');
+      setMessage('Request failed');
     }
   };
 
-  if (view === 'dashboard') return <Dashboard email={email} />;
+  // render views
+  if (view === 'dashboard') {
+    return (
+      <Dashboard
+        email={email}
+        isAdmin={isAdmin}
+        onNavigate={setView}
+      />
+    );
+  }
 
+  if (view === 'settings') {
+    return <Settings onNavigate={setView} />;
+  }
+
+  // login / request access
   return (
     <div className="login-layout">
       <div className="login-left">
@@ -58,7 +76,6 @@ export default function App() {
           <li><i className="fas fa-users"></i> Team collaboration</li>
         </ul>
       </div>
-
       <div className="login-right">
         {view === 'login' ? (
           <>
@@ -69,7 +86,7 @@ export default function App() {
                 type="email"
                 placeholder="Email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
                 className="login-input"
               />
@@ -77,7 +94,7 @@ export default function App() {
                 type="password"
                 placeholder="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 className="login-input"
               />
@@ -91,13 +108,15 @@ export default function App() {
         ) : (
           <>
             <h2 className="login-form-title">Request Access</h2>
-            <p className="login-form-subtext">Enter your email and we'll notify the admin</p>
+            <p className="login-form-subtext">
+              Enter your email and we'll notify the admin
+            </p>
             <form onSubmit={handleAccessRequest}>
               <input
                 type="email"
                 placeholder="Your Email"
                 value={requestEmail}
-                onChange={(e) => setRequestEmail(e.target.value)}
+                onChange={e => setRequestEmail(e.target.value)}
                 required
                 className="login-input"
               />
