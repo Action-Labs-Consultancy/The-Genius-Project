@@ -12,12 +12,14 @@
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "standard-version": "^9.5.0"
+  },
   "scripts": {
-"release": "standard-version"
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "release": "standard-version"
   },
   "eslintConfig": {
     "extends": [
@@ -36,8 +38,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "standard-version": "^9.5.0"
   }
 }
