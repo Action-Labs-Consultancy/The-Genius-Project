@@ -1,4 +1,3 @@
-
 name: Deploy Python Flask + React
 
 on:
@@ -20,10 +19,10 @@ jobs:
 
       # 3. Install backend dependencies
       - name: Install dependencies
-  run: |
-    cd backend
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt --no-cache-dir
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --no-cache-dir
 
       # 4. Set up Node.js (Frontend)
       - name: Set up Node.js
