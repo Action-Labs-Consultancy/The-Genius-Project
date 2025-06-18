@@ -1,0 +1,71 @@
+name: Deploy Python Flask + React
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout code
+      - uses: actions/checkout@v4
+
+      # 2. Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # 3. Install backend dependencies (with cache/Apple path fixes)
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install --force-reinstall -r requirements.txt --no-cache-dir --ignore-installed || \
+          pip install flask flask-cors flask-sqlalchemy flask-bcrypt  # Fallback if requirements.txt fails
+
+      # 4. Set up Node.js
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      # 5. Install frontend dependencies
+      - name: Install React dependencies
+        run: |
+          cd frontend
+          npm install --force
+
+      # 6. Build React app
+      - name: Build React app
+        run: |
+          cd frontend
+          npm run build
+
+      # 7. Test Flask backend
+      - name: Test Flask server
+        run: |
+          cd backend
+          nohup python app.py > server.log 2>&1 &  # Run in background with logging
+          sleep 10
+          curl -v http://localhost:5000/players || cat server.log  # Show logs if curl fails
+
+      # 8. Deploy frontend (Vercel example)
+      - name: Deploy to Vercel
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd frontend
+          npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # 9. Deploy backend (Heroku example)
+      - name: Deploy to Heroku
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd backend
+          git remote add heroku https://heroku:${{ secrets.HEROKU_API_KEY }}@git.heroku.com/${{ secrets.HEROKU_APP_NAME }}.git
+          git push heroku HEAD:main -f
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
