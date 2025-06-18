@@ -8,18 +8,64 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1-7. [Keep all your existing build/test steps here]
-      
-      # 8. Fixed Vercel deployment step
+      # 1. Checkout code
+      - uses: actions/checkout@v4
+
+      # 2. Set up Python (Backend)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # 3. Install backend dependencies (bulletproof method)
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          # Try requirements.txt first, fallback to direct install
+          pip install -r requirements.txt --no-cache-dir --ignore-installed || \
+          pip install flask==2.3.2 flask-cors==3.0.10 flask-sqlalchemy==3.0.3 flask-bcrypt==1.0.1
+
+      # 4. Set up Node.js (Frontend)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      # 5. Install frontend dependencies
+      - name: Install React dependencies
+        run: |
+          cd frontend
+          npm install --force
+
+      # 6. Build React app
+      - name: Build React app
+        run: |
+          cd frontend
+          npm run build
+
+      # 7. Test Flask backend (with enhanced error handling)
+      - name: Test Flask server
+        run: |
+          cd backend
+          # Start server with logging
+          nohup python app.py > server.log 2>&1 &
+          sleep 10
+          # Test endpoint or show logs if failed
+          curl -v http://localhost:5000/players || (cat server.log && exit 1)
+
+      # 8. Fixed Vercel deployment (with all error handling)
       - name: Deploy Frontend to Vercel
         if: github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           cd frontend
-          # Install latest Vercel CLI explicitly
-          npm install -g vercel@latest
+          # Install specific stable Vercel CLI version
+          npm install -g vercel@32.5.1
           # Deploy with all required flags
-          vercel deploy --prod --token=$VERCEL_TOKEN --yes 2>&1 | tee deploy.log
-          # Print deployment URL
-          cat deploy.log | grep -o 'https://[^ ]*' | head -1
+          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN --yes --confirm 2>&1 | tee deploy.log
+          # Display deployment URL
+          DEPLOY_URL=$(grep -o 'https://[^ ]*\.vercel\.app' deploy.log | head -1)
+          echo "::set-output name=deploy_url::$DEPLOY_URL"
+          echo "Deployment URL: $DEPLOY_URL"
