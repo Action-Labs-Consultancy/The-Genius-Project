@@ -1,0 +1,64 @@
+name: Deploy Python Flask + React
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout code
+      - uses: actions/checkout@v4
+
+      # 2. Set up Python (Backend)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # 3. Install backend dependencies (bulletproof install)
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          # Try requirements.txt first, fallback to direct install
+          pip install -r requirements.txt --no-cache-dir --ignore-installed || \
+          pip install flask flask-cors flask-sqlalchemy flask-bcrypt
+
+      # 4. Set up Node.js (Frontend)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      # 5. Install frontend dependencies
+      - name: Install React dependencies
+        run: |
+          cd frontend
+          npm install --force
+
+      # 6. Build React app
+      - name: Build React app
+        run: |
+          cd frontend
+          npm run build
+
+      # 7. Test Flask backend
+      - name: Test Flask server
+        run: |
+          cd backend
+          # Start server with logging
+          nohup python app.py > server.log 2>&1 &
+          sleep 10
+          # Test endpoint or show logs if failed
+          curl -v http://localhost:5000/players || (cat server.log && exit 1)
+
+      # 8. Deploy to Vercel (simplified - only requires VERCEL_TOKEN)
+      - name: Deploy Frontend to Vercel
+        if: github.ref == 'refs/heads/main'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          cd frontend
+          npx vercel@latest deploy --prod --token=$VERCEL_TOKEN --confirm
