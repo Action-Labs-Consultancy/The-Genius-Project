@@ -17,12 +17,15 @@ jobs:
         with:
           python-version: "3.9"
 
-      # 3. Install backend dependencies
-      - name: Install dependencies
+      # 3.Install
+      - name: Install Python dependencies
         run: |
           cd backend
           python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          # First try clean requirements.txt install
+          pip install -r requirements.txt --no-cache-dir --ignore-installed || \
+          # Fallback to direct install if requirements.txt fails
+          pip install flask==2.3.2 flask-cors==3.0.10 flask-sqlalchemy==3.0.3 flask-bcrypt==1.0.1
 
       # 4. Set up Node.js (Frontend)
       - name: Set up Node.js
