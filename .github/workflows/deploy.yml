@@ -88,9 +88,11 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           cd frontend
-          npm run release
+          # Configure Git identity for standard-version
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          npm run release
+          # Push version bump
           git add package.json package-lock.json CHANGELOG.md
           git commit -m "chore(release): bump version [skip ci]" || true
           git push origin main
