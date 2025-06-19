@@ -62,7 +62,7 @@ jobs:
           cd frontend
           npm run build
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: react-build
           path: frontend/build
