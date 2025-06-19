@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.71](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.70...v0.1.71) (2025-06-19)
+
 ### [0.1.70](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.69...v0.1.70) (2025-06-19)
 
 ### [0.1.69](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.68...v0.1.69) (2025-06-19)
