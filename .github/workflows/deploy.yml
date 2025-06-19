@@ -55,9 +55,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
 
-      - name: Debug Git config
+      - name: Debug Git config (won't fail)
         run: |
-          git config --get user.name && git config --get user.email
+          git config --get user.name  || echo "No user.name set"
+          git config --get user.email || echo "No user.email set"
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
