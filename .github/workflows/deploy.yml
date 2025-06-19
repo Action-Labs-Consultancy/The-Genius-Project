@@ -37,7 +37,7 @@ jobs:
           cd backend
           nohup python app.py > server.log 2>&1 &
           sleep 10
-          curl -v [invalid url, do not cite] || (cat server.log && exit 1)
+          curl -v http://localhost:5001/players || (cat server.log && exit 1)
 
   frontend:
     runs-on: ubuntu-latest
