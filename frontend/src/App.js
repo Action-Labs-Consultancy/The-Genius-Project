@@ -17,7 +17,7 @@ export default function App() {
     e.preventDefault();
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/login', {
+      const res = await fetch('http://localhost:5001/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -38,7 +38,7 @@ export default function App() {
     e.preventDefault();
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/request-access', {
+      const res = await fetch('http://localhost:5001/request-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: requestEmail }),
@@ -54,7 +54,7 @@ export default function App() {
     e.preventDefault();
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/forgot-password', {
+      const res = await fetch('http://localhost:5001/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail }),

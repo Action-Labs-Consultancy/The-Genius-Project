@@ -14,7 +14,7 @@ export default function Settings({ onNavigate }) {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/users');
+      const res = await fetch('http://localhost:5001/users');
       if (res.ok) {
         const userData = await res.json();
         setUsers(userData);
@@ -39,7 +39,7 @@ export default function Settings({ onNavigate }) {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/users', {
+      const res = await fetch('http://localhost:5001/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -67,7 +67,7 @@ export default function Settings({ onNavigate }) {
   const handleDelete = async (id) => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/users/${id}`, { 
+      const res = await fetch(`http://localhost:5001/users/${id}`, { 
         method: 'DELETE' 
       });
       
@@ -95,7 +95,7 @@ export default function Settings({ onNavigate }) {
     
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/users/${id}/password`, {
+      const res = await fetch(`http://localhost:5001/users/${id}/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword }),
