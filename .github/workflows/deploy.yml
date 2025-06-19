@@ -95,3 +95,6 @@ jobs:
           fi
           DEPLOY_URL=$(grep -o '[invalid url, do not cite] ]*\.vercel\.app' deploy.log | head -1)
           echo "Deployment URL: ${DEPLOY_URL}"
+
+- name: Debug Git config
+  run: git config --get user.name && git config --get user.email
