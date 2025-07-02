@@ -1,0 +1,3 @@
+# Move authentication logic to plugins or core as appropriate for plugin-based architecture.
+
+# ...existing code...

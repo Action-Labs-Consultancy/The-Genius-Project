@@ -1,233 +1,217 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import HeaderBar from './HeaderBar';
+import ClientsPage from './ClientsPage';
+import ClientDetailPage from './ClientDetailPage';
 import Dashboard from './Dashboard';
 import Settings from './Settings';
+import AuthenticationComponent from './AuthenticationComponent';
+import SetPasswordPage from './SetPasswordPage';
+import ChatPage from './ChatPage';
+import AIContentGenerator from './AIContentGenerator';
+import OutlookCalendar from './OutlookCalendar';
+import MeetingsCalendar from './MeetingsCalendar';
+import WeeklyStandUpPlanner from './WeeklyStandUpPlanner';
+import StandUpPage from './StandUpPage';
+import ProjectsPage from './ProjectsPage';
+import ProjectDetailPage from './ProjectDetailPage';
+import SocialMediaInsightsDashboard from './SocialMediaInsightsDashboard';
+import ContentCalendarPage from './ContentCalendarPage';
 import './styles.css';
+import { sendAutomatedDM } from './utils/sendAutomatedDM';
+import SpendTracker from './pages/SpendTracker';
+import OpenAIPlugin from './plugins/openai/OpenAIPlugin';
+import PineconePlugin from './plugins/pinecone/PineconePlugin';
+import RevivePlugin from './plugins/revive/RevivePlugin';
+import AppAdapter from './adapters/AppAdapter';
+
+const appAdapter = new AppAdapter({
+  aiPlugin: new OpenAIPlugin(),
+  vectorDBPlugin: new PineconePlugin(),
+  adserverPlugin: new RevivePlugin(),
+});
 
 export default function App() {
-  const [view, setView] = useState('login'); // 'login' | 'request' | 'dashboard' | 'settings'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [requestEmail, setRequestEmail] = useState('');
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
+  const [view, setView] = useState('dashboard');
+  const [user, setUser] = useState(null);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [chatValue, setChatValue] = useState('');
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [navigationContext, setNavigationContext] = useState(null);
+  const [meetingsRefreshTrigger, setMeetingsRefreshTrigger] = useState(0);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    try {
-      const res = await fetch('http://localhost:5001/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setIsAdmin(data.is_admin);
-        setView('dashboard');
-      } else {
-        setMessage(data.error || 'Login failed');
-      }
-    } catch {
-      setMessage('Error logging in');
-    }
+  // Handle login success from AuthenticationComponent
+  const handleLoginSuccess = (userObj) => {
+    setUser(userObj);
+    setView('dashboard'); // Go to dashboard/home after login
   };
 
-  const handleAccessRequest = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    try {
-      const res = await fetch('http://localhost:5001/request-access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: requestEmail }),
-      });
-      const data = await res.json();
-      setMessage(data.message || data.error);
-    } catch {
-      setMessage('Request failed');
-    }
+  // Logout
+  const handleLogout = () => {
+    setUser(null);
+    setView('login');
+    setSelectedClient(null);
+    setNavigationContext(null);
   };
 
-  const handleForgot = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    try {
-      const res = await fetch('http://localhost:5001/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail }),
-      });
-      const data = await res.json();
-      setMessage(data.message || data.error);
-      if (res.ok) {
-        setTimeout(() => {
-          setShowForgot(false);
-          setForgotEmail('');
-          setMessage('');
-        }, 3000);
-      }
-    } catch {
-      setMessage('Error sending reset email');
+  // Navigation handlers
+  const handleNavigate = (to, context = null) => {
+    setView(to);
+    if (to === 'dashboard' || to === 'clients' || to === 'projects' || to === 'spend-tracker' || to === 'settings' || to === 'calendar' || to === 'content-calendar') {
+      setSelectedClient(null);
+      setSelectedProject(null);
     }
+    setNavigationContext(context);
   };
 
-  // render views
-  if (view === 'dashboard') {
+  if (user) {
+    const handleLogoClick = () => setView('dashboard');
     return (
-      <Dashboard
-        email={email}
-        isAdmin={isAdmin}
-        onNavigate={setView}
-      />
+      <div className="main-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <HeaderBar 
+          user={user} 
+          onLogout={handleLogout} 
+          onLogoClick={handleLogoClick} 
+          onNavigate={handleNavigate}
+        />
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          {view === 'ai-content' ? (
+            <AIContentGenerator 
+              user={user} 
+              client={selectedClient}
+              onBack={() => {
+                if (selectedClient && navigationContext?.calendarCard) {
+                  setView('clients');
+                  setNavigationContext({ openCalendar: true, calendarCard: navigationContext.calendarCard });
+                } else if (selectedClient) {
+                  setView('clients');
+                } else {
+                  handleNavigate('dashboard');
+                }
+              }} 
+            />
+          ) : selectedClient ? (
+            <ClientDetailPage 
+              client={selectedClient} 
+              user={user} 
+              onBack={() => setSelectedClient(null)} 
+              onNavigate={handleNavigate}
+              navigationContext={navigationContext}
+            />
+          ) : selectedProject ? (
+            <ProjectDetailPage 
+              project={selectedProject} 
+              user={user} 
+              onBack={() => setSelectedProject(null)} 
+              onNavigate={handleNavigate}
+            />
+          ) : view === 'clients' ? (
+            <ClientsPage user={user} onClientSelect={setSelectedClient} />
+          ) : view === 'projects' ? (
+            <ProjectsPage user={user} onNavigateToProject={setSelectedProject} />
+          ) : view === 'spend-tracker' ? (
+            <SpendTracker />
+          ) : view === 'dashboard' ? (
+            <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />
+          ) : view === 'calendar' ? (
+            <div style={{ position: 'relative', minHeight: '100vh' }}>
+              <MeetingsCalendar currentUser={user} refreshTrigger={meetingsRefreshTrigger} />
+              <button
+                className="open-scheduler-btn"
+                style={{
+                  position: 'fixed',
+                  bottom: 36,
+                  right: 36,
+                  background: '#FFD600',
+                  color: '#181818',
+                  border: 'none',
+                  borderRadius: 50,
+                  width: 64,
+                  height: 64,
+                  fontSize: 32,
+                  fontWeight: 900,
+                  boxShadow: '0 4px 24px #FFD60055',
+                  cursor: 'pointer',
+                  zIndex: 1001
+                }}
+                onClick={() => setShowScheduler(true)}
+                title="Schedule a Meeting"
+              >+
+              </button>
+              {showScheduler && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  background: 'transparent',
+                  zIndex: 1002,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{ position: 'relative', zIndex: 1003 }}>
+                    <OutlookCalendar 
+                      currentUser={user} 
+                      onSendChatMessage={async ({ to, from, message }) => {
+                        await sendAutomatedDM({ fromUser: from, toUser: to, message });
+                      }}
+                      onMeetingCreated={() => {
+                        setMeetingsRefreshTrigger(prev => prev + 1);
+                      }}
+                    />
+                    <button
+                      onClick={() => setShowScheduler(false)}
+                      style={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        background: '#FFD600',
+                        color: '#181818',
+                        border: 'none',
+                        borderRadius: 20,
+                        fontWeight: 900,
+                        fontSize: 22,
+                        padding: '2px 16px',
+                        cursor: 'pointer',
+                        zIndex: 1004
+                      }}
+                    >×</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : view === 'content-calendar' ? (
+            <ContentCalendarPage user={user} onNavigate={handleNavigate} />
+          ) : view === 'settings' && user.is_admin ? (
+            <Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />
+          ) : view === 'chat' ? (
+            <ChatPage user={user} />
+          ) : view === 'weeklyStandup' ? (
+            <WeeklyStandUpPlanner user={user} />
+          ) : view === 'standup' ? (
+            <StandUpPage user={user} />
+          ) : view === 'insights' ? (
+            <SocialMediaInsightsDashboard user={user} />
+          ) : null}
+        </div>
+      </div>
     );
   }
 
-  if (view === 'settings') {
-    return <Settings onNavigate={setView} />;
-  }
-
-  // login / request access / forgot password
+  // login and set-password
   return (
-    <div className="login-page">
-      <div className="login-layout">
-        <div className="login-left">
-          <h1>Social Media Hub</h1>
-          <p>Manage all your social media platforms in one powerful dashboard.</p>
-          <ul>
-            <li><i className="fas fa-check-circle"></i> Multi-platform integration</li>
-            <li><i className="fas fa-robot"></i> AI-powered responses</li>
-            <li><i className="fas fa-chart-line"></i> Real-time analytics</li>
-            <li><i className="fas fa-users"></i> Team collaboration</li>
-          </ul>
+    <Routes>
+      <Route path="/set-password" element={<SetPasswordPage />} />
+      <Route path="*" element={
+        <div className="login-page">
+          <AuthenticationComponent onLoginSuccess={handleLoginSuccess} />
         </div>
-        <div className="login-right">
-          {view === 'login' ? (
-            <>
-              <h2 className="login-form-title">Welcome Back</h2>
-              <p className="login-form-subtext">Sign in to your account to continue</p>
-              <form onSubmit={handleLogin}>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="login-input"
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="login-input"
-                />
-                <button type="submit" className="login-button">Sign In</button>
-              </form>
-              {message && (
-                <p className={`login-message ${message.includes('successful') ? 'success' : 'error'}`}>
-                  {message}
-                </p>
-              )}
-              <div className="login-footer">
-                <button
-                  className="login-footer-button"
-                  onClick={() => setShowForgot(true)}
-                >
-                  Forgot your password?
-                </button>
-                <span> | </span>
-                <button
-                  className="login-footer-button"
-                  onClick={() => setView('request')}
-                >
-                  Request Access
-                </button>
-              </div>
-            </>
-          ) : view === 'request' ? (
-            <>
-              <h2 className="login-form-title">Request Access</h2>
-              <p className="login-form-subtext">Enter your email and we'll notify the admin</p>
-              <form onSubmit={handleAccessRequest}>
-                <input
-                  type="email"
-                  placeholder="Your Email"
-                  value={requestEmail}
-                  onChange={(e) => setRequestEmail(e.target.value)}
-                  required
-                  className="login-input"
-                />
-                <button type="submit" className="login-button">Request Access</button>
-              </form>
-              {message && (
-                <p className={`login-message ${message.includes('success') ? 'success' : 'error'}`}>
-                  {message}
-                </p>
-              )}
-              <div className="login-footer">
-                <button
-                  className="login-footer-button"
-                  onClick={() => setView('login')}
-                >
-                  Already have an account? Login here
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {showForgot && (
-            <div className="modal-overlay active">
-              <div className="modal">
-                <div className="modal-header">
-                  <h2>Reset Password</h2>
-                  <button
-                    className="action-btn"
-                    onClick={() => setShowForgot(false)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="modal-content">
-                  <p>Enter your email to receive reset instructions.</p>
-                  <form onSubmit={handleForgot}>
-                    <input
-                      type="email"
-                      placeholder="Email address"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      required
-                      className="login-input"
-                    />
-                    {message && (
-                      <p
-                        className={`login-message ${message.includes('sent') ? 'success' : 'error'}`}
-                        style={{ textAlign: 'center', marginBottom: '1rem' }}
-                      >
-                        {message}
-                      </p>
-                    )}
-                    <div className="modal-footer">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setShowForgot(false)}
-                      >
-                        Cancel
-                      </button>
-                      <button type="submit" className="btn btn-primary">
-                        Send Reset Link
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      } />
+    </Routes>
   );
 }
+
+// Move any reusable business logic to core/businessLogic.js for architecture consistency.

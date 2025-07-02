@@ -42,3 +42,5 @@ def initialize_pinecone():
     except Exception as e:
         logger.error(f"Error initializing Pinecone: {str(e)}")
         raise
+
+# Pinecone setup logic has been moved to plugins/pinecone/pinecone_plugin.py for plugin-based architecture.

@@ -1,188 +1,180 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './styles.css';
+import MeetingsCalendar from './MeetingsCalendar';
 
-export default function Dashboard({ email, isAdmin, onNavigate }) {
+const MODULES = [
+  { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
+  { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
+  { id: 'clients', title: 'Clients', icon: '👥' },
+  { id: 'newsFeed', title: 'News Feed', icon: '📰' },
+  { id: 'notes', title: 'Notes', icon: '📝' },
+  { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
+  { id: 'chat', title: 'Chat', icon: '💬' },
+  { id: 'calendar', title: 'Calendar', icon: '📆' }, // Renamed
+];
+
+export default function Dashboard({ user, onNavigate, onLogout }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pinned, setPinned] = useState([]);
+  const [ideaInput, setIdeaInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const moduleId = e.dataTransfer.getData('module');
+    if (moduleId && !pinned.includes(moduleId)) {
+      setPinned((prev) => [...prev, moduleId]);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleIdeaSubmit = () => {
+    if (ideaInput.trim()) {
+      alert(`Idea submitted: ${ideaInput}. AI is processing... (Feature coming soon!)`);
+      setIdeaInput('');
+    }
+  };
+
+  const handleModuleClick = (id) => {
+    if (id === 'calendar') {
+      // Switch to the calendar view in App.js
+      if (typeof onNavigate === 'function') onNavigate('calendar');
+    } else if (id === 'weeklyStandup') {
+      if (typeof onNavigate === 'function') onNavigate('weeklyStandup');
+    } else {
+      onNavigate(id);
+    }
+  };
+
+  const handleQuickLaunch = (id) => {
+    alert(`Quick launching ${MODULES.find((m) => m.id === id)?.title}... (Feature coming soon!)`);
+  };
+
   return (
-    <div className="portal-layout fade-in">
-      <aside className="sidebar active">
-        <div className="sidebar-header">
-          <div className="studio-logo">
-            <div className="logo-icon">
-              <i className="fas fa-video"></i>
-            </div>
-            <div className="studio-name">Creative Studio</div>
-          </div>
-          <div className="client-badge">
-            <div className="client-avatar">AC</div>
-            <div className="client-info">
-              <h4>Acme Corporation</h4>
-              <p>Q1 Brand Campaign</p>
-            </div>
-          </div>
-        </div>
-        
-        <nav className="sidebar-nav">
-          <div className="nav-section">
-            <div className="nav-section-title">Overview</div>
-            <button className="nav-item active">
-              <i className="fas fa-chart-bar"></i> 
-              Dashboard
+    <div className="dashboard-page-new" style={{ height: '100vh', overflow: 'hidden', background: '#111' }}>
+      <main className="dashboard-main" style={{ height: '100vh' }}>
+        <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`} style={{ minHeight: '92vh', background: '#181818', borderRight: '2px solid #FFD600', boxShadow: sidebarOpen ? '4px 0 24px #FFD60022' : 'none', transition: 'all 0.22s cubic-bezier(.4,1.4,.6,1)' }}>
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)}
+            style={{
+              background: 'transparent',
+              color: '#FFD600',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 700,
+              fontSize: 18,
+              margin: '18px 0',
+              padding: '8px 18px',
+              boxShadow: 'none',
+              transition: 'background 0.2s, color 0.2s',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#232323'}
+            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+          >
+            {sidebarOpen ? '←' : '☰'}
+          </button>
+          {sidebarOpen && (
+            <>
+              <div className="sidebar-search-modern" style={{ background: 'transparent', borderRadius: 12, padding: '10px 16px', margin: '0 0 18px 0', display: 'flex', alignItems: 'center', boxShadow: 'none' }}>
+                <input
+                  type="text"
+                  placeholder="Search modules..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="modern-search-input"
+                  style={{ background: '#181818', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 8, fontWeight: 500, fontSize: 15, padding: '8px 12px', flex: 1 }}
+                />
+                <span className="search-icon" style={{ color: '#FFD600', fontSize: 20, marginLeft: 8 }}>🔍</span>
+              </div>
+              <div className="sidebar-menu" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                {MODULES.filter((m) => m.title.toLowerCase().includes(search.toLowerCase())).map((m) => (
+                  <button
+                    key={m.id}
+                    className="menu-item"
+                    onClick={() => handleModuleClick(m.id)}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('module', m.id)}
+                    style={{ background: '#232428', color: '#FFD600', border: '2px solid #FFD600', borderRadius: 10, fontWeight: 700, fontSize: 16, marginBottom: 12, padding: '12px 18px', boxShadow: '0 2px 8px #FFD60022', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.18s, color 0.18s, transform 0.18s', justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
+                  >
+                    <span className="menu-icon" style={{ fontSize: 22 }}>{m.icon}</span>
+                    {m.title}
+                  </button>
+                ))}
+                {/* Only show Settings menu item for admin users */}
+                {user.is_admin && (
+                  <button
+                    className="menu-item settings-menu-item"
+                    onClick={() => handleModuleClick('settings')}
+                    draggable={false}
+                    style={{ cursor: 'pointer', background: '#FFD600', color: '#181818', fontWeight: 900, border: '2px solid #FFD600', borderRadius: 10, fontSize: 16, marginBottom: 12, padding: '12px 18px', boxShadow: '0 2px 8px #FFD60044', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.18s, color 0.18s, transform 0.18s', justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
+                  >
+                    <span className="menu-icon" style={{ fontSize: 22 }}>⚙️</span>
+                    Settings
+                  </button>
+                )}
+              </div>
+              {/* Remove Weekly Meetings Calendar from sidebar */}
+              {/* <div style={{ marginTop: 24, width: '100%', maxWidth: 260 }}>
+                <MeetingsCalendar currentUser={user} sidebarMode />
+              </div> */}
+            </>
+          )}
+        </aside>
+        <div className="main-content" style={{ background: 'none', minHeight: '100vh', padding: 0 }}>
+          <div className="hatch-idea-card" style={{ background: '#181818', color: '#FFD600', border: '2px solid #FFD600', borderRadius: 18, boxShadow: '0 2px 16px #FFD60022', marginBottom: 32 }}>
+            <span className="idea-icon">💡</span>
+            <h2 style={{ color: '#FFD600' }}>Hatch an idea</h2>
+            <input
+              type="text"
+              placeholder="What’s on your mind?"
+              value={ideaInput}
+              onChange={(e) => setIdeaInput(e.target.value)}
+              className="login-input idea-input"
+              style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10 }}
+            />
+            <button
+              className="login-button idea-submit"
+              onClick={handleIdeaSubmit}
+              disabled={!ideaInput.trim()}
+              style={{ background: '#FFD600', color: '#111', borderRadius: 10, fontWeight: 700, marginTop: 12 }}
+            >
+              Submit Idea
             </button>
-            <button className="nav-item">
-              <i className="fas fa-tasks"></i> 
-              My Projects
-              <span className="nav-badge">8</span>
-            </button>
-            <button className="nav-item">
-              <i className="fas fa-folder"></i> 
-              Assets
-            </button>
-            <button className="nav-item">
-              <i className="fas fa-calendar"></i> 
-              Schedule
-            </button>
           </div>
-          
-          <div className="nav-section">
-            <div className="nav-section-title">Management</div>
-            <button className="nav-item">
-              <i className="fas fa-users"></i> 
-              Team
-            </button>
-            <button className="nav-item">
-              <i className="fas fa-chart-line"></i> 
-              Analytics
-            </button>
-            {isAdmin && (
-              <button
-                className="nav-item"
-                onClick={() => onNavigate('settings')}
-              >
-                <i className="fas fa-cog"></i> 
-                Settings
-              </button>
-            )}
-          </div>
-        </nav>
-      </aside>
-
-      <main className="main-content">
-        <header className="content-header">
-          <div className="page-title">
-            <h1>Dashboard</h1>
-            <div className="breadcrumb">Home / Dashboard</div>
-          </div>
-        </header>
-        
-        <div className="content-body">
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-header">
-                <div className="stat-title">
-                  <i className="fas fa-project-diagram"></i>
-                  Active Projects
-                </div>
-              </div>
-              <div className="stat-value">8</div>
-              <div className="stat-change positive">
-                <i className="fas fa-arrow-up"></i>
-                +2 this month
-              </div>
+          <div className="quick-launch-card" onDrop={handleDrop} onDragOver={handleDragOver} style={{ background: '#181818', color: '#FFD600', border: '2px solid #FFD600', borderRadius: 20, boxShadow: '0 2px 16px #FFD60022' }}>
+            <h3 style={{ color: '#FFD600' }}>Quick Launch</h3>
+            <div className="pinned-modules">
+              {pinned.length === 0 ? (
+                <span className="no-modules">Drag modules here to launch.</span>
+              ) : (
+                pinned.map((id) => {
+                  const m = MODULES.find((x) => x.id === id);
+                  return m ? (
+                    <div key={id} className="pinned-module">
+                      <span className="module-icon">{m.icon}</span>
+                      <span className="module-title">{m.title}</span>
+                      <button
+                        className="quick-launch-btn"
+                        onClick={() => handleQuickLaunch(m.id)}
+                      >
+                        Quick Launch
+                      </button>
+                      <button
+                        className="unpin-btn"
+                        onClick={() => setPinned(pinned.filter((x) => x !== id))}
+                        title="Remove from Quick Launch"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : null;
+                })
+              )}
             </div>
-            
-            <div className="stat-card">
-              <div className="stat-header">
-                <div className="stat-title">
-                  <i className="fas fa-check-circle"></i>
-                  Completed Tasks
-                </div>
-              </div>
-              <div className="stat-value">24</div>
-              <div className="stat-change positive">
-                <i className="fas fa-arrow-up"></i>
-                +12 this week
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-header">
-                <div className="stat-title">
-                  <i className="fas fa-clock"></i>
-                  Hours Logged
-                </div>
-              </div>
-              <div className="stat-value">156</div>
-              <div className="stat-change positive">
-                <i className="fas fa-arrow-up"></i>
-                +8% this month
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-header">
-                <div className="stat-title">
-                  <i className="fas fa-users"></i>
-                  Team Members
-                </div>
-              </div>
-              <div className="stat-value">12</div>
-              <div className="stat-change">
-                <i className="fas fa-minus"></i>
-                No change
-              </div>
-            </div>
-          </div>
-          
-          <div className="recent-activity" style={{
-            background: 'var(--glass-bg)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '16px',
-            padding: '2rem',
-            marginBottom: '2rem'
-          }}>
-            <h3 style={{ 
-              marginBottom: '1.5rem', 
-              color: 'var(--text-primary)',
-              fontSize: '1.25rem',
-              fontWeight: '600'
-            }}>
-              Recent Activity
-            </h3>
-            <div style={{ color: 'var(--text-secondary)' }}>
-              <p style={{ marginBottom: '1rem' }}>
-                <i className="fas fa-plus-circle" style={{ color: 'var(--success-color)', marginRight: '0.5rem' }}></i>
-                New project "Summer Campaign" created
-              </p>
-              <p style={{ marginBottom: '1rem' }}>
-                <i className="fas fa-check-circle" style={{ color: 'var(--success-color)', marginRight: '0.5rem' }}></i>
-                Task "Logo Design" completed
-              </p>
-              <p style={{ marginBottom: '1rem' }}>
-                <i className="fas fa-user-plus" style={{ color: 'var(--accent-color)', marginRight: '0.5rem' }}></i>
-                New team member added
-              </p>
-              <p>
-                <i className="fas fa-file-upload" style={{ color: 'var(--warning-color)', marginRight: '0.5rem' }}></i>
-                Assets uploaded to project folder
-              </p>
-            </div>
-          </div>
-          
-          <div className="logged-in-as">
-            Logged in as <strong style={{ color: 'var(--accent-color)' }}>{email}</strong>
-            {isAdmin && (
-              <span style={{ 
-                marginLeft: '1rem',
-                padding: '0.25rem 0.5rem',
-                background: 'var(--accent-secondary)',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: '600'
-              }}>
-                ADMIN
-              </span>
-            )}
           </div>
         </div>
       </main>

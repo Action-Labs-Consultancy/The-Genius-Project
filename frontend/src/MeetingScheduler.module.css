@@ -1,0 +1,139 @@
+.meetingSchedulerWrapper {
+  min-height: 100vh;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.meetingSchedulerTitle {
+  color: #fff;
+  font-weight: 800;
+  font-size: 2.2rem;
+  margin-bottom: 2.5rem;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.meetingSchedulerBox {
+  background: #181818;
+  color: #181818;
+  border-radius: 18px;
+  padding: 2.2rem 1.5rem 1.5rem 1.5rem;
+  max-width: 420px;
+  width: 98vw;
+  margin: 0 auto;
+  box-shadow: 0 8px 32px #FFD60033;
+  border: 2px solid #FFD600;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #181818;
+}
+
+.input,
+.selectUserBtn {
+  background: #FFD600;
+  color: #181818;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  padding: 10px;
+  width: 100%;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  transition: box-shadow 0.2s;
+}
+.input:focus {
+  outline: 2px solid #FFD600;
+  box-shadow: 0 0 0 2px #FFD60055;
+}
+
+.selectUserBtn {
+  width: auto;
+  padding: 8px 18px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  border: 2px solid #FFD600;
+  font-weight: 700;
+  transition: background 0.18s, color 0.18s;
+}
+.selectUserBtn.selected {
+  background: #181818;
+  color: #FFD600;
+}
+
+.actionBtn {
+  background: #FFD600;
+  color: #181818;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 10px 28px;
+  margin-top: 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #FFD60033;
+  transition: background 0.2s, color 0.2s;
+}
+.actionBtn:disabled {
+  background: #ffe066;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.successMsg {
+  margin-top: 22px;
+  color: #00e676;
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.errorMsg {
+  margin-top: 18px;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalBox {
+  background: #FFD600;
+  color: #181818;
+  border-radius: 14px;
+  padding: 2rem 2.5rem;
+  min-width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 24px #FFD60099;
+}
+
+.closeBtn {
+  background: #181818;
+  color: #FFD600;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 8px 18px;
+  margin-top: 10px;
+  cursor: pointer;
+}

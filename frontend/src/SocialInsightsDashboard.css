@@ -1,0 +1,157 @@
+/* SocialInsightsDashboard.css */
+
+/* Override any global styles that might affect our dashboard */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+/* Animation for loading */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-pulse {
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* Hover effects */
+.platform-button:hover {
+  transform: translateY(-2px);
+}
+
+.post-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(255, 214, 0, 0.3);
+}
+
+/* Accessibility focus styles */
+button:focus-visible,
+[role="button"]:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid #FFD600;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(255, 214, 0, 0.5);
+}
+
+/* Dropdown styling */
+select:focus {
+  outline: 3px solid #FFD600;
+  outline-offset: 2px;
+}
+
+/* Chart elements */
+.chart-bar:hover {
+  filter: brightness(1.2);
+}
+
+.chart-tooltip {
+  background-color: rgba(30, 30, 30, 0.9);
+  border: 1px solid #FFD600;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .platform-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .date-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .kpi-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .advanced-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FFD600;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e6c200;
+}
+
+/* Make the modal more accessible */
+.modal-content:focus {
+  outline: none;
+}
+
+/* Transitions for modal */
+.modal-overlay {
+  transition: background-color 0.2s ease;
+}
+
+.modal {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  animation: modalFadeIn 0.3s forwards;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Improved chart accessibility */
+.chart-container {
+  position: relative;
+}
+
+.chart-container[aria-busy="true"]::before {
+  content: "Loading chart data...";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #FFD600;
+}

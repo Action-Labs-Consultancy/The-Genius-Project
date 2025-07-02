@@ -1,9 +1,3 @@
-from flask_sqlalchemy import SQLAlchemy
+# All model classes have been moved to core/models.py for architecture consistency.
 
-db = SQLAlchemy()
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+from core.models import *

@@ -1,0 +1,1 @@
+ALTER TABLE access_request ADD COLUMN email VARCHAR(120) NOT NULL DEFAULT '';

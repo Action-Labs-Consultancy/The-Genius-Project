@@ -49,3 +49,5 @@ def query_pinecone(question):
     # Run query
     result = qa_chain.run(question)
     return result
+
+# Pinecone utility logic has been moved to plugins/pinecone/pinecone_plugin.py for plugin-based architecture.
