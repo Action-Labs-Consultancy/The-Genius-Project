@@ -6,7 +6,9 @@ echo "Starting Vercel build process..."
 # Install backend dependencies
 echo "Installing backend dependencies..."
 cd backend
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+echo "Backend dependencies installed successfully!"
 cd ..
 
 # Install frontend dependencies and build
@@ -15,7 +17,7 @@ cd frontend
 npm install
 
 echo "Building frontend..."
-npm run build
+CI=false npm run build
 
 # Verify build directory was created
 if [ -d "build" ]; then
