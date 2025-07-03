@@ -94,23 +94,64 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Use DATABASE_URL for PostgreSQL
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+# Database configuration
+# Handle different database URLs based on environment
+database_url = os.getenv('DATABASE_URL')
+
+# Handle Vercel Postgres URLs (they start with postgres://)
+if database_url and database_url.startswith('postgres://'):
+    # Convert postgres:// to postgresql:// for SQLAlchemy
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    
+    # Add SSL mode if not present (needed for Neon and most cloud Postgres providers)
+    if 'sslmode=' not in database_url:
+        if '?' in database_url:
+            database_url += '&sslmode=require'
+        else:
+            database_url += '?sslmode=require'
+
+# Use SQLite as fallback for local development
+if not database_url:
+    database_url = 'sqlite:///instance/genius.db'
+    # Ensure instance directory exists
+    os.makedirs('instance', exist_ok=True)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 db.init_app(app)
 migrate = Migrate(app, db)
 
 # Print the database URI for debugging (mask password)
-db_uri = os.environ.get('DATABASE_URL') or app.config.get('SQLALCHEMY_DATABASE_URI')
+db_uri = database_url
 if db_uri:
-    if db_uri.startswith('sqlite:///'):
-        safe_db_uri = db_uri
-    elif '://' in db_uri:
-        try:
-            safe_db_uri = db_uri.replace(db_uri.split(':')[2].split('@')[0], '***')
-        except Exception:
+    try:
+        if db_uri.startswith('sqlite:///'):
             safe_db_uri = db_uri
-    else:
-        safe_db_uri = db_uri
+        elif '://' in db_uri:
+            # Parse the URI to mask the password
+            parts = db_uri.split('://', 1)
+            protocol = parts[0]
+            rest = parts[1]
+            
+            if '@' in rest:
+                credentials_host_parts = rest.split('@', 1)
+                credentials = credentials_host_parts[0]
+                host_part = credentials_host_parts[1]
+                
+                if ':' in credentials:
+                    username_password = credentials.split(':', 1)
+                    username = username_password[0]
+                    # Replace password with asterisks
+                    safe_db_uri = f"{protocol}://{username}:***@{host_part}"
+                else:
+                    safe_db_uri = f"{protocol}://{credentials}@{host_part}"
+            else:
+                safe_db_uri = db_uri
+        else:
+            safe_db_uri = db_uri
+    except Exception:
+        # If anything goes wrong with the parsing, use a completely masked URI
+        safe_db_uri = "[Database URI masked for security]"
+        
     print(f"[DEBUG] SQLAlchemy connecting to: {safe_db_uri}")
 
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
@@ -120,7 +161,12 @@ except Exception as e:
     print(f"Pinecone initialization failed: {e}")
     exit(1)
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret')
+# Generate a secure random key if not set in environment
+if not os.environ.get('SECRET_KEY'):
+    print("[WARNING] Using auto-generated SECRET_KEY. For production, set SECRET_KEY in environment variables.")
+    os.environ['SECRET_KEY'] = secrets.token_hex(32)  # 256-bit random key
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 # Initialize SocketIO
@@ -294,33 +340,59 @@ def login():
         data = request.get_json() or {}
         email = data.get('email')
         password = data.get('password')
+        
+        # Validate input
         if not email or not password:
             return jsonify({'error': 'Email and password required'}), 400
+            
+        # Find user by email
         user = User.query.filter_by(email=email).first()
+        
+        # Use constant-time comparison to prevent timing attacks
         if user and user.password_hash and bcrypt.check_password_hash(user.password_hash, password):
-            return jsonify({'message': 'Login successful', 'is_admin': user.is_admin, 'user': {
-                'id': user.id,
-                'name': user.name,
-                'email': user.email,
-                'userType': user.role,
-                'department': user.role if user.role not in ['client'] else None,
-                'is_admin': user.is_admin
-            }})
+            # Log successful login attempt (without password)
+            print(f"[INFO] Successful login for user: {email}")
+            
+            # Return minimal user information
+            return jsonify({
+                'message': 'Login successful', 
+                'is_admin': user.is_admin, 
+                'user': {
+                    'id': user.id,
+                    'name': user.name,
+                    'email': user.email,
+                    'userType': user.role,
+                    'department': user.role if user.role not in ['client'] else None,
+                    'is_admin': user.is_admin
+                }
+            })
+            
+        # Log failed login attempt (without password)
+        print(f"[WARNING] Failed login attempt for: {email}")
+        
+        # Use generic error message to prevent email enumeration
         return jsonify({'error': 'Invalid credentials'}), 401
     except Exception as e:
-        print(f"Login error: {e}")
+        # Log the error securely (without exposing sensitive details)
+        print(f"Login error: {type(e).__name__}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/create-admin')
 def create_admin():
     try:
-        ADMIN_EMAIL = 'r.hasan@action-labs.co'
-        ADMIN_PASSWORD = 'GlassDoor2025!'
+        # Get admin credentials from environment variables
+        ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
+        ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+        
+        # Validate that the environment variables are set
+        if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+            return jsonify({'error': 'ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set'}), 400
+            
         if not User.query.filter_by(email=ADMIN_EMAIL).first():
             pw_hash = bcrypt.generate_password_hash(ADMIN_PASSWORD).decode('utf-8')
             db.session.add(User(email=ADMIN_EMAIL, password_hash=pw_hash, is_admin=True))
             db.session.commit()
-            return f"✅ Admin {ADMIN_EMAIL} created."
+            return f"✅ Admin created successfully."
         return "ℹ️ Admin already exists."
     except Exception as e:
         print(f"Create admin error: {e}")

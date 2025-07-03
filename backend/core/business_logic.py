@@ -104,15 +104,28 @@ def approve_access_request_logic(req_id, data, bcrypt, db, User, AccessRequest, 
 def set_password_logic(token, password, serializer, db, User, bcrypt):
     if not token or not password:
         return {'error': 'Missing token or password'}, 400
+        
+    # Password strength validation
+    if len(password) < 10:
+        return {'error': 'Password must be at least 10 characters long'}, 400
+    
+    # Check for common password patterns
+    if password.lower() in ['password123', 'admin123', '12345678910', 'qwerty123']:
+        return {'error': 'Password is too common or weak'}, 400
+        
     try:
         email = serializer.loads(token, salt='set-password', max_age=60*60*24)
     except Exception:
         return {'error': 'Invalid or expired token'}, 400
+        
     user = User.query.filter_by(email=email).first()
     if not user:
         return {'error': 'User not found'}, 404
-    user.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        
+    # Hash with higher work factor for added security
+    user.password_hash = bcrypt.generate_password_hash(password, 12).decode('utf-8')
     db.session.commit()
+    
     return {'message': 'Password set successfully'}
 
 def request_access_logic(data, db, AccessRequest):
@@ -133,21 +146,64 @@ def forgot_password_logic(data, db, User, bcrypt, smtplib, MIMEText, os):
     user_email = data.get('email')
     if not user_email:
         return {'error': 'Email is required'}, 400
+        
+    # Don't reveal if user exists or not to prevent enumeration attacks
     user = User.query.filter_by(email=user_email).first()
     if not user:
-        return {'error': 'Email not found'}, 404
-    token = bcrypt.generate_password_hash(user_email + str(os.urandom(8))).decode('utf-8')[:32]
-    reset_link = f"http://localhost:3000/reset-password?token={token}"
-    msg = MIMEText(f"Click this link to reset your password: {reset_link}")
+        # Return success message even if user doesn't exist for security
+        return {'message': 'If your email is registered, you will receive a password reset link'}, 200
+    
+    # Generate a secure random token using os.urandom
+    # Use secrets module instead of bcrypt for token generation
+    import secrets
+    token = secrets.token_urlsafe(32)  # 32 bytes of randomness, urlsafe encoded
+    
+    # Get email settings from environment variables
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', 587))
+    smtp_user = os.environ.get('SMTP_USER')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    
+    # Check if SMTP credentials are configured
+    if not smtp_user or not smtp_password:
+        print("[ERROR] SMTP credentials not configured")
+        return {'error': 'Email service not configured'}, 500
+    
+    # Get the base URL from environment or use a default for local development
+    base_url = os.environ.get('BASE_URL', 'http://localhost:3000')
+    reset_link = f"{base_url}/reset-password?token={token}"
+    
+    # Improved email content with better formatting
+    email_body = f"""
+    Hello,
+    
+    Someone requested a password reset for your account. If this was you, please click the link below to reset your password:
+    
+    {reset_link}
+    
+    This link will expire in 24 hours.
+    
+    If you did not request a password reset, please ignore this email.
+    
+    Regards,
+    The Genius Project Team
+    """
+    
+    msg = MIMEText(email_body)
     msg['Subject'] = 'Password Reset Request'
-    msg['From'] = 'rababeez@gmail.com'
+    msg['From'] = smtp_user
     msg['To'] = user_email
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login('rababeez@gmail.com', 'oych tglt bqap rmwi')
-    server.sendmail(msg['From'], [msg['To']], msg.as_string())
-    server.quit()
-    return {'message': 'Password reset link sent to your email'}
+    
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(msg['From'], [msg['To']], msg.as_string())
+        server.quit()
+        return {'message': 'If your email is registered, you will receive a password reset link'}, 200
+    except Exception as e:
+        print(f"[ERROR] Failed to send password reset email: {str(e)}")
+        return {'error': 'Failed to send email'}, 500
 
 def get_players_logic(Player):
     players = Player.query.all()

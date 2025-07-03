@@ -1,14 +1,41 @@
 import mysql.connector
 import os
+from functools import wraps
+import logging
+
+# Set up logging
+logger = logging.getLogger('revive_plugin')
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+def get_db_connection():
+    """Centralized database connection function with error handling"""
+    # Check if required environment variables are set
+    required_vars = ['REVIVE_DB_HOST', 'REVIVE_DB_USER', 'REVIVE_DB_PASSWORD', 'REVIVE_DB_NAME']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        
+    try:
+        conn = mysql.connector.connect(
+            host=os.environ.get('REVIVE_DB_HOST'),
+            user=os.environ.get('REVIVE_DB_USER'),
+            password=os.environ.get('REVIVE_DB_PASSWORD'),
+            database=os.environ.get('REVIVE_DB_NAME')
+        )
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        raise
 
 def get_revive_stats():
     try:
-        conn = mysql.connector.connect(
-            host=os.environ.get('REVIVE_DB_HOST', 'localhost'),
-            user=os.environ.get('REVIVE_DB_USER', 'reviveuser'),
-            password=os.environ.get('REVIVE_DB_PASSWORD', 'yourpassword'),
-            database=os.environ.get('REVIVE_DB_NAME', 'revive')
-        )
+        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute('''
             SELECT 
@@ -28,17 +55,12 @@ def get_revive_stats():
         conn.close()
         return stats
     except Exception as e:
-        print(f"Error fetching Revive stats: {e}")
+        logger.error(f"Error fetching Revive stats: {str(e)}")
         return []
 
 def create_campaign(name, clientid, start_date, end_date):
     try:
-        conn = mysql.connector.connect(
-            host=os.environ.get('REVIVE_DB_HOST', 'localhost'),
-            user=os.environ.get('REVIVE_DB_USER', 'reviveuser'),
-            password=os.environ.get('REVIVE_DB_PASSWORD', 'yourpassword'),
-            database=os.environ.get('REVIVE_DB_NAME', 'revive')
-        )
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO rv_campaigns (clientid, campaignname, views, clicks, status, activate_time, expire_time)
@@ -50,23 +72,22 @@ def create_campaign(name, clientid, start_date, end_date):
         conn.close()
         return campaign_id
     except Exception as e:
-        print(f"Error creating campaign: {e}")
+        logger.error(f"Error creating campaign: {str(e)}")
         raise
 
 def create_banner(campaignid, image_url, width, height, alt_text):
-    conn = mysql.connector.connect(
-        host=os.environ.get('REVIVE_DB_HOST', 'localhost'),
-        user=os.environ.get('REVIVE_DB_USER', 'reviveuser'),
-        password=os.environ.get('REVIVE_DB_PASSWORD', 'yourpassword'),
-        database=os.environ.get('REVIVE_DB_NAME', 'revive')
-    )
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO rv_banners (campaignid, contenttype, width, height, alt, url)
-        VALUES (%s, 'web', %s, %s, %s, %s)
-    ''', (campaignid, width, height, alt_text, image_url))
-    conn.commit()
-    banner_id = cursor.lastrowid
-    cursor.close()
-    conn.close()
-    return banner_id
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO rv_banners (campaignid, contenttype, width, height, alt, url)
+            VALUES (%s, 'web', %s, %s, %s, %s)
+        ''', (campaignid, width, height, alt_text, image_url))
+        conn.commit()
+        banner_id = cursor.lastrowid
+        cursor.close()
+        conn.close()
+        return banner_id
+    except Exception as e:
+        logger.error(f"Error creating banner: {str(e)}")
+        raise
