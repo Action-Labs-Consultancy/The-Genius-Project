@@ -88,7 +88,9 @@ export default function AIContentGenerator({ user, client, onBack }) {
 	const [answers, setAnswers] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [existingClients, setExistingClients] = useState([]);
-	const [selectedExistingClient, setSelectedExistingClient] = useState(null);
+	// Commented out unused state variable
+	// const [selectedExistingClient, setSelectedExistingClient] = useState(null);
+	const [, setSelectedExistingClient] = useState(null); // Keep setter but mark variable as unused
 	const chatEndRef = useRef(null);
 
 	// Scroll to bottom on new message

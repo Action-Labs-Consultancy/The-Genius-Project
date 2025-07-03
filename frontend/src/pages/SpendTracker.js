@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const campaigns = ['Campaign A', 'Campaign B'];
-const platforms = ['TikTok', 'Meta'];
-const markets = ['KSA', 'Bahrain', 'UAE'];
+// Removed unused constants
+// const campaigns = ['Campaign A', 'Campaign B'];
+// const platforms = ['TikTok', 'Meta'];
+// const markets = ['KSA', 'Bahrain', 'UAE'];
 
 const calculatorTypes = [
   'Ad Performance KPIs',
@@ -99,6 +100,9 @@ export default function SpendTracker() {
         if (relatedValue && numValue > relatedNum) {
           errors.wakala = 'WAKALA cannot exceed onboards';
         }
+        break;
+      default:
+        // No validation for other fields
         break;
     }
     return errors;
