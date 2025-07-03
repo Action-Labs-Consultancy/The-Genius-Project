@@ -2,6 +2,118 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.198](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.197...v0.1.198) (2025-06-19)
+
+### [0.1.197](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.196...v0.1.197) (2025-06-19)
+
+### [0.1.196](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.195...v0.1.196) (2025-06-19)
+
+### [0.1.195](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.194...v0.1.195) (2025-06-19)
+
+### [0.1.194](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.193...v0.1.194) (2025-06-19)
+
+### [0.1.193](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.192...v0.1.193) (2025-06-19)
+
+### [0.1.192](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.191...v0.1.192) (2025-06-19)
+
+### [0.1.191](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.190...v0.1.191) (2025-06-19)
+
+### [0.1.190](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.189...v0.1.190) (2025-06-19)
+
+### [0.1.189](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.188...v0.1.189) (2025-06-19)
+
+### [0.1.188](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.187...v0.1.188) (2025-06-19)
+
+### [0.1.187](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.186...v0.1.187) (2025-06-19)
+
+### [0.1.186](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.185...v0.1.186) (2025-06-19)
+
+### [0.1.185](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.184...v0.1.185) (2025-06-19)
+
+### [0.1.184](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.183...v0.1.184) (2025-06-19)
+
+### [0.1.183](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.182...v0.1.183) (2025-06-19)
+
+### [0.1.182](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.181...v0.1.182) (2025-06-19)
+
+### [0.1.181](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.180...v0.1.181) (2025-06-19)
+
+### [0.1.180](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.179...v0.1.180) (2025-06-19)
+
+### [0.1.179](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.178...v0.1.179) (2025-06-19)
+
+### [0.1.178](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.177...v0.1.178) (2025-06-19)
+
+### [0.1.177](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.176...v0.1.177) (2025-06-19)
+
+### [0.1.176](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.175...v0.1.176) (2025-06-19)
+
+### [0.1.175](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.174...v0.1.175) (2025-06-19)
+
+### [0.1.174](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.173...v0.1.174) (2025-06-19)
+
+### [0.1.173](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.172...v0.1.173) (2025-06-19)
+
+### [0.1.172](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.171...v0.1.172) (2025-06-19)
+
+### [0.1.171](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.170...v0.1.171) (2025-06-19)
+
+### [0.1.170](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.169...v0.1.170) (2025-06-19)
+
+### [0.1.169](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.168...v0.1.169) (2025-06-19)
+
+### [0.1.168](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.167...v0.1.168) (2025-06-19)
+
+### [0.1.167](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.166...v0.1.167) (2025-06-19)
+
+### [0.1.166](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.165...v0.1.166) (2025-06-19)
+
+### [0.1.165](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.164...v0.1.165) (2025-06-19)
+
+### [0.1.164](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.163...v0.1.164) (2025-06-19)
+
+### [0.1.163](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.162...v0.1.163) (2025-06-19)
+
+### [0.1.162](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.161...v0.1.162) (2025-06-19)
+
+### [0.1.161](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.160...v0.1.161) (2025-06-19)
+
+### [0.1.160](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.159...v0.1.160) (2025-06-19)
+
+### [0.1.159](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.158...v0.1.159) (2025-06-19)
+
+### [0.1.158](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.157...v0.1.158) (2025-06-19)
+
+### [0.1.157](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.156...v0.1.157) (2025-06-19)
+
+### [0.1.156](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.155...v0.1.156) (2025-06-19)
+
+### [0.1.155](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.154...v0.1.155) (2025-06-19)
+
+### [0.1.154](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.153...v0.1.154) (2025-06-19)
+
+### [0.1.153](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.152...v0.1.153) (2025-06-19)
+
+### [0.1.152](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.151...v0.1.152) (2025-06-19)
+
+### [0.1.151](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.150...v0.1.151) (2025-06-19)
+
+### [0.1.150](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.149...v0.1.150) (2025-06-19)
+
+### [0.1.149](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.148...v0.1.149) (2025-06-19)
+
+### [0.1.148](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.147...v0.1.148) (2025-06-19)
+
+### [0.1.147](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.146...v0.1.147) (2025-06-19)
+
+### [0.1.146](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.145...v0.1.146) (2025-06-19)
+
+### [0.1.145](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.144...v0.1.145) (2025-06-19)
+
+### [0.1.144](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.143...v0.1.144) (2025-06-19)
+
+### [0.1.143](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.142...v0.1.143) (2025-06-19)
+
 ### [0.1.142](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.141...v0.1.142) (2025-06-19)
 
 ### [0.1.141](https://github.com/Action-Labs-Consultancy/The-Genius-Project/compare/v0.1.140...v0.1.141) (2025-06-19)
