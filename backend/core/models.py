@@ -97,7 +97,15 @@ class ChannelRead(db.Model):
 
 class Meeting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # ...fields...
+    title = db.Column(db.String(256), nullable=False)
+    reason = db.Column(db.Text)
+    date = db.Column(db.String(10), nullable=False)  # e.g. '2025-07-03'
+    start_time = db.Column(db.String(8), nullable=False)  # e.g. '09:00'
+    end_time = db.Column(db.String(8), nullable=False)    # e.g. '09:30'
+    organizer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    invitee_ids = db.Column(db.String(256))  # Comma-separated user IDs
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # ...add any other fields as needed...
 
 class StandupTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)

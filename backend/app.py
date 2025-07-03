@@ -1134,20 +1134,35 @@ def create_meeting():
             # Create or get DM channel between organizer and invitee
             member_ids = sorted([organizer_id, invitee_id])
             dm_name = f"{organizer_id}-{invitee_id}"  # Use same format as frontend
-            
             print(f"💬 DEBUG: Looking for DM channel with members {member_ids}")
-            
-            # Try to find existing DM channel
             existing_channel = None
-            channels = Channel.query.filter_by(is_dm=True).all()
+            channels = Channel.query.filter_by(is_dm=True, name=dm_name).all()
             for channel in channels:
                 channel_member_ids = sorted([m.user_id for m in channel.members])
                 if channel_member_ids == member_ids:
                     existing_channel = channel
                     break
+            if not existing_channel:
+                # Create DM channel if it doesn't exist
+                new_channel = Channel(name=dm_name, is_dm=True, created_by=organizer_id)
+                db.session.add(new_channel)
+                db.session.commit()
+                db.session.add(ChannelMember(channel_id=new_channel.id, user_id=organizer_id))
+                db.session.add(ChannelMember(channel_id=new_channel.id, user_id=invitee_id))
+                db.session.commit()
+                channel_id = new_channel.id
+            else:
+                channel_id = existing_channel.id
+            # Send meeting details as a message
+            meeting_msg = f"You have been invited to a meeting by {organizer_name} on {date} from {start_time} to {end_time}. Title: {title}. Reason: {reason or 'No reason provided.'}"
+            msg = Message(channel_id=channel_id, user_id=organizer_id, content=meeting_msg)
+            db.session.add(msg)
+            db.session.commit()
         except Exception as e:
             print(f"[Revive API] Error: {e}")
             return jsonify({'error': str(e)}), 500
+    # Always return a valid response at the end
+    return jsonify({'success': True, 'meeting_id': meeting.id}), 201
 
 @app.route('/api/revive/campaigns', methods=['POST'])
 def api_create_campaign():
