@@ -70,15 +70,26 @@ class AccessRequest(db.Model):
 
 class Channel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=True)
+    is_dm = db.Column(db.Boolean, default=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    members = db.relationship('ChannelMember', backref='channel', lazy='dynamic')
     # ...fields...
 
 class ChannelMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'), nullable=False)
     # ...fields...
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # ...fields...
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    parent_message_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # ...other fields as needed...
 
 class ChannelRead(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -90,7 +101,31 @@ class Meeting(db.Model):
 
 class StandupTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # ...fields...
+    user_id = db.Column(db.Integer, nullable=False)
+    client = db.Column(db.String(128))
+    day = db.Column(db.String(32))
+    start_time = db.Column(db.String(8))  # e.g. '09:00'
+    end_time = db.Column(db.String(8))    # e.g. '09:30'
+    task = db.Column(db.String(256))
+    status = db.Column(db.String(32), default='Not Started')
+    notes = db.Column(db.Text)
+    blocker = db.Column(db.Boolean, default=False)
+    color = db.Column(db.String(16), default='#FFD600')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'client': self.client,
+            'day': self.day,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'task': self.task,
+            'status': self.status,
+            'notes': self.notes,
+            'blocker': self.blocker,
+            'color': self.color
+        }
 
 class ClientAccess(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -112,6 +147,7 @@ class ContentCalendar(db.Model):
     approval_status = db.Column(db.String(32), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    files = db.relationship('ContentFile', backref='content', lazy='dynamic')
     # Add any other fields as needed...
 
 class ContentFile(db.Model):

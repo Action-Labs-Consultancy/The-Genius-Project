@@ -5,13 +5,14 @@ import confetti from 'canvas-confetti';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 const TIMES = Array.from({ length: 18 }, (_, i) => {
   const hour = 9 + Math.floor(i / 2);
-  const min = i % 2 === 0 ? '30' : '00';
+  const min = i % 2 === 0 ? '00' : '30';
   return `${String(hour).padStart(2, '0')}:${min}`;
 });
+const clampDayIdx = idx => Math.max(0, Math.min(idx, DAYS.length - 1));
 
 function getTodayIdx() {
   const d = new Date();
-  return d.getDay(); // Sunday=0, Monday=1, ...
+  return clampDayIdx(d.getDay()); // Clamp to 0-4
 }
 function getToday() {
   return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
@@ -20,7 +21,7 @@ function getToday() {
 function WeeklyStandUpPlanner({ user, users = [] }) {
   const [tasks, setTasks] = useState([]); // {id, name, client, notes, day, startIdx, endIdx}
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalData, setModalData] = useState({ name: '', client: '', notes: '', day: getTodayIdx(), startIdx: 0, endIdx: 0 });
+  const [modalData, setModalData] = useState({ name: '', client: '', notes: '', day: getTodayIdx(), startIdx: 0, endIdx: 0, start_time: '', end_time: '', color: '#FFD600', id: null });
   const [draggingTask, setDraggingTask] = useState(null);
   const [resizingTask, setResizingTask] = useState(null);
   const [done, setDone] = useState([]); // array of task ids
@@ -59,18 +60,27 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
       if (response.ok) {
         const apiTasks = await response.json();
         // Convert API format to component format
-        const convertedTasks = apiTasks.map(task => ({
-          id: task.id,
-          name: task.task,
-          client: task.client || '',
-          notes: task.notes || '',
-          day: DAYS.indexOf(task.day),
-          startIdx: convertTimeToIndex(task.time),
-          endIdx: convertTimeToIndex(task.time) + 1, // Default 30-minute duration
-          status: task.status,
-          blocker: task.blocker,
-          streak: task.streak
-        }));
+        const convertedTasks = apiTasks.map(task => {
+          const dayIdx = DAYS.indexOf(task.day);
+          if (dayIdx === -1) {
+            console.warn('Standup task with invalid day:', task);
+          }
+          return {
+            id: task.id,
+            name: task.task,
+            client: task.client || '',
+            notes: task.notes || '',
+            day: dayIdx === -1 ? 0 : dayIdx, // fallback to Sunday if invalid
+            startIdx: task.start_time ? convertTimeToIndex(task.start_time) : 0,
+            endIdx: task.end_time ? convertTimeToIndex(task.end_time) : (task.start_time ? convertTimeToIndex(task.start_time) + 1 : 1),
+            start_time: task.start_time,
+            end_time: task.end_time,
+            status: task.status,
+            blocker: task.blocker,
+            color: task.color || '#FFD600',
+            streak: task.streak
+          };
+        });
         setTasks(convertedTasks);
       }
     } catch (error) {
@@ -79,6 +89,7 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
   };
 
   const convertTimeToIndex = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return 0;
     const [hours, minutes] = timeStr.split(':').map(Number);
     const baseHour = 9; // Start at 9:00 AM
     const hourDiff = hours - baseHour;
@@ -108,8 +119,24 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
   confettiRef.current = confettiBurst;
 
   // Modal handlers
-  function openModal(day, startIdx) {
-    setModalData({ name: '', client: '', notes: '', day, startIdx, endIdx: startIdx });
+  function openModal(day, startIdx, task = null) {
+    const safeDay = clampDayIdx(day);
+    if (task) {
+      setModalData({
+        id: task.id,
+        name: task.name,
+        client: task.client,
+        notes: task.notes,
+        day: clampDayIdx(task.day),
+        startIdx: task.startIdx,
+        endIdx: task.endIdx,
+        start_time: task.start_time || TIMES[task.startIdx],
+        end_time: task.end_time || TIMES[task.endIdx],
+        color: task.color || '#FFD600',
+      });
+    } else {
+      setModalData({ name: '', client: '', notes: '', day: safeDay, startIdx, endIdx: startIdx, start_time: TIMES[startIdx], end_time: TIMES[startIdx + 1] || TIMES[startIdx], color: '#FFD600', id: null });
+    }
     setModalOpen(true);
   }
   function handleModalChange(field, value) {
@@ -117,47 +144,73 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
   }
   function handleModalSubmit() {
     if (!user?.id) return;
-    
     const taskData = {
       user_id: user.id,
       client: modalData.client,
       day: DAYS[modalData.day],
-      time: convertIndexToTime(modalData.startIdx),
+      start_time: modalData.start_time,
+      end_time: modalData.end_time,
       task: modalData.name,
       status: 'Not Started',
       notes: modalData.notes,
-      blocker: false
+      blocker: false,
+      color: modalData.color
     };
+    // If editing
+    if (modalData.id) {
+      fetch(`/api/standup-tasks/${modalData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      })
+        .then(res => res.json())
+        .then(updated => {
+          // Convert day string to index for calendar
+          const dayIdx = DAYS.indexOf(updated.day);
+          setTasks(ts => ts.map(t => t.id === updated.id ? {
+            ...t,
+            ...updated,
+            name: updated.task,
+            day: dayIdx === -1 ? 0 : dayIdx,
+            startIdx: convertTimeToIndex(updated.start_time),
+            endIdx: convertTimeToIndex(updated.end_time),
+            color: updated.color
+          } : t));
+          setModalOpen(false);
+        });
+    } else {
+      fetch('/api/standup-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      })
+        .then(res => res.json())
+        .then(newTask => {
+          // Convert day string to index for calendar
+          const dayIdx = DAYS.indexOf(newTask.day);
+          setTasks(ts => [
+            ...ts,
+            {
+              ...newTask,
+              name: newTask.task,
+              day: dayIdx === -1 ? 0 : dayIdx,
+              startIdx: convertTimeToIndex(newTask.start_time),
+              endIdx: convertTimeToIndex(newTask.end_time),
+              color: newTask.color
+            }
+          ]);
+          setModalOpen(false);
+        });
+    }
+  }
 
-    fetch('/api/standup-tasks', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(taskData),
-    })
-    .then(response => response.json())
-    .then(newTask => {
-      // Add to local state
-      const convertedTask = {
-        id: newTask.id,
-        name: newTask.task,
-        client: newTask.client || '',
-        notes: newTask.notes || '',
-        day: modalData.day,
-        startIdx: modalData.startIdx,
-        endIdx: modalData.endIdx,
-        status: newTask.status,
-        blocker: newTask.blocker,
-        streak: newTask.streak
-      };
-      setTasks(ts => [...ts, convertedTask]);
-      setModalOpen(false);
-    })
-    .catch(error => {
-      console.error('Failed to create task:', error);
-      alert('Failed to create task. Please try again.');
-    });
+  // Add delete handler
+  function handleDeleteTask(id) {
+    fetch(`/api/standup-tasks/${id}`, { method: 'DELETE' })
+      .then(() => {
+        setTasks(ts => ts.filter(t => t.id !== id));
+        setModalOpen(false);
+      });
   }
 
   // Themed clear-all confirmation
@@ -339,7 +392,7 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
                           left: 0,
                           width: '100%',
                           height: blockHeight,
-                          background: '#FFD600',
+                          background: task.color || '#FFD600',
                           color: '#181818',
                           borderRadius: 8,
                           marginBottom: 4,
@@ -353,11 +406,12 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
                         draggable
                         onDragStart={() => setDraggingTask(task.id)}
                         onDragEnd={() => setDraggingTask(null)}
-                        onDoubleClick={() => onTaskResize(task.id, Math.min(task.endIdx + 1, TIMES.length - 1))}
+                        onClick={() => openModal(task.day, task.startIdx, task)}
                       >
                         <div style={{ fontWeight: 700 }}>{task.name}</div>
                         <div style={{ fontSize: '0.95em', color: '#333' }}>{task.client}</div>
                         <div style={{ fontSize: '0.92em', color: '#555' }}>{task.notes}</div>
+                        <div style={{ fontSize: '0.9em', color: '#222' }}>{task.start_time} - {task.end_time}</div>
                         {/* Resize handle */}
                         <div
                           className="resize-handle"
@@ -411,7 +465,7 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
       {modalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Add Task</h2>
+            <h2>{modalData.id ? 'Edit Task' : 'Add Task'}</h2>
             <label>
               Task Name
               <input value={modalData.name} onChange={e => handleModalChange('name', e.target.value)} />
@@ -428,8 +482,33 @@ function WeeklyStandUpPlanner({ user, users = [] }) {
                 onChange={e => handleModalChange('notes', e.target.value)}
               />
             </label>
+            <label>
+              Day
+              <select value={modalData.day} onChange={e => handleModalChange('day', Number(e.target.value))}>
+                {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+              </select>
+            </label>
+            <label>
+              Start Time
+              <select value={modalData.start_time} onChange={e => handleModalChange('start_time', e.target.value)}>
+                {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label>
+              End Time
+              <select value={modalData.end_time} onChange={e => handleModalChange('end_time', e.target.value)}>
+                {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label>
+              Color
+              <input type="color" value={modalData.color} onChange={e => handleModalChange('color', e.target.value)} style={{ width: 40, height: 32, border: 'none', background: 'none' }} />
+            </label>
             <div className="modal-buttons">
-              <button onClick={handleModalSubmit}>Add</button>
+              <button onClick={handleModalSubmit}>{modalData.id ? 'Save' : 'Add'}</button>
+              {modalData.id && (
+                <button style={{ marginLeft: 8, background: '#ff5555', color: '#fff' }} onClick={() => handleDeleteTask(modalData.id)}>Delete</button>
+              )}
               <button onClick={() => setModalOpen(false)}>Cancel</button>
             </div>
           </div>

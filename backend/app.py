@@ -145,6 +145,36 @@ def emit_revive_stats_periodically():
 # Start background thread after app and socketio are ready
 threading.Thread(target=emit_revive_stats_periodically, daemon=True).start()
 
+# --- MANUAL DB PATCH: Ensure StandupTask table has all required columns ---
+# This is a fallback for environments where Alembic is not available.
+# It will attempt to add missing columns at runtime (for dev only).
+from sqlalchemy import text
+with app.app_context():
+    try:
+        # Add columns if they do not exist, one at a time, rolling back on error
+        with db.engine.begin() as conn:
+            for col, coltype in [
+                ("user_id", "INTEGER"),
+                ("client", "VARCHAR(128)"),
+                ("day", "VARCHAR(32)"),
+                ("start_time", "VARCHAR(8)"),
+                ("end_time", "VARCHAR(8)"),
+                ("task", "VARCHAR(256)"),
+                ("status", "VARCHAR(32)"),
+                ("notes", "TEXT"),
+                ("blocker", "BOOLEAN"),
+                ("color", "VARCHAR(16)")
+            ]:
+                try:
+                    conn.execute(text(f'ALTER TABLE standup_task ADD COLUMN IF NOT EXISTS {col} {coltype}'))
+                except Exception as e:
+                    if 'duplicate column' in str(e) or 'already exists' in str(e):
+                        pass  # Already exists
+                    else:
+                        print(f"[DB PATCH] Could not add column {col}: {e}")
+    except Exception as e:
+        print(f"[DB PATCH] StandupTask patch failed: {e}")
+
 # ─── Routes ────────────────────────────────────────────────────────────────────
 @app.route('/api/access-requests', methods=['GET'])
 def get_access_requests():
@@ -615,16 +645,11 @@ def get_content_calendar(client_id):
                 'textCopy': entry.text_copy,  # Frontend compatibility
                 'artwork_copy': entry.description,
                 'artworkCopy': entry.description,  # Frontend compatibility
-                'media_url': entry.media_url,
                 'hashtags': entry.hashtags,
                 'tags': entry.hashtags.split(',') if entry.hashtags else [],
                 'created_by': entry.created_by,
-                'client_approved': entry.client_approved,
-                'client_feedback': entry.client_feedback,
-                'clientFeedback': entry.client_feedback,  # Frontend compatibility
                 'approval_status': entry.approval_status,
                 'approvalStatus': entry.approval_status,  # Frontend compatibility
-                'is_pinned': entry.is_pinned,
                 'created_at': entry.created_at.isoformat(),
                 'updated_at': entry.updated_at.isoformat(),
                 'files': files
@@ -771,17 +796,16 @@ def update_content_calendar_entry(entry_id):
 
 @app.route('/api/content-calendar/<int:entry_id>', methods=['DELETE'])
 def delete_content_calendar_entry(entry_id):
-    """Delete a content calendar entry"""
+    print(f"[DEBUG] DELETE /api/content-calendar/{entry_id} called")  # Debug log
     try:
         entry = ContentCalendar.query.get(entry_id)
         if not entry:
+            print(f"[DEBUG] Content calendar entry not found for id: {entry_id}")
             return jsonify({'error': 'Content calendar entry not found'}), 404
-        
         db.session.delete(entry)
         db.session.commit()
-        
+        print(f"[DEBUG] Content calendar entry deleted: {entry_id}")
         return jsonify({'message': 'Content calendar entry deleted successfully'})
-        
     except Exception as e:
         print(f"Delete content calendar error: {e}")
         traceback.print_exc()
@@ -1155,6 +1179,70 @@ def api_create_banner():
         return jsonify({'banner_id': banner_id}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ─── Standup Tasks Endpoints ────────────────────────────────────────────────
+
+@app.route('/api/standup-tasks', methods=['GET'])
+def get_standup_tasks():
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+    tasks = StandupTask.query.filter_by(user_id=user_id).all()
+    # Debug: print tasks to server log
+    print(f"[DEBUG] StandupTask GET for user_id={user_id}: {[t.to_dict() for t in tasks]}")
+    return jsonify([t.to_dict() for t in tasks])
+
+@app.route('/api/standup-tasks', methods=['POST'])
+def create_standup_task():
+    data = request.get_json() or {}
+    try:
+        task = StandupTask(
+            user_id=data.get('user_id'),
+            client=data.get('client', ''),
+            day=data.get('day', ''),
+            start_time=data.get('start_time', ''),
+            end_time=data.get('end_time', ''),
+            task=data.get('task', ''),
+            status=data.get('status', 'Not Started'),
+            notes=data.get('notes', ''),
+            blocker=data.get('blocker', False),
+            color=data.get('color', '#FFD600')
+        )
+        db.session.add(task)
+        db.session.commit()
+        return jsonify(task.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/standup-tasks/<int:task_id>', methods=['PUT'])
+def update_standup_task(task_id):
+    data = request.get_json() or {}
+    task = StandupTask.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    for field in ['client', 'day', 'start_time', 'end_time', 'task', 'status', 'notes', 'blocker', 'color']:
+        if field in data:
+            setattr(task, field, data[field])
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+@app.route('/api/standup-tasks/<int:task_id>', methods=['DELETE'])
+def delete_standup_task(task_id):
+    task = StandupTask.query.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'message': 'Task deleted successfully'})
+
+@app.route('/api/channels/<int:channel_id>/read', methods=['POST'])
+def mark_channel_read(channel_id):
+    user_id = request.json.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    # Optionally, update a ChannelRead table or similar
+    return jsonify({'message': 'Channel marked as read'}), 200
 
 # Move business logic to core/business_logic.py and keep only Flask app/adapters here.
 # Example import:

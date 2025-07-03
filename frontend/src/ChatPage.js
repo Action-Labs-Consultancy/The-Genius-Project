@@ -88,10 +88,14 @@ export default function ChatPage({ user }) {
   // Join channel
   useEffect(() => {
     if (!currentChannel || !socketRef.current) return;
+    console.log('[DEBUG] currentChannel set:', currentChannel);
     socketRef.current.emit('join', { channel_id: currentChannel.id });
     fetch(`/api/channels/${currentChannel.id}/messages`)
       .then(res => res.json())
-      .then(setMessages);
+      .then(msgs => {
+        console.log('[DEBUG] Loaded messages for channel', currentChannel.id, msgs);
+        setMessages(msgs);
+      });
     fetch(`/api/channels/${currentChannel.id}/members`)
       .then(res => res.json())
       .then(setMembers);
@@ -154,22 +158,47 @@ export default function ChatPage({ user }) {
 
   // Click user to open/create DM
   const handleUserClick = async (otherUserId) => {
+    console.log('[DEBUG] handleUserClick called with otherUserId:', otherUserId);
     let dm = channels.find(c => c.is_dm && c.name === [user.id, otherUserId].sort().join('-'));
     if (!dm) {
-      const res = await fetch('/api/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: [user.id, otherUserId].sort().join('-'), is_dm: true, member_ids: [user.id, otherUserId], created_by: user.id })
-      });
-      dm = await res.json();
-      setChannels(c => [...c, dm]);
+      try {
+        const res = await fetch('/api/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: [user.id, otherUserId].sort().join('-'), is_dm: true, member_ids: [user.id, otherUserId], created_by: user.id })
+        });
+        if (!res.ok) throw new Error('Failed to create DM channel');
+        // After creating, re-fetch channels and select the new DM
+        await res.json(); // ignore returned data, always re-fetch for consistency
+        fetch(`/api/channels?user_id=${user.id}`)
+          .then(res => res.json())
+          .then(newChannels => {
+            setChannels(newChannels);
+            const newDm = newChannels.find(c => c.is_dm && c.name === [user.id, otherUserId].sort().join('-'));
+            if (newDm) {
+              setCurrentChannel(newDm);
+              console.log('[DEBUG] setCurrentChannel (new DM):', newDm);
+            }
+          });
+        return;
+      } catch (err) {
+        alert('Could not start chat: ' + err.message);
+        return;
+      }
     }
     setCurrentChannel(dm);
+    console.log('[DEBUG] setCurrentChannel (existing DM):', dm);
   };
 
   const handleSend = e => {
     e.preventDefault();
     if (!input.trim() || !currentChannel) return;
+    console.log('[DEBUG] Emitting send_message:', {
+      channel_id: currentChannel.id,
+      user_id: user.id,
+      content: input,
+      name: user.name
+    });
     socketRef.current.emit('send_message', {
       channel_id: currentChannel.id,
       user_id: user.id,
@@ -387,6 +416,11 @@ export default function ChatPage({ user }) {
             <button onClick={() => setShowSettings(true)} style={{ background: 'none', border: 'none', color: '#bbb', fontSize: 22, marginLeft: 12, cursor: 'pointer' }} title="Chat Settings">⚙️</button>
           )}
         </div>
+        {!currentChannel && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 20 }}>
+            Select a person or channel to start chatting.
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#18191c' }}>
           {messages.map((msg, i) => {
             // Find parent message if this is a reply

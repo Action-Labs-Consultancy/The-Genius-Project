@@ -126,6 +126,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       const res = await fetch(`/api/clients/${clientId}/content-calendar?year=${year}&month=${month}&user_id=${user?.id || 1}`);
       if (!res.ok) throw new Error('Failed to fetch entries');
       const data = await res.json();
+      console.log('[DEBUG] Content calendar API response:', data); // Debug log
       setEntries(data);
     } catch (err) {
       console.error('Error fetching entries:', err);
@@ -148,7 +149,8 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
     if (!date) return [];
     const dateStr = date.toISOString().split('T')[0];
     const filteredEntries = getFilteredEntries();
-    
+    // Debug: log all entry dates for this day
+    console.log('[DEBUG] getEntriesForDate', { dateStr, entries: filteredEntries.map(e => e.date) });
     // More flexible date matching
     const dateEntries = filteredEntries.filter(entry => {
       if (!entry.date) return false;
@@ -156,7 +158,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       const entryDateStr = entry.date.split('T')[0]; // Remove time part if present
       return entryDateStr === dateStr;
     });
-    
+    console.log('[DEBUG] Entries for', dateStr, dateEntries);
     return dateEntries;
   }
 
@@ -300,9 +302,10 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       closeModal();
       // Force immediate refresh and wait for it to complete
       await fetchEntries();
-      // Small delay to ensure UI updates
+      // Debug: log what entries are received after save
       setTimeout(() => {
         setLoading(false);
+        console.log('[DEBUG] Entries after save:', entries);
       }, 100);
     } catch (err) {
       console.error('Error saving content:', err);
@@ -340,12 +343,11 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
   }
 
   async function handleDelete(contentId) {
+    console.log('[DEBUG] handleDelete called with contentId:', contentId); // Debug log
     showConfirm('Are you sure you want to delete this content?', '🗑️ Delete Content', async () => {
       try {
         const res = await fetch(`/api/content-calendar/${contentId}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: user?.id || 1 })
+          method: 'DELETE'
         });
         if (!res.ok) throw new Error('Failed to delete content');
         
@@ -1710,7 +1712,10 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
             }}>
               {customModal.type === 'confirm' && (
                 <button
-                  onClick={closeCustomModal}
+                  onClick={() => {
+                    if (customModal.onConfirm) customModal.onConfirm();
+                    closeCustomModal();
+                  }}
                   style={{
                     background: '#FFD600',
                     color: '#111',
