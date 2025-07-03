@@ -1,4 +1,12 @@
 {
+  "name": "the-genius-project",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm start",
+    "vercel-build": "cd frontend && npm install && npm run build"
+  },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "canvas-confetti": "^1.9.3",
