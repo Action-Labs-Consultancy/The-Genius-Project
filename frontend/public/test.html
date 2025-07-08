@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Test - Action Labs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex items-center justify-center">
+    <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 class="text-2xl font-bold text-white mb-6 text-center">Backend Test</h2>
+        
+        <div class="space-y-4">
+            <button id="testCreateAdmin" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                Create Admin User
+            </button>
+            
+            <button id="testLogin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Test Login
+            </button>
+            
+            <button id="testDb" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+                Test Database
+            </button>
+        </div>
+        
+        <div id="results" class="mt-6 p-4 bg-gray-700 rounded text-white text-sm max-h-60 overflow-y-auto"></div>
+    </div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function logResult(message, type = 'info') {
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        // Test create admin
+        document.getElementById('testCreateAdmin').addEventListener('click', async () => {
+            try {
+                logResult('Testing create admin...', 'info');
+                const response = await fetch('/create-admin');
+                const result = await response.text();
+                
+                if (response.ok) {
+                    logResult(`✅ Admin creation: ${result}`, 'success');
+                } else {
+                    logResult(`❌ Admin creation failed: ${result}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ Network error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Test login
+        document.getElementById('testLogin').addEventListener('click', async () => {
+            try {
+                logResult('Testing login...', 'info');
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: 'admin@example.com', 
+                        password: 'admin123' 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    logResult(`✅ Login successful: ${JSON.stringify(result)}`, 'success');
+                } else {
+                    logResult(`❌ Login failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ Network error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Test database
+        document.getElementById('testDb').addEventListener('click', async () => {
+            try {
+                logResult('Testing database connection...', 'info');
+                const response = await fetch('/api/clients');
+                
+                if (response.ok) {
+                    const clients = await response.json();
+                    logResult(`✅ Database connection successful. Found ${clients.length} clients`, 'success');
+                } else {
+                    logResult(`❌ Database test failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ Network error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Log initial status
+        logResult('Backend test page loaded. Click buttons to test functionality.', 'info');
+    </script>
+</body>
+</html>

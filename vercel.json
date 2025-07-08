@@ -48,6 +48,10 @@
       "dest": "/frontend/public/login.html"
     },
     {
+      "src": "/test.html",
+      "dest": "/frontend/public/test.html"
+    },
+    {
       "src": "/manifest.json",
       "dest": "/frontend/public/manifest.json"
     },
