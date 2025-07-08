@@ -6,21 +6,23 @@ from flask import Flask, Response
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    # Set environment variables for Vercel deployment
+    # Set environment for production
     os.environ.setdefault('FLASK_ENV', 'production')
     
     # Import the Flask app
     from backend.app import app
     
-    # Initialize database tables on startup
+    # Initialize database tables if needed
     with app.app_context():
         from core.models import db
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception as e:
+            print(f"Database initialization warning: {e}")
     
-    # Export the app for Vercel
-    def handler(request):
-        return app(request.environ, lambda status, headers: None)
-        
+    # Export the app for Vercel (this is what Vercel will call)
+    application = app
+    
 except Exception as e:
     import traceback
     
@@ -31,9 +33,6 @@ except Exception as e:
     @error_app.route('/<path:path>')
     def catch_all(path):
         error_details = f"Import error: {str(e)}\n{traceback.format_exc()}"
-        return Response(f"Server configuration error. Please check logs.\n{error_details}", status=500, mimetype='text/plain')
+        return Response(f"Server configuration error:\n{error_details}", status=500, mimetype='text/plain')
     
-    app = error_app
-    
-    def handler(request):
-        return error_app(request.environ, lambda status, headers: None)
+    application = error_app

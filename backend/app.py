@@ -117,17 +117,6 @@ if not database_url:
     os.makedirs('instance', exist_ok=True)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-    'pool_recycle': 300,
-    'connect_args': {
-        'connect_timeout': 10,
-        'sslmode': 'require' if database_url and 'postgresql://' in database_url else None
-    } if database_url and 'postgresql://' in database_url else {}
-}
-
-# Initialize database
 db.init_app(app)
 migrate = Migrate(app, db)
 
@@ -348,12 +337,19 @@ def get_accessible_clients():
 @app.route('/login', methods=['POST'])
 def login():
     try:
-        # Check database connection first
-        db.session.execute('SELECT 1')
+        # Test database connection first
+        try:
+            db.session.execute('SELECT 1')
+            print("[DEBUG] Database connection successful")
+        except Exception as db_error:
+            print(f"[ERROR] Database connection failed: {db_error}")
+            return jsonify({'error': 'Database connection error'}), 500
         
         data = request.get_json() or {}
         email = data.get('email')
         password = data.get('password')
+        
+        print(f"[DEBUG] Login attempt for email: {email}")
         
         # Validate input
         if not email or not password:
@@ -361,6 +357,7 @@ def login():
             
         # Find user by email
         user = User.query.filter_by(email=email).first()
+        print(f"[DEBUG] User found: {user is not None}")
         
         # Use constant-time comparison to prevent timing attacks
         if user and user.password_hash and bcrypt.check_password_hash(user.password_hash, password):
@@ -390,8 +387,8 @@ def login():
         # Log the full error details for debugging
         import traceback
         error_details = traceback.format_exc()
-        print(f"Login error: {str(e)}")
-        print(f"Full traceback: {error_details}")
+        print(f"[ERROR] Login error: {str(e)}")
+        print(f"[ERROR] Full traceback: {error_details}")
         
         # Return generic error to client
         return jsonify({'error': 'Internal server error'}), 500
