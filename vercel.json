@@ -21,18 +21,58 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api/index.py"
+      "dest": "/api/index.py"
     },
     {
-      "src": "/(login|request-access|forgot-password|set-password|create-admin)",
-      "dest": "api/index.py"
+      "src": "/login",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/create-admin",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/request-access",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/forgot-password",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/set-password",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/login.html",
+      "dest": "/frontend/public/login.html"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/frontend/public/manifest.json"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/frontend/public/favicon.ico"
+    },
+    {
+      "src": "/logo192.png",
+      "dest": "/frontend/public/logo192.png"
+    },
+    {
+      "src": "/logo512.png",
+      "dest": "/frontend/public/logo512.png"
+    },
+    {
+      "src": "/robots.txt",
+      "dest": "/frontend/public/robots.txt"
     },
     {
       "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/build/index.html"
     }
   ]
 }

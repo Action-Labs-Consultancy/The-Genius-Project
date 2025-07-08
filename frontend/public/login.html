@@ -50,7 +50,7 @@
             try {
                 messageDiv.innerHTML = '<p class="text-yellow-400">Logging in...</p>';
                 
-                const response = await fetch('/api/login', {
+                const response = await fetch('/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
