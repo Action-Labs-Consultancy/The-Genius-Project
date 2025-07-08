@@ -117,6 +117,17 @@ if not database_url:
     os.makedirs('instance', exist_ok=True)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'connect_args': {
+        'connect_timeout': 10,
+        'sslmode': 'require' if database_url and 'postgresql://' in database_url else None
+    } if database_url and 'postgresql://' in database_url else {}
+}
+
+# Initialize database
 db.init_app(app)
 migrate = Migrate(app, db)
 
@@ -337,6 +348,9 @@ def get_accessible_clients():
 @app.route('/login', methods=['POST'])
 def login():
     try:
+        # Check database connection first
+        db.session.execute('SELECT 1')
+        
         data = request.get_json() or {}
         email = data.get('email')
         password = data.get('password')
@@ -373,8 +387,13 @@ def login():
         # Use generic error message to prevent email enumeration
         return jsonify({'error': 'Invalid credentials'}), 401
     except Exception as e:
-        # Log the error securely (without exposing sensitive details)
-        print(f"Login error: {type(e).__name__}")
+        # Log the full error details for debugging
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Login error: {str(e)}")
+        print(f"Full traceback: {error_details}")
+        
+        # Return generic error to client
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/create-admin')
