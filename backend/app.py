@@ -1159,6 +1159,53 @@ def get_channel_members(channel_id):
         import traceback; traceback.print_exc()
         return jsonify({'error': 'Failed to fetch channel members'}), 500
 
+@app.route('/api/meetings', methods=['GET', 'POST'])
+def handle_meetings():
+    """Handle fetching and scheduling meetings."""
+    try:
+        if request.method == 'GET':
+            # Fetch all meetings from MongoDB
+            meetings = MongoMeeting.find_all()
+            print(f"Meetings fetched: {meetings}")
+            return jsonify([
+                {
+                    'id': str(meeting['_id']),
+                    'title': meeting.get('title', ''),
+                    'description': meeting.get('description', ''),
+                    'start_time': meeting.get('start_time') if isinstance(meeting.get('start_time'), str) else meeting.get('start_time').isoformat(),
+                    'end_time': meeting.get('end_time') if isinstance(meeting.get('end_time'), str) else meeting.get('end_time').isoformat(),
+                    'participants': meeting.get('participants', []),
+                    'created_at': meeting.get('created_at').isoformat() if meeting.get('created_at') else None
+                } for meeting in meetings
+            ])
+        elif request.method == 'POST':
+            # Schedule a new meeting
+            data = request.get_json() or {}
+            title = data.get('title')
+            description = data.get('description')
+            start_time = data.get('start_time')
+            end_time = data.get('end_time')
+            participants = data.get('participants', [])
+
+            if not all([title, start_time, end_time]):
+                return jsonify({'error': 'Title, start_time, and end_time are required'}), 400
+
+            meeting_doc = MongoMeeting.create_meeting(title, description, start_time, end_time, participants)
+            return jsonify({
+                'message': 'Meeting scheduled successfully',
+                'meeting': {
+                    'id': str(meeting_doc['_id']),
+                    'title': meeting_doc['title'],
+                    'description': meeting_doc['description'],
+                    'start_time': meeting_doc['start_time'].isoformat(),
+                    'end_time': meeting_doc['end_time'].isoformat(),
+                    'participants': meeting_doc['participants']
+                }
+            }), 201
+    except Exception as e:
+        print(f"Meeting error: {e}")
+        return jsonify({'error': 'Failed to handle meetings'}), 500
+
 # Move business logic to core/business_logic.py and keep only Flask app/adapters here.
 # Example import:
 # from core.business_logic import get_access_requests_logic, approve_access_request_logic, ...

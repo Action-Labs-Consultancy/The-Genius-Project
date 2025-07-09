@@ -288,16 +288,14 @@ class MongoMessage:
 class MongoMeeting:
     """MongoDB Meeting model"""
     @staticmethod
-    def create_meeting(title, reason, date, start_time, end_time, organizer_id, invitee_ids):
+    def create_meeting(title, description, start_time, end_time, participants):
         collection = mongo.get_collection('meetings')
         meeting_doc = {
             'title': title,
-            'reason': reason,
-            'date': date,
-            'start_time': start_time,
-            'end_time': end_time,
-            'organizer_id': organizer_id,
-            'invitee_ids': invitee_ids,  # list of user IDs (as strings)
+            'description': description,
+            'start_time': datetime.fromisoformat(start_time),
+            'end_time': datetime.fromisoformat(end_time),
+            'participants': participants,  # list of participant names or IDs
             'created_at': datetime.utcnow()
         }
         result = collection.insert_one(meeting_doc)
