@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
 import popupStyles from './MeetingSchedulerPopup.module.css';
 import modernStyles from './MeetingSchedulerModern.module.css';
+import { API_BASE_URL } from './config/api';
 
 // Replace the mocked implementation with a real API call
 async function fetchUserMeetings(userId, date) {
   try {
     console.log(`Fetching meetings for user ${userId} on date ${date}`);
-    const response = await fetch(`/api/meetings?user_id=${userId}`);
+    const response = await fetch(`${API_BASE_URL}/api/meetings?user_id=${userId}`);
     if (!response.ok) {
       console.error('Error fetching meetings:', response.statusText);
       // Return empty array on error instead of throwing
@@ -57,7 +58,7 @@ export default function MeetingScheduler({ currentUser, onSendChatMessage, onMee
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const res = await fetch('/api/users');
+        const res = await fetch(`${API_BASE_URL}/api/users`);
         if (!res.ok) throw new Error('Failed to fetch users');
         const data = await res.json();
         setUsers(data.filter(u => u.id !== currentUser?.id));
@@ -198,7 +199,7 @@ export default function MeetingScheduler({ currentUser, onSendChatMessage, onMee
       
       console.log('Scheduling meeting with data:', meetingData);
       
-      const res = await fetch('/api/meetings', {
+      const res = await fetch(`${API_BASE_URL}/api/meetings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meetingData)

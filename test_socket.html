@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Chat Test</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Chat Test</h1>
+    <div id="messages" style="border: 1px solid #ccc; height: 300px; padding: 10px; overflow-y: scroll;"></div>
+    <div style="margin-top: 10px;">
+        <input type="text" id="messageInput" placeholder="Type your message..." style="width: 300px;">
+        <button onclick="sendMessage()">Send</button>
+        <button onclick="joinChannel()">Join Test Channel</button>
+    </div>
+    
+    <script>
+        const socket = io('http://localhost:5002');
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        
+        // Test data
+        const testChannelId = '686e28de8095339acceac677';
+        const testUserId = '686e28a58095339acceac675';
+        const testUserName = 'Test User';
+        
+        socket.on('connect', () => {
+            console.log('Connected to socket server');
+            addMessage('Connected to socket server');
+        });
+        
+        socket.on('receive_message', (data) => {
+            console.log('Received message:', data);
+            addMessage(`${data.name}: ${data.content}`);
+        });
+        
+        function joinChannel() {
+            socket.emit('join', { channel_id: testChannelId });
+            addMessage('Joined test channel');
+        }
+        
+        function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content) return;
+            
+            const messageData = {
+                channel_id: testChannelId,
+                user_id: testUserId,
+                content: content,
+                name: testUserName
+            };
+            
+            console.log('Sending message:', messageData);
+            socket.emit('send_message', messageData);
+            
+            messageInput.value = '';
+            addMessage(`You: ${content}`);
+        }
+        
+        function addMessage(message) {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

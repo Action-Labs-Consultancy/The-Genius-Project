@@ -5,6 +5,7 @@ import HeaderBar from './HeaderBar';
 import ClientAccessManager from './ClientAccessManager';
 import SocialMediaInsightsDashboard from './SocialMediaInsightsDashboard';
 import { fetchReviveStats, createReviveCampaign, createReviveBanner } from './api';
+import { api } from './config/api';
 
 function CampaignsCardContent({ client }) {
   const [reviveStats, setReviveStats] = React.useState([]);
@@ -383,9 +384,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
 
   const fetchCards = async () => {
     try {
-      const res = await fetch(`/api/clients/${client.id}/cards`);
-      if (!res.ok) throw new Error('Failed to fetch cards');
-      const data = await res.json();
+      const data = await api.getClientCards(client.id);
       setCards(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching cards:', err);
@@ -428,19 +427,18 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
       { type: 'influencers', title: 'Influencers', icon: '🤝', subtitle: 'Manage influencers' },
       { type: 'dashboard', title: 'Data Dashboard', icon: '📈', subtitle: 'Track metrics' },
     ].find(c => c.type === type);
-    const res = await fetch(`/api/clients/${client.id}/cards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    
+    try {
+      await api.createClientCard(client.id, {
         type,
         title: cardMeta?.title || type,
         subtitle: cardMeta?.subtitle || '',
         icon: cardMeta?.icon || '',
-      })
-    });
-    if (res.ok) {
+      });
       setShowModal(false);
       fetchCards();
+    } catch (err) {
+      console.error('Error creating card:', err);
     }
   };
 

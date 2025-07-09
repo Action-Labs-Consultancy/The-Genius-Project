@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from './config/api';
 
 const QUESTIONS = [
 	{
@@ -104,7 +105,7 @@ export default function AIContentGenerator({ user, client, onBack }) {
 	useEffect(() => {
 		async function fetchClients() {
 			try {
-				const res = await fetch('/api/clients');
+				const res = await fetch(`${API_BASE_URL}/api/clients`);
 				if (res.ok) {
 					const clientsData = await res.json();
 					setExistingClients(clientsData);
@@ -255,7 +256,7 @@ export default function AIContentGenerator({ user, client, onBack }) {
 				'Suggest optimal times',
 			];
 
-			const res = await fetch('/api/ai/generate-content', {
+			const res = await fetch(`${API_BASE_URL}/api/ai/generate-content`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ answers: existingClientAnswers }),
@@ -281,7 +282,7 @@ export default function AIContentGenerator({ user, client, onBack }) {
 				setLoading(true);
 				setMessages((prev) => [...prev, { sender: 'ai', text: 'Generating your 30-day content plan. Please wait...' }]);
 				try {
-					const res = await fetch('/api/ai/generate-content', {
+					const res = await fetch(`${API_BASE_URL}/api/ai/generate-content`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ answers }),

@@ -1,5 +1,7 @@
 // Utility to send a message to a DM channel between two users
 // Usage: sendAutomatedDM({ fromUser, toUser, message })
+import { API_BASE_URL } from '../config/api';
+
 export async function sendAutomatedDM({ fromUser, toUser, message }) {
   // 1. Find or create the DM channel
   const channelName = [fromUser.id, toUser.id].sort().join('-');
@@ -13,7 +15,7 @@ export async function sendAutomatedDM({ fromUser, toUser, message }) {
     }
     // If not found, create it
     if (!channel) {
-      const createRes = await fetch('/api/channels', {
+      const createRes = await fetch(`${API_BASE_URL}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: channelName, is_dm: true, member_ids: [fromUser.id, toUser.id], created_by: fromUser.id })

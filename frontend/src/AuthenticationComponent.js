@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { api } from './config/api';
 
 const AuthenticationComponent = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
@@ -42,13 +43,8 @@ const AuthenticationComponent = ({ onLoginSuccess }) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      if (res.ok && data.user) {
+      const data = await api.login(formData);
+      if (data && data.user) {
         showNotification('Login successful!', 'success');
         setTimeout(() => {
           setIsLoading(false);
@@ -60,7 +56,7 @@ const AuthenticationComponent = ({ onLoginSuccess }) => {
       }
     } catch (err) {
       setIsLoading(false);
-      showNotification('Login error', 'error');
+      showNotification('Login error: ' + err.message, 'error');
     }
   };
 
@@ -69,25 +65,17 @@ const AuthenticationComponent = ({ onLoginSuccess }) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch('/request-access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: requestEmail,
-          name: requestName
-        })
+      await api.requestAccess({ 
+        email: requestEmail,
+        name: requestName
       });
-      if (res.ok) {
-        setShowRequestModal(false);
-        setRequestEmail('');
-        setRequestName('');
-        // Request submitted successfully
-        showNotification('Request sent! The admin will review your request.', 'success');
-      } else {
-        showNotification('Failed to send request.', 'error');
-      }
+      setShowRequestModal(false);
+      setRequestEmail('');
+      setRequestName('');
+      // Request submitted successfully
+      showNotification('Request sent! The admin will review your request.', 'success');
     } catch (err) {
-      showNotification('Failed to send request.', 'error');
+      showNotification('Failed to send request: ' + err.message, 'error');
     } finally {
       setIsLoading(false);
     }

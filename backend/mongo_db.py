@@ -1,0 +1,365 @@
+"""
+MongoDB connection and utilities for The Genius Project
+"""
+import os
+from pymongo import MongoClient
+from bson import ObjectId
+from datetime import datetime
+import bcrypt
+
+class MongoDB:
+    def __init__(self):
+        self.client = None
+        self.db = None
+        
+    def connect(self, uri=None):
+        """Connect to MongoDB"""
+        if not uri:
+            uri = os.getenv('MONGODB_URI')
+        
+        if not uri:
+            raise ValueError("MongoDB URI not provided")
+            
+        try:
+            self.client = MongoClient(uri)
+            # Extract database name from URI or use default
+            if '/' in uri and '/' in uri.split('/')[-1] and uri.split('/')[-1].split('?')[0]:
+                db_name = uri.split('/')[-1].split('?')[0]
+            else:
+                db_name = 'genius_db'
+            self.db = self.client[db_name]
+            
+            # Test connection
+            self.client.admin.command('ping')
+            print(f"[MongoDB] Connected successfully to {db_name}")
+            return True
+        except Exception as e:
+            print(f"[MongoDB] Connection failed: {e}")
+            return False
+    
+    def get_collection(self, name):
+        """Get a collection"""
+        if self.db is None:
+            raise RuntimeError("Not connected to MongoDB")
+        return self.db[name]
+    
+    def close(self):
+        """Close MongoDB connection"""
+        if self.client:
+            self.client.close()
+
+# Global MongoDB instance
+mongo = MongoDB()
+
+class MongoUser:
+    """MongoDB User model"""
+    
+    @staticmethod
+    def create_user(name, email, password, role='user', is_admin=False):
+        """Create a new user"""
+        collection = mongo.get_collection('users')
+        # Check if user exists
+        if collection.find_one({'email': email}):
+            raise ValueError(f"User with email {email} already exists")
+        # Hash password (store as bytes, not string)
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        user_doc = {
+            'name': name,
+            'email': email,
+            'password_hash': password_hash,  # store as bytes
+            'role': role,
+            'user_type': role,
+            'department': 'Administration' if is_admin else 'General',
+            'is_admin': is_admin,
+            'client_id': None,
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        result = collection.insert_one(user_doc)
+        user_doc['_id'] = result.inserted_id
+        return user_doc
+
+    @staticmethod
+    def find_by_email(email):
+        """Find user by email"""
+        collection = mongo.get_collection('users')
+        return collection.find_one({'email': email})
+    
+    @staticmethod
+    def find_all():
+        """Get all users"""
+        collection = mongo.get_collection('users')
+        return list(collection.find({}))
+    
+    @staticmethod
+    def verify_password(user_doc, password):
+        """Verify user password"""
+        if not user_doc or not user_doc.get('password_hash'):
+            return False
+        hash_val = user_doc['password_hash']
+        if isinstance(hash_val, str):
+            hash_val = hash_val.encode('utf-8')
+        return bcrypt.checkpw(password.encode('utf-8'), hash_val)
+
+    @staticmethod
+    def ensure_sample_users():
+        """Force recreate a default admin and test user for login"""
+        try:
+            collection = mongo.get_collection('users')
+            # Always delete and recreate to ensure login works
+            collection.delete_many({'email': {'$in': ['admin@example.com', 'testuser@example.com']}})
+            print("[MongoDB] Creating sample users...")
+            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True)
+            MongoUser.create_user('Test User', 'testuser@example.com', 'testpass', role='user', is_admin=False)
+            print("[MongoDB] Sample users created: admin@example.com / admin123, testuser@example.com / testpass")
+        except Exception as e:
+            print(f"[MongoDB] Error creating sample users: {e}")
+
+class MongoClientModel:
+    """MongoDB Client model"""
+    
+    @staticmethod
+    def find_all():
+        """Get all clients"""
+        collection = mongo.get_collection('clients')
+        return list(collection.find({}))
+    
+    @staticmethod
+    def create_sample_data():
+        """Create sample clients if none exist"""
+        try:
+            collection = mongo.get_collection('clients')
+            
+            if collection.count_documents({}) == 0:
+                sample_clients = [
+                    {
+                        'name': 'Action Labs',
+                        'email': 'contact@action-labs.ai',
+                        'phone': '+1-555-0123',
+                        'website': 'https://action-labs.ai',
+                        'industry': 'Technology',
+                        'contact': None,
+                        'description': 'AI-powered development agency',
+                        'status': 'active',
+                        'created_at': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    },
+                    {
+                        'name': 'Sample Client',
+                        'email': 'client@example.com',
+                        'phone': '+1-555-0456',
+                        'website': 'https://example.com',
+                        'industry': 'Business',
+                        'contact': None,
+                        'description': 'Sample client for testing',
+                        'status': 'active',
+                        'created_at': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                ]
+                collection.insert_many(sample_clients)
+                print("[MongoDB] Created sample client data")
+        except Exception as e:
+            print(f"[MongoDB] Error creating sample client data: {e}")
+
+    @staticmethod
+    def ensure_sample_users():
+        """Force recreate a default admin and test user for login"""
+        try:
+            collection = mongo.get_collection('users')
+            # Always delete and recreate to ensure login works
+            collection.delete_many({'email': {'$in': ['admin@example.com', 'testuser@example.com']}})
+            print("[MongoDB] Creating sample users...")
+            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True)
+            MongoUser.create_user('Test User', 'testuser@example.com', 'testpass', role='user', is_admin=False)
+            print("[MongoDB] Sample users created: admin@example.com / admin123, testuser@example.com / testpass")
+        except Exception as e:
+            print(f"[MongoDB] Error creating sample users: {e}")
+
+# Additional MongoDB collections for the application
+class MongoProject:
+    """MongoDB Project model"""
+    
+    @staticmethod
+    def create_project(name, description, client_id=None, user_id=None):
+        """Create a new project"""
+        collection = mongo.get_collection('projects')
+        project_doc = {
+            'name': name,
+            'description': description,
+            'client_id': client_id,
+            'user_id': user_id,
+            'status': 'active',
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        result = collection.insert_one(project_doc)
+        project_doc['_id'] = result.inserted_id
+        return project_doc
+    
+    @staticmethod
+    def find_all():
+        """Get all projects"""
+        collection = mongo.get_collection('projects')
+        return list(collection.find({}))
+
+class MongoTask:
+    """MongoDB Task model"""
+    
+    @staticmethod
+    def create_task(title, description, project_id=None, user_id=None, priority='medium'):
+        """Create a new task"""
+        collection = mongo.get_collection('tasks')
+        task_doc = {
+            'title': title,
+            'description': description,
+            'project_id': project_id,
+            'user_id': user_id,
+            'priority': priority,
+            'status': 'pending',
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        result = collection.insert_one(task_doc)
+        task_doc['_id'] = result.inserted_id
+        return task_doc
+    
+    @staticmethod
+    def find_all():
+        """Get all tasks"""
+        collection = mongo.get_collection('tasks')
+        return list(collection.find({}))
+
+class MongoChannel:
+    """MongoDB Channel model"""
+    @staticmethod
+    def create_channel(name, is_dm, member_ids, created_by):
+        collection = mongo.get_collection('channels')
+        channel_doc = {
+            'name': name,
+            'is_dm': is_dm,
+            'member_ids': member_ids,  # list of user IDs (as strings)
+            'created_by': created_by,
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        result = collection.insert_one(channel_doc)
+        channel_doc['_id'] = result.inserted_id
+        return channel_doc
+
+    @staticmethod
+    def find_by_members(name, is_dm, member_ids):
+        collection = mongo.get_collection('channels')
+        # Find DM channel with exact same members and name
+        return collection.find_one({'name': name, 'is_dm': is_dm, 'member_ids': member_ids})
+
+    @staticmethod
+    def find_by_user(user_id):
+        collection = mongo.get_collection('channels')
+        return list(collection.find({'member_ids': str(user_id)}))
+
+    @staticmethod
+    def find_by_id(channel_id):
+        collection = mongo.get_collection('channels')
+        return collection.find_one({'_id': ObjectId(channel_id)})
+
+class MongoMessage:
+    """MongoDB Message model"""
+    @staticmethod
+    def create_message(channel_id, user_id, content, parent_message_id=None, name=None):
+        collection = mongo.get_collection('messages')
+        msg_doc = {
+            'channel_id': channel_id,
+            'user_id': user_id,
+            'content': content,
+            'parent_message_id': parent_message_id,
+            'name': name,
+            'created_at': datetime.utcnow()
+        }
+        result = collection.insert_one(msg_doc)
+        msg_doc['_id'] = result.inserted_id
+        return msg_doc
+
+    @staticmethod
+    def find_by_channel(channel_id):
+        collection = mongo.get_collection('messages')
+        return list(collection.find({'channel_id': channel_id}).sort('created_at', 1))
+
+class MongoMeeting:
+    """MongoDB Meeting model"""
+    @staticmethod
+    def create_meeting(title, reason, date, start_time, end_time, organizer_id, invitee_ids):
+        collection = mongo.get_collection('meetings')
+        meeting_doc = {
+            'title': title,
+            'reason': reason,
+            'date': date,
+            'start_time': start_time,
+            'end_time': end_time,
+            'organizer_id': organizer_id,
+            'invitee_ids': invitee_ids,  # list of user IDs (as strings)
+            'created_at': datetime.utcnow()
+        }
+        result = collection.insert_one(meeting_doc)
+        meeting_doc['_id'] = result.inserted_id
+        return meeting_doc
+
+    @staticmethod
+    def find_by_user(user_id):
+        collection = mongo.get_collection('meetings')
+        return list(collection.find({'$or': [
+            {'organizer_id': user_id},
+            {'invitee_ids': str(user_id)}
+        ]}))
+
+    @staticmethod
+    def find_all():
+        collection = mongo.get_collection('meetings')
+        return list(collection.find({}))
+
+class MongoContentCalendar:
+    """MongoDB Content Calendar model"""
+    @staticmethod
+    def create_entry(client_id, title, description, content_type, platform, date, status, text_copy, hashtags, created_by, client_feedback, approval_status, files):
+        collection = mongo.get_collection('content_calendar')
+        entry_doc = {
+            'client_id': str(client_id),
+            'title': title,
+            'description': description,
+            'content_type': content_type,
+            'platform': platform,
+            'date': date,
+            'status': status,
+            'text_copy': text_copy,
+            'hashtags': hashtags,
+            'created_by': created_by,
+            'client_feedback': client_feedback,
+            'approval_status': approval_status,
+            'files': files or [],
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        result = collection.insert_one(entry_doc)
+        entry_doc['_id'] = result.inserted_id
+        return entry_doc
+
+    @staticmethod
+    def find_by_client(client_id):
+        collection = mongo.get_collection('content_calendar')
+        return list(collection.find({'client_id': str(client_id)}))
+
+    @staticmethod
+    def update_entry(entry_id, update_data):
+        collection = mongo.get_collection('content_calendar')
+        collection.update_one({'_id': ObjectId(entry_id)}, {'$set': update_data})
+        return collection.find_one({'_id': ObjectId(entry_id)})
+
+    @staticmethod
+    def delete_entry(entry_id):
+        collection = mongo.get_collection('content_calendar')
+        return collection.delete_one({'_id': ObjectId(entry_id)})
+
+    @staticmethod
+    def find_by_id(entry_id):
+        collection = mongo.get_collection('content_calendar')
+        return collection.find_one({'_id': ObjectId(entry_id)})

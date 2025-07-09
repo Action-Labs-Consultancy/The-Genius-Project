@@ -1,8 +1,9 @@
 // API functions to interact with Revive Adserver
+import { API_BASE_URL } from './config/api';
 
 // Fetch Revive stats
 export async function fetchReviveStats() {
-  const res = await fetch('https://localhost:5001/api/revive/stats', {
+  const res = await fetch(`${API_BASE_URL}/api/revive/stats`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch Revive stats');
@@ -11,7 +12,7 @@ export async function fetchReviveStats() {
 
 // Create a Revive campaign
 export async function createReviveCampaign({ name, clientid, start_date, end_date }) {
-  const res = await fetch('https://localhost:5001/api/revive/campaigns', {
+  const res = await fetch(`${API_BASE_URL}/api/revive/campaigns`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, clientid, start_date, end_date }),
@@ -23,7 +24,7 @@ export async function createReviveCampaign({ name, clientid, start_date, end_dat
 
 // Create a Revive banner
 export async function createReviveBanner({ campaignid, image_url, width, height, alt_text }) {
-  const res = await fetch('https://localhost:5001/api/revive/banners', {
+  const res = await fetch(`${API_BASE_URL}/api/revive/banners`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ campaignid, image_url, width, height, alt_text }),

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './styles.css';
+import { API_BASE_URL } from './config/api';
 
 export default function Settings({ onNavigate, onUserUpdate, user }) {
   const [users, setUsers] = useState([]);
@@ -37,7 +38,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       setLoading(true);
       try {
         // Replace with your real API endpoint
-        const res = await fetch('/api/users');
+        const res = await fetch(`${API_BASE_URL}/api/users`);
         if (!res.ok) throw new Error('Failed to fetch users');
         const data = await res.json();
         console.log('[Settings] /api/users response:', data); // Debug log
@@ -57,7 +58,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
   // Fetch access requests on mount and when tab changes
   useEffect(() => {
     setLoadingRequests(true);
-    fetch('/api/access-requests')
+    fetch(`${API_BASE_URL}/api/access-requests`)
       .then(res => res.json())
       .then(data => {
         setRequests(data);
@@ -67,7 +68,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
   useEffect(() => {
     if (tab === 'requests') {
       setLoadingRequests(true);
-      fetch('/api/access-requests')
+      fetch(`${API_BASE_URL}/api/access-requests`)
         .then(res => res.json())
         .then(data => {
           setRequests(data);
@@ -103,10 +104,11 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       return;
     }
     try {
-      const res = await fetch('/api/users', {
+      const payload = { ...form, role: form.user_type };
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Failed to add user');
       const newUser = await res.json();
@@ -139,7 +141,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     setMsg('');
     setLoading(true);
     try {
-      const res = await fetch(`/api/users/${editUser.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/users/${editUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
@@ -165,7 +167,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     setLoading(true);
     try {
       // Replace with your real API endpoint
-      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/api/users/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete user');
       setUsers(prev => prev.filter(u => u.id !== id));
       setShowDeleteModal(null);
@@ -189,16 +191,16 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       return;
     }
     try {
-      await fetch(`/api/access-requests/${req.id}/approve`, {
+      await fetch(`${API_BASE_URL}/api/access-requests/${req.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_type, department })
       });
       // Refetch users and requests after approval
-      fetch('/api/users')
+      fetch(`${API_BASE_URL}/api/users`)
         .then(res => res.json())
         .then(data => setUsers(data));
-      fetch('/api/access-requests')
+      fetch(`${API_BASE_URL}/api/access-requests`)
         .then(res => res.json())
         .then(data => setRequests(data));
       setTab('users'); // Switch to users tab after approval
@@ -212,9 +214,9 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
   const handleReject = async (req) => {
     setRejectLoading(req.id);
     try {
-      await fetch(`/api/access-requests/${req.id}/reject`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/access-requests/${req.id}/reject`, { method: 'POST' });
       // Always refetch after attempt, regardless of response
-      fetch('/api/access-requests')
+      fetch(`${API_BASE_URL}/api/access-requests`)
         .then(res => res.json())
         .then(data => setRequests(data));
     } catch (err) {
@@ -229,7 +231,6 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     'HR',
     'Production',
     'Marketing',
-    'Full Access',
   ];
 
   // --- MODERN BLACK & YELLOW THEME (Action Labs) ---
@@ -640,15 +641,17 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
               {form.user_type === 'employee' && (
                 <>
                   <label style={{ color: '#FFD600', fontWeight: 600 }}>Department</label>
-                  <input
+                  <select
                     className="modern-input"
-                    type="text"
-                    placeholder="Department"
                     value={form.department}
                     onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
                     required
                     style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10, fontSize: 15, padding: '10px' }}
-                  />
+                  >
+                    {departmentOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt || 'Select Department'}</option>
+                    ))}
+                  </select>
                 </>
               )}
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFD600', fontSize: '0.98rem', cursor: 'pointer', fontWeight: 600 }}>

@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://localhost:5001';
+import { API_ENDPOINTS, API_BASE_URL } from './config/api';
+
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || API_ENDPOINTS.SOCKET_URL;
 const EMOJIS = ['😀','😂','😍','😎','👍','🎉','🔥','🙏','😅','😢','😡','🤔','🙌','🥳','💡','🚀','❤️','👏','😇','😬'];
 
 function getAvatarColor(name) {
@@ -47,16 +49,35 @@ export default function ChatPage({ user }) {
   // Fetch channels
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`/api/channels?user_id=${user.id}`)
+    fetch(`${API_BASE_URL}/api/channels?user_id=${user.id}`)
       .then(res => res.json())
-      .then(setChannels);
+      .then(data => {
+        if (Array.isArray(data)) {
+          setChannels(data);
+        } else {
+          setChannels([]);
+        }
+      })
+      .catch(() => setChannels([]));
   }, [user?.id]);
 
   // Fetch all users for DMs
   useEffect(() => {
-    fetch('/api/users')
+    fetch(`${API_BASE_URL}/api/users`)
       .then(res => res.json())
-      .then(setAllUsers);
+      .then(data => {
+        // Ensure we get an array, fallback to empty array if error
+        if (Array.isArray(data)) {
+          setAllUsers(data);
+        } else {
+          console.error('Failed to fetch users:', data);
+          setAllUsers([]);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching users:', err);
+        setAllUsers([]);
+      });
   }, []);
 
   // Connect socket
@@ -73,7 +94,7 @@ export default function ChatPage({ user }) {
         alert(`📅 ${data.message}`);
         
         // Refresh channels list to show updated last message
-        fetch(`/api/channels?user_id=${user.id}`)
+        fetch(`${API_BASE_URL}/api/channels?user_id=${user.id}`)
           .then(res => res.json())
           .then(setChannels);
       }
@@ -90,13 +111,13 @@ export default function ChatPage({ user }) {
     if (!currentChannel || !socketRef.current) return;
     console.log('[DEBUG] currentChannel set:', currentChannel);
     socketRef.current.emit('join', { channel_id: currentChannel.id });
-    fetch(`/api/channels/${currentChannel.id}/messages`)
+    fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/messages`)
       .then(res => res.json())
       .then(msgs => {
         console.log('[DEBUG] Loaded messages for channel', currentChannel.id, msgs);
         setMessages(msgs);
       });
-    fetch(`/api/channels/${currentChannel.id}/members`)
+    fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/members`)
       .then(res => res.json())
       .then(setMembers);
     socketRef.current.on('receive_message', msg => {
@@ -162,7 +183,7 @@ export default function ChatPage({ user }) {
     let dm = channels.find(c => c.is_dm && c.name === [user.id, otherUserId].sort().join('-'));
     if (!dm) {
       try {
-        const res = await fetch('/api/channels', {
+        const res = await fetch(`${API_BASE_URL}/api/channels`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: [user.id, otherUserId].sort().join('-'), is_dm: true, member_ids: [user.id, otherUserId], created_by: user.id })
@@ -170,7 +191,7 @@ export default function ChatPage({ user }) {
         if (!res.ok) throw new Error('Failed to create DM channel');
         // After creating, re-fetch channels and select the new DM
         await res.json(); // ignore returned data, always re-fetch for consistency
-        fetch(`/api/channels?user_id=${user.id}`)
+        fetch(`${API_BASE_URL}/api/channels?user_id=${user.id}`)
           .then(res => res.json())
           .then(newChannels => {
             setChannels(newChannels);
@@ -219,14 +240,14 @@ export default function ChatPage({ user }) {
     e.preventDefault();
     if (!newChannelName.trim()) return;
     const memberIds = [user.id, ...selectedMembers.map(Number)];
-    const res = await fetch('/api/channels', {
+    const res = await fetch(`${API_BASE_URL}/api/channels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newChannelName, is_dm: false, member_ids: memberIds, created_by: user.id })
     });
     await res.json(); // ignore returned data, always re-fetch
     // Re-fetch channels so the new one appears with correct members
-    fetch(`/api/channels?user_id=${user.id}`)
+    fetch(`${API_BASE_URL}/api/channels?user_id=${user.id}`)
       .then(res => res.json())
       .then(chs => {
         setChannels(chs);
@@ -257,7 +278,7 @@ export default function ChatPage({ user }) {
   const canLeave = currentChannel && (!isAdmin || (members.length > 1));
   const handleRename = async () => {
     setSettingsError('');
-    const res = await fetch(`/api/channels/${currentChannel.id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, name: renameValue })
@@ -272,7 +293,7 @@ export default function ChatPage({ user }) {
   };
   const handleDelete = async () => {
     setSettingsError('');
-    const res = await fetch(`/api/channels/${currentChannel.id}?user_id=${user.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}?user_id=${user.id}`, { method: 'DELETE' });
     if (res.ok) {
       setChannels(chs => chs.filter(c => c.id !== currentChannel.id));
       setCurrentChannel(null);
@@ -283,7 +304,7 @@ export default function ChatPage({ user }) {
   };
   const handleKick = async (memberId) => {
     setSettingsError('');
-    const res = await fetch(`/api/channels/${currentChannel.id}/members/${memberId}?user_id=${user.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/members/${memberId}?user_id=${user.id}`, { method: 'DELETE' });
     if (res.ok) {
       setMembers(m => m.filter(mem => mem.user_id !== memberId));
     } else {
@@ -292,7 +313,7 @@ export default function ChatPage({ user }) {
   };
   const handleAssignAdmin = async (newAdminId) => {
     setSettingsError('');
-    const res = await fetch(`/api/channels/${currentChannel.id}/admin`, {
+    const res = await fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/admin`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, new_admin_id: newAdminId })
@@ -305,7 +326,7 @@ export default function ChatPage({ user }) {
   };
   const handleLeave = async () => {
     setSettingsError('');
-    const res = await fetch(`/api/channels/${currentChannel.id}/members/${user.id}?user_id=${user.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/members/${user.id}?user_id=${user.id}`, { method: 'DELETE' });
     if (res.ok) {
       setChannels(chs => chs.filter(c => c.id !== currentChannel.id));
       setCurrentChannel(null);
@@ -325,7 +346,7 @@ export default function ChatPage({ user }) {
     if (!currentChannel || !messages.length) return;
     // Mark as read in backend
     const lastMsg = messages[messages.length - 1];
-    fetch(`/api/channels/${currentChannel.id}/read`, {
+    fetch(`${API_BASE_URL}/api/channels/${currentChannel.id}/read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, message_id: lastMsg.id })
@@ -340,7 +361,7 @@ export default function ChatPage({ user }) {
   const fetchParentMessage = async (parentId) => {
     if (parentCache[parentId]) return parentCache[parentId];
     try {
-      const res = await fetch(`/api/messages/${parentId}`);
+      const res = await fetch(`${API_BASE_URL}/api/messages/${parentId}`);
       if (res.ok) {
         const data = await res.json();
         setParentCache(pc => ({ ...pc, [parentId]: data }));

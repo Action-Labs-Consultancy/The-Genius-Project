@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AddCardModal from './AddCardModal';
+import { api } from './config/api';
 
 // Helper for avatar color
 function stringToColor(str) {
@@ -24,9 +25,7 @@ export default function ClientsPage({ user, onClientSelect }) {
     async function fetchClients() {
       setLoading(true);
       try {
-        const res = await fetch('/api/clients');
-        if (!res.ok) throw new Error('Failed to fetch clients');
-        const data = await res.json();
+        const data = await api.getClients();
         setClients(data);
       } catch (err) {
         setError('Could not load clients.');
@@ -41,12 +40,7 @@ export default function ClientsPage({ user, onClientSelect }) {
     e.preventDefault();
     setAddError(null);
     try {
-      const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newClient)
-      });
-      if (!res.ok) throw new Error('Failed to add client');
+      await api.createClient(newClient);
       setShowAddClient(false);
       setNewClient({ name: '', industry: '', email: '', phone: '', website: '', description: '' });
     } catch (err) {

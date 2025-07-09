@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { api, API_BASE_URL } from './config/api';
 import './styles.css';
 
 export default function LoginPage() {
@@ -18,12 +19,8 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      if (res.ok) {
+      const data = await api.login({ email, password });
+      if (data && data.user) {
         setTimeout(() => {
           window.location.href = '/dashboard';
         }, 2000);
@@ -42,22 +39,13 @@ export default function LoginPage() {
     setForgotMsg('');
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setForgotMsg('Check your inbox for reset instructions.');
-        setTimeout(() => {
-          setShowForgot(false);
-          setForgotEmail('');
-          setForgotMsg('');
-        }, 3000);
-      } else {
-        setForgotMsg(data.error || 'Failed to send reset email.');
-      }
+      await api.forgotPassword(forgotEmail);
+      setForgotMsg('Check your inbox for reset instructions.');
+      setTimeout(() => {
+        setShowForgot(false);
+        setForgotEmail('');
+        setForgotMsg('');
+      }, 3000);
     } catch (err) {
       setForgotMsg('Network error or server unavailable. Please try again later.');
     } finally {
@@ -71,23 +59,19 @@ export default function LoginPage() {
     setAccessResult('');
     setAccessLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/request-access', {
+      const res = await fetch(`${API_BASE_URL}/request-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: accessEmail, name: accessName }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setAccessResult('Request submitted!');
-        setTimeout(() => {
-          setShowAccessRequest(false);
-          setAccessEmail('');
-          setAccessName('');
-          setAccessResult('');
-        }, 2000);
-      } else {
-        setAccessResult(data.error || 'Failed to submit request.');
-      }
+      await api.requestAccess({ email: accessEmail, name: accessName });
+      setAccessResult('Request submitted!');
+      setTimeout(() => {
+        setShowAccessRequest(false);
+        setAccessEmail('');
+        setAccessName('');
+        setAccessResult('');
+      }, 2000);
     } catch (err) {
       setAccessResult('Network error or server unavailable.');
     } finally {
