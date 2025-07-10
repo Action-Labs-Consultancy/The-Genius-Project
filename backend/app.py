@@ -1190,16 +1190,50 @@ def handle_meetings():
             if not all([title, start_time, end_time]):
                 return jsonify({'error': 'Title, start_time, and end_time are required'}), 400
 
-            meeting_doc = MongoMeeting.create_meeting(title, description, start_time, end_time, participants)
+            # Get required fields
+            title = data.get("title")
+            reason = data.get("reason") or data.get("description", "")
+            date = data.get("date")
+            start_time = data.get("start_time")
+            end_time = data.get("end_time")
+            participants = data.get("participants", [])
+            organizer_id = data.get("organizer_id") or (participants[0] if participants else None)
+            
+            if not all([title, start_time, end_time, organizer_id]):
+                return jsonify({"error": "Title, start_time, end_time, and organizer_id are required"}), 400
+            
+            # Handle time parsing
+            from datetime import datetime, date as date_module
+            if not date:
+                date = date_module.today().isoformat()
+            
+            # Convert simple time strings (HH:MM) to full datetime strings
+            def format_datetime_string(date_str, time_str):
+                if ":" in time_str and len(time_str) <= 5:
+                    return f"{date_str}T{time_str}:00"
+                return time_str
+            
+            formatted_start_time = format_datetime_string(date, start_time)
+            formatted_end_time = format_datetime_string(date, end_time)
+            
+            meeting_doc = MongoMeeting.create_meeting(
+                title,
+                reason,
+                date,
+                formatted_start_time,
+                formatted_end_time,
+                organizer_id,
+                participants
+            )
             return jsonify({
                 'message': 'Meeting scheduled successfully',
                 'meeting': {
                     'id': str(meeting_doc['_id']),
                     'title': meeting_doc['title'],
-                    'description': meeting_doc['description'],
-                    'start_time': meeting_doc['start_time'].isoformat(),
-                    'end_time': meeting_doc['end_time'].isoformat(),
-                    'participants': meeting_doc['participants']
+                    'description': meeting_doc.get("reason", ""),
+                    'start_time': str(meeting_doc["start_time"]),
+                    'end_time': str(meeting_doc["end_time"]),
+                    'participants': meeting_doc.get("invitee_ids", [])
                 }
             }), 201
     except Exception as e:

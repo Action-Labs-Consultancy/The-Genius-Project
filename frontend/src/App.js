@@ -24,6 +24,7 @@ import OpenAIPlugin from './plugins/openai/OpenAIPlugin';
 import PineconePlugin from './plugins/pinecone/PineconePlugin';
 import RevivePlugin from './plugins/revive/RevivePlugin';
 import AppAdapter from './adapters/AppAdapter';
+import TikTokAuthCallback from './pages/tiktok-auth-callback';
 
 const appAdapter = new AppAdapter({
   aiPlugin: new OpenAIPlugin(),
@@ -205,6 +206,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/set-password" element={<SetPasswordPage />} />
+      <Route path="/tiktok-auth-callback" element={<TikTokAuthCallback />} />
       <Route path="*" element={
         <div className="login-page">
           <AuthenticationComponent onLoginSuccess={handleLoginSuccess} />

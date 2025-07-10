@@ -288,20 +288,26 @@ class MongoMessage:
 class MongoMeeting:
     """MongoDB Meeting model"""
     @staticmethod
-    def create_meeting(title, description, start_time, end_time, participants):
+    def create_meeting(title, reason, date, start_time, end_time, organizer_id, invitee_ids):
         collection = mongo.get_collection('meetings')
+        collection = mongo.get_collection("meetings")
+        
+        print(f"DEBUG: create_meeting called with start_time={start_time}, end_time={end_time}")
+        
         meeting_doc = {
-            'title': title,
-            'description': description,
-            'start_time': datetime.fromisoformat(start_time.replace("Z", "+00:00") if isinstance(start_time, str) and start_time.endswith("Z") else start_time),
-            'end_time': datetime.fromisoformat(end_time.replace("Z", "+00:00") if isinstance(end_time, str) and end_time.endswith("Z") else end_time),
-            'participants': participants,  # list of participant names or IDs
-            'created_at': datetime.utcnow()
+            "title": title,
+            "reason": reason,
+            "date": date,
+            "start_time": start_time,  # Store as string
+            "end_time": end_time,      # Store as string
+            "organizer_id": organizer_id,
+            "invitee_ids": invitee_ids,  # list of user IDs (as strings)
+            "created_at": datetime.utcnow()
         }
         result = collection.insert_one(meeting_doc)
-        meeting_doc['_id'] = result.inserted_id
+        meeting_doc["_id"] = result.inserted_id
+        print(f"DEBUG: Meeting created successfully with ID: {result.inserted_id}")
         return meeting_doc
-
     @staticmethod
     def find_by_user(user_id):
         collection = mongo.get_collection('meetings')
