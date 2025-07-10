@@ -1,0 +1,61 @@
+@keyframes bounce {
+  0%, 100% { 
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% { 
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to { 
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.chat-messages > div {
+  animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-input input {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.chat-input input:focus {
+  border-color: #FFD60044 !important;
+  box-shadow: 0 0 0 2px #FFD60022, 0 2px 12px rgba(255, 214, 0, 0.1) !important;
+  transform: translateY(-1px);
+}
+
+.chat-input button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.chat-input button:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 214, 0, 0.25) !important;
+  background: #FFE44D !important;
+}
+
+.chat-input button:active:not(:disabled) {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 8px rgba(255, 214, 0, 0.2) !important;
+}
