@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './styles/LlamaChat.css';
-import { API_BASE_URL } from './config/api';
 
 const LlamaChat = ({ userId }) => {
   const [conversations, setConversations] = useState([]);
@@ -9,13 +8,41 @@ const LlamaChat = ({ userId }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(scrollToBottom, [messages, streamingContent]);
+
+  // Check if Llama server is running
+  const checkConnection = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/health', {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000)
+      });
+      setIsConnected(response.ok);
+      if (!response.ok) {
+        setError('Llama server is not responding. Please make sure it\'s running on port 8000.');
+      } else {
+        setError('');
+      }
+    } catch (error) {
+      setIsConnected(false);
+      setError('Cannot connect to Llama server. Please start the llama-server on port 8000.');
+    }
+  };
+
+  // Check connection on mount and periodically
+  useEffect(() => {
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Format timestamp for display
   const formatTimestamp = (timestamp) => {
@@ -24,46 +51,35 @@ const LlamaChat = ({ userId }) => {
 
   // Create new conversation
   const createNewConversation = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'phi-3-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful AI assistant powered by Llama. Be concise and helpful.'
-            }
-          ],
-          max_tokens: 1,
-          temperature: 0.7
-        })
-      });
+    const newConv = {
+      id: `conv-${Date.now()}`,
+      title: 'New Chat',
+      created_at: new Date(),
+      messages: []
+    };
+    setConversations(prev => [newConv, ...prev]);
+    setCurrentConversation(newConv);
+    setMessages([]);
+    setError('');
+  };
 
-      if (response.ok) {
-        const newConv = {
-          id: Date.now().toString(),
-          title: 'New Chat',
-          created_at: new Date(),
-          messages: []
-        };
-        setConversations(prev => [newConv, ...prev]);
-        setCurrentConversation(newConv);
+  // Delete conversation
+  const deleteConversation = (convId) => {
+    setConversations(prev => prev.filter(conv => conv.id !== convId));
+    if (currentConversation?.id === convId) {
+      const remaining = conversations.filter(conv => conv.id !== convId);
+      if (remaining.length > 0) {
+        selectConversation(remaining[0]);
+      } else {
+        setCurrentConversation(null);
         setMessages([]);
-        setError('');
       }
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      setError('Failed to create new conversation');
     }
   };
 
-  // Send message to Llama
+  // Send message to Llama with streaming support
   const sendMessage = async () => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading || !isConnected) return;
 
     // If no current conversation, create one
     if (!currentConversation) {
@@ -76,7 +92,19 @@ const LlamaChat = ({ userId }) => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setStreamingContent(''); // Reset streaming content
+    
+    // Update conversation with user message
+    const updatedConv = {
+      ...currentConversation,
+      messages: newMessages
+    };
+    setConversations(prev => prev.map(conv => 
+      conv.id === currentConversation.id ? updatedConv : conv
+    ));
+
     setMessage('');
     setIsLoading(true);
     setError('');
@@ -86,16 +114,12 @@ const LlamaChat = ({ userId }) => {
       const conversationHistory = [
         {
           role: 'system',
-          content: 'You are a helpful AI assistant powered by Llama. Be concise and helpful.'
+          content: 'You are Llama, a helpful AI assistant. Be concise, informative, and friendly. Format your responses clearly with proper spacing and structure when needed.'
         },
-        ...messages.map(msg => ({
+        ...newMessages.map(msg => ({
           role: msg.role,
           content: msg.content
-        })),
-        {
-          role: 'user',
-          content: userMessage.content
-        }
+        }))
       ];
 
       const response = await fetch('http://localhost:8000/v1/chat/completions', {
@@ -106,9 +130,12 @@ const LlamaChat = ({ userId }) => {
         body: JSON.stringify({
           model: 'phi-3-mini',
           messages: conversationHistory,
-          max_tokens: 512,
+          max_tokens: 1024,
           temperature: 0.7,
-          stream: false
+          top_p: 0.9,
+          frequency_penalty: 0.1,
+          presence_penalty: 0.1,
+          stream: true // Enable streaming
         })
       });
 
@@ -116,30 +143,72 @@ const LlamaChat = ({ userId }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                fullContent += content;
+                setStreamingContent(prev => prev + content);
+              }
+            } catch (e) {
+              console.warn('Error parsing streaming data:', e);
+            }
+          }
+        }
+      }
+
+      // Create final assistant message
       const assistantMessage = {
         role: 'assistant',
-        content: data.choices[0].message.content,
+        content: fullContent,
         timestamp: new Date()
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      const finalMessages = [...newMessages, assistantMessage];
+      setMessages(finalMessages);
+      setStreamingContent(''); // Clear streaming content
 
       // Update conversation title if it's the first message
+      let finalConv = updatedConv;
       if (currentConversation && currentConversation.title === 'New Chat') {
-        const updatedConv = {
-          ...currentConversation,
-          title: message.trim().substring(0, 30) + (message.trim().length > 30 ? '...' : '')
+        finalConv = {
+          ...updatedConv,
+          title: userMessage.content.substring(0, 40) + (userMessage.content.length > 40 ? '...' : ''),
+          messages: finalMessages
         };
-        setCurrentConversation(updatedConv);
-        setConversations(prev => prev.map(conv => 
-          conv.id === currentConversation.id ? updatedConv : conv
-        ));
+        setCurrentConversation(finalConv);
+      } else {
+        finalConv = {
+          ...updatedConv,
+          messages: finalMessages
+        };
       }
+
+      // Update conversations list
+      setConversations(prev => prev.map(conv => 
+        conv.id === currentConversation.id ? finalConv : conv
+      ));
 
     } catch (error) {
       console.error('Error sending message:', error);
-      setError('Failed to send message. Make sure Llama server is running.');
+      setError('Failed to send message. Please check if Llama server is running on port 8000.');
+      setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
@@ -155,12 +224,22 @@ const LlamaChat = ({ userId }) => {
   const selectConversation = (conversation) => {
     setCurrentConversation(conversation);
     setMessages(conversation.messages || []);
+    setStreamingContent(''); // Clear any streaming content
     setError('');
+  };
+
+  // Auto-resize textarea
+  const handleTextareaChange = (e) => {
+    setMessage(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
   };
 
   // Initialize with first conversation on component mount
   useEffect(() => {
-    createNewConversation();
+    if (conversations.length === 0) {
+      createNewConversation();
+    }
   }, []);
 
   return (
@@ -169,28 +248,66 @@ const LlamaChat = ({ userId }) => {
       <div className="llama-chat-sidebar">
         <div className="sidebar-header">
           <h2>🦙 Llama Chat</h2>
+          <div className="connection-status">
+            <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></span>
+            <span className="status-text">{isConnected ? 'Connected' : 'Disconnected'}</span>
+          </div>
           <button 
             className="new-chat-btn"
             onClick={createNewConversation}
             title="New Chat"
+            disabled={!isConnected}
           >
             +
           </button>
         </div>
         
         <div className="conversations-list">
-          {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={`conversation-item ${currentConversation?.id === conv.id ? 'active' : ''}`}
-              onClick={() => selectConversation(conv)}
-            >
-              <div className="conversation-title">{conv.title}</div>
-              <div className="conversation-time">
-                {formatTimestamp(conv.created_at)}
-              </div>
+          {conversations.length === 0 ? (
+            <div className="no-conversations">
+              <p>No conversations yet</p>
+              <button 
+                className="start-first-chat"
+                onClick={createNewConversation}
+                disabled={!isConnected}
+              >
+                Start Your First Chat
+              </button>
             </div>
-          ))}
+          ) : (
+            conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className={`conversation-item ${currentConversation?.id === conv.id ? 'active' : ''}`}
+              >
+                <div 
+                  className="conversation-content"
+                  onClick={() => selectConversation(conv)}
+                >
+                  <div className="conversation-title">{conv.title}</div>
+                  <div className="conversation-preview">
+                    {conv.messages.length > 0 
+                      ? conv.messages[conv.messages.length - 1].content.substring(0, 50) + '...'
+                      : 'No messages yet'
+                    }
+                  </div>
+                  <div className="conversation-time">
+                    {formatTimestamp(conv.created_at)}
+                  </div>
+                </div>
+                <button
+                  className="delete-conversation"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteConversation(conv.id);
+                  }}
+                  title="Delete conversation"
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -201,7 +318,10 @@ const LlamaChat = ({ userId }) => {
             <div className="chat-header">
               <h3>{currentConversation.title}</h3>
               <div className="model-info">
-                <span className="model-badge">Phi-3 Mini</span>
+                <span className="model-badge">Phi-3 Mini (Local)</span>
+                <span className={`connection-badge ${isConnected ? 'connected' : 'disconnected'}`}>
+                  {isConnected ? '🟢 Online' : '🔴 Offline'}
+                </span>
               </div>
             </div>
             
@@ -210,29 +330,69 @@ const LlamaChat = ({ userId }) => {
                 <div className="empty-chat">
                   <div className="llama-icon">🦙</div>
                   <h4>Start chatting with Llama!</h4>
-                  <p>Ask me anything - I'm powered by Phi-3 Mini running locally</p>
+                  <p>I'm powered by Phi-3 Mini running locally on your machine</p>
+                  <div className="quick-suggestions">
+                    <button 
+                      className="suggestion-btn"
+                      onClick={() => setMessage("Hello! How can you help me today?")}
+                      disabled={!isConnected}
+                    >
+                      👋 Say hello
+                    </button>
+                    <button 
+                      className="suggestion-btn"
+                      onClick={() => setMessage("Explain quantum computing in simple terms")}
+                      disabled={!isConnected}
+                    >
+                      🔬 Ask about science
+                    </button>
+                    <button 
+                      className="suggestion-btn"
+                      onClick={() => setMessage("Help me write a creative story")}
+                      disabled={!isConnected}
+                    >
+                      ✍️ Creative writing
+                    </button>
+                  </div>
                 </div>
               ) : (
-                messages.map((msg, index) => (
-                  <div key={index} className={`message ${msg.role}`}>
-                    <div className="message-content">
-                      <div className="message-text">{msg.content}</div>
-                      <div className="message-time">
-                        {formatTimestamp(msg.timestamp)}
+                <>
+                  {messages.map((msg, index) => (
+                    <div key={index} className={`message ${msg.role}`}>
+                      <div className="message-avatar">
+                        {msg.role === 'user' ? '👤' : '🦙'}
+                      </div>
+                      <div className="message-content">
+                        <div className="message-text">{msg.content}</div>
+                        <div className="message-time">
+                          {formatTimestamp(msg.timestamp)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  
+                  {/* Streaming message */}
+                  {streamingContent && (
+                    <div className="message assistant streaming">
+                      <div className="message-avatar">🦙</div>
+                      <div className="message-content">
+                        <div className="message-text">{streamingContent}</div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               
-              {isLoading && (
+              {isLoading && !streamingContent && (
                 <div className="message assistant loading">
+                  <div className="message-avatar">🦙</div>
                   <div className="message-content">
                     <div className="typing-indicator">
                       <span></span>
                       <span></span>
                       <span></span>
                     </div>
+                    <div className="typing-text">Llama is thinking...</div>
                   </div>
                 </div>
               )}
@@ -240,7 +400,16 @@ const LlamaChat = ({ userId }) => {
               {error && (
                 <div className="error-message">
                   <span className="error-icon">⚠️</span>
-                  {error}
+                  <div>
+                    <strong>Connection Error:</strong><br />
+                    {error}
+                    <button 
+                      className="retry-btn"
+                      onClick={checkConnection}
+                    >
+                      Retry Connection
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -251,22 +420,27 @@ const LlamaChat = ({ userId }) => {
               <div className="input-wrapper">
                 <textarea
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={handleTextareaChange}
                   onKeyPress={handleKeyPress}
-                  placeholder="Message Llama..."
-                  disabled={isLoading}
+                  placeholder={isConnected ? "Message Llama..." : "Connect to Llama server first..."}
+                  disabled={isLoading || !isConnected}
                   rows={1}
+                  style={{ resize: 'none', overflow: 'hidden' }}
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!message.trim() || isLoading}
+                  disabled={!message.trim() || isLoading || !isConnected}
                   className="send-button"
+                  title="Send message"
                 >
                   {isLoading ? '⏳' : '➤'}
                 </button>
               </div>
               <div className="input-hint">
-                Press Enter to send, Shift+Enter for new line
+                {isConnected 
+                  ? "Press Enter to send, Shift+Enter for new line" 
+                  : "Start the Llama server to begin chatting"
+                }
               </div>
             </div>
           </>
@@ -274,10 +448,20 @@ const LlamaChat = ({ userId }) => {
           <div className="no-conversation">
             <div className="llama-icon">🦙</div>
             <h3>Welcome to Llama Chat</h3>
-            <p>Create a new conversation to start chatting</p>
-            <button className="create-first-chat" onClick={createNewConversation}>
-              Start New Chat
+            <p>Your local AI assistant powered by Phi-3 Mini</p>
+            <button 
+              className="create-first-chat" 
+              onClick={createNewConversation}
+              disabled={!isConnected}
+            >
+              {isConnected ? 'Start New Chat' : 'Connect to Llama Server First'}
             </button>
+            {!isConnected && (
+              <div className="server-instructions">
+                <h4>🚀 Start the Llama Server:</h4>
+                <code>cd llama.cpp/build/bin && ./llama-server --model /path/to/your/model.gguf --port 8000</code>
+              </div>
+            )}
           </div>
         )}
       </div>

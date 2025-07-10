@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from './config/api';
 
 export default function ClientAccessManager({ clientId, userType }) {
   const [accessList, setAccessList] = useState([]);
@@ -16,9 +17,7 @@ export default function ClientAccessManager({ clientId, userType }) {
 
   const fetchAccessList = async () => {
     try {
-      const res = await fetch(`/api/clients/${clientId}/access`);
-      if (!res.ok) throw new Error('Failed to fetch access list');
-      const data = await res.json();
+      const data = await api.getClientAccess(clientId);
       setAccessList(data);
     } catch (err) {
       console.error('Error fetching access list:', err);
@@ -28,13 +27,7 @@ export default function ClientAccessManager({ clientId, userType }) {
   const fetchAvailableUsers = async () => {
     try {
       // Fetch all users with role 'client'
-      const res = await fetch('/api/users?role=client');
-      if (!res.ok) {
-        // Fallback: create a mock endpoint or get users another way
-        setAvailableUsers([]);
-        return;
-      }
-      const data = await res.json();
+      const data = await api.getUsers('client');
       setAvailableUsers(data);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -47,21 +40,12 @@ export default function ClientAccessManager({ clientId, userType }) {
     
     setLoading(true);
     try {
-      const res = await fetch(`/api/clients/${clientId}/access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: selectedUser, // send as string
-          can_view: true,
-          can_comment: true,
-          can_approve: true
-        })
+      await api.createClientAccess(clientId, {
+        user_id: selectedUser, // send as string
+        can_view: true,
+        can_comment: true,
+        can_approve: true
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to add access');
-      }
 
       setShowAddUserModal(false);
       setSelectedUser('');
@@ -79,11 +63,7 @@ export default function ClientAccessManager({ clientId, userType }) {
     if (!confirm('Are you sure you want to remove this user\'s access?')) return;
     
     try {
-      const res = await fetch(`/api/clients/${clientId}/access/${accessId}`, {
-        method: 'DELETE'
-      });
-
-      if (!res.ok) throw new Error('Failed to remove access');
+      await api.deleteClientAccess(clientId, accessId);
       
       fetchAccessList();
       alert('User access removed successfully!');
@@ -95,15 +75,9 @@ export default function ClientAccessManager({ clientId, userType }) {
 
   const handleTogglePermission = async (accessId, permission, currentValue) => {
     try {
-      const res = await fetch(`/api/clients/${clientId}/access/${accessId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          [permission]: !currentValue
-        })
+      await api.updateClientAccess(clientId, accessId, {
+        [permission]: !currentValue
       });
-
-      if (!res.ok) throw new Error('Failed to update permission');
       
       fetchAccessList();
     } catch (err) {

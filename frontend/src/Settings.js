@@ -140,6 +140,14 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     e.preventDefault();
     setMsg('');
     setLoading(true);
+    
+    // Validate that employees have a department
+    if (editForm.user_type === 'employee' && !editForm.department.trim()) {
+      setMsg('Employees must have a department assigned');
+      setLoading(false);
+      return;
+    }
+    
     try {
       const res = await fetch(`${API_BASE_URL}/api/users/${editUser.id}`, {
         method: 'PUT',
@@ -227,10 +235,10 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
 
   // Only show department if userType is employee
   const departmentOptions = [
-    '',
-    'HR',
-    'Production',
     'Marketing',
+    'HR', 
+    'Production',
+    'Administration',
   ];
 
   // --- MODERN BLACK & YELLOW THEME (Action Labs) ---
@@ -648,8 +656,9 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                     required
                     style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10, fontSize: 15, padding: '10px' }}
                   >
+                    <option value="">Select Department</option>
                     {departmentOptions.map(opt => (
-                      <option key={opt} value={opt}>{opt || 'Select Department'}</option>
+                      <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
                 </>
@@ -760,8 +769,9 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                       required
                       style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10, fontSize: 15, padding: '10px', marginBottom: 0 }}
                     >
+                      <option value="">Select Department</option>
                       {departmentOptions.map(opt => (
-                        <option key={opt} value={opt}>{opt || 'Select Department'}</option>
+                        <option key={opt} value={opt}>{opt}</option>
                       ))}
                     </select>
                   </>
@@ -880,8 +890,9 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                                   required
                                   style={{ minWidth: 110, background: '#232323', color: '#FFD600', border: '2px solid #FFD600', fontWeight: 600, borderRadius: 8, fontSize: 15, boxShadow: '0 2px 8px #FFD60022', padding: '8px 16px' }}
                                 >
+                                  <option value="">Select Department</option>
                                   {departmentOptions.map(opt => (
-                                    <option key={opt} value={opt}>{opt || 'Select Department'}</option>
+                                    <option key={opt} value={opt}>{opt}</option>
                                   ))}
                                 </select>
                               )}

@@ -13,11 +13,11 @@ function getAvatarColor(name) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export default function ChatPage({ user }) {
+export default function ChatPage({ user, navigationContext }) {
   const [channels, setChannels] = useState([]);
   const [currentChannel, setCurrentChannel] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(navigationContext?.initialIdea || '');
   const [members, setMembers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -383,6 +383,20 @@ export default function ChatPage({ user }) {
   // When switching channels, update viewedChannelId
   useEffect(() => {
     setViewedChannelId(currentChannel ? currentChannel.id : null);
+  }, [currentChannel]);
+
+  // Auto-send the initial idea if present and only once
+  useEffect(() => {
+    if (navigationContext?.initialIdea && currentChannel && input) {
+      socketRef.current.emit('send_message', {
+        channel_id: currentChannel.id,
+        user_id: user.id,
+        content: input,
+        name: user.name
+      });
+      setInput('');
+    }
+    // eslint-disable-next-line
   }, [currentChannel]);
 
   return (

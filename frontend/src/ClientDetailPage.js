@@ -447,12 +447,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
     setClientStatus(newStatus);
     setStatusSaving(true);
     try {
-      const res = await fetch(`/api/clients/${client.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (!res.ok) throw new Error('Failed to update status');
+      await api.updateClient(client.id, { status: newStatus });
     } catch (err) {
       setClientStatus(client.status);
       alert('Failed to update status.');
@@ -462,8 +457,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
 
   const handleDeleteClient = async () => {
     try {
-      const res = await fetch(`/api/clients/${client.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete client');
+      await api.deleteClient(client.id);
       setShowDeleteClient(false);
       onBack();
     } catch (err) {
@@ -473,8 +467,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
 
   const handleDeleteCard = async (cardId) => {
     try {
-      const res = await fetch(`/api/cards/${cardId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete card');
+      await api.deleteClientCard(client.id, cardId);
       setDeleteCardId(null);
       fetchCards();
     } catch (err) {

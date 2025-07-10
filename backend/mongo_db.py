@@ -288,33 +288,61 @@ class MongoMessage:
 class MongoMeeting:
     """MongoDB Meeting model"""
     @staticmethod
+    def parse_iso_time(time_str):
+        """Parse ISO format time string, handling 'Z' suffix"""
+        print(f"DEBUG: parse_iso_time called with: {time_str} (type: {type(time_str)})")
+        if isinstance(time_str, str):
+            # Replace 'Z' with '+00:00' for proper UTC handling
+            if time_str.endswith('Z'):
+                time_str = time_str[:-1] + '+00:00'
+            try:
+                parsed = datetime.fromisoformat(time_str)
+                print(f"DEBUG: Successfully parsed time: {parsed}")
+                return parsed
+            except ValueError as e:
+                print(f"DEBUG: Failed to parse time {time_str}: {e}")
+                # If it fails, return as string
+                return time_str
+        print(f"DEBUG: Returning time_str as-is: {time_str}")
+        return time_str
+    
+    @staticmethod
     def create_meeting(title, reason, date, start_time, end_time, organizer_id, invitee_ids):
         collection = mongo.get_collection('meetings')
-        collection = mongo.get_collection("meetings")
         
         print(f"DEBUG: create_meeting called with start_time={start_time}, end_time={end_time}")
         
+        # Don't parse the times at all - just store them as strings
+        # This will avoid the isoformat parsing error
         meeting_doc = {
-            "title": title,
-            "reason": reason,
-            "date": date,
-            "start_time": start_time,  # Store as string
-            "end_time": end_time,      # Store as string
-            "organizer_id": organizer_id,
-            "invitee_ids": invitee_ids,  # list of user IDs (as strings)
-            "created_at": datetime.utcnow()
+            'title': title,
+            'reason': reason,
+            'date': date,
+            'start_time': start_time,  # Store as-is
+            'end_time': end_time,      # Store as-is
+            'organizer_id': organizer_id,
+            'invitee_ids': invitee_ids,  # list of user IDs (as strings)
+            'created_at': datetime.utcnow()
         }
         result = collection.insert_one(meeting_doc)
-        meeting_doc["_id"] = result.inserted_id
+        meeting_doc['_id'] = result.inserted_id
         print(f"DEBUG: Meeting created successfully with ID: {result.inserted_id}")
         return meeting_doc
+
     @staticmethod
     def find_by_user(user_id):
         collection = mongo.get_collection('meetings')
-        return list(collection.find({'$or': [
-            {'organizer_id': user_id},
-            {'invitee_ids': str(user_id)}
-        ]}))
+        # Ensure user_id is string for comparison
+        user_id_str = str(user_id)
+        query = {'$or': [
+            {'organizer_id': user_id_str},
+            {'invitee_ids': {'$in': [user_id_str]}},
+            {'participants': {'$in': [user_id_str]}}
+        ]}
+        print(f"DEBUG: MongoMeeting.find_by_user query: {query}")
+        result = list(collection.find(query))
+        print(f"DEBUG: MongoMeeting.find_by_user result count: {len(result)}")
+        return result
 
     @staticmethod
     def find_all():
@@ -367,3 +395,131 @@ class MongoContentCalendar:
     def find_by_id(entry_id):
         collection = mongo.get_collection('content_calendar')
         return collection.find_one({'_id': ObjectId(entry_id)})
+
+
+class MongoChatConversation:
+    """Handle OpenAI chat conversations"""
+    
+    @staticmethod
+    def create_conversation(user_id, title="New Chat"):
+        """Create a new chat conversation"""
+        conversation_data = {
+            'user_id': str(user_id),
+            'title': title,
+            'messages': [],
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        collection = mongo.get_collection('chat_conversations')
+        result = collection.insert_one(conversation_data)
+        return collection.find_one({'_id': result.inserted_id})
+    
+    @staticmethod
+    def get_conversation(conversation_id):
+        """Get a specific conversation"""
+        collection = mongo.get_collection('chat_conversations')
+        return collection.find_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def get_user_conversations(user_id):
+        """Get all conversations for a user"""
+        collection = mongo.get_collection('chat_conversations')
+        return list(collection.find({'user_id': str(user_id)}).sort('updated_at', -1))
+    
+    @staticmethod
+    def add_message(conversation_id, role, content):
+        """Add a message to a conversation"""
+        message = {
+            'role': role,
+            'content': content,
+            'timestamp': datetime.utcnow()
+        }
+        collection = mongo.get_collection('chat_conversations')
+        collection.update_one(
+            {'_id': ObjectId(conversation_id)},
+            {
+                '$push': {'messages': message},
+                '$set': {'updated_at': datetime.utcnow()}
+            }
+        )
+        return collection.find_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def delete_conversation(conversation_id):
+        """Delete a conversation"""
+        collection = mongo.get_collection('chat_conversations')
+        return collection.delete_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def update_title(conversation_id, title):
+        """Update conversation title"""
+        collection = mongo.get_collection('chat_conversations')
+        collection.update_one(
+            {'_id': ObjectId(conversation_id)},
+            {'$set': {'title': title, 'updated_at': datetime.utcnow()}}
+        )
+        return collection.find_one({'_id': ObjectId(conversation_id)})
+
+
+class MongoChatConversation:
+    """Handle OpenAI chat conversations"""
+    
+    @staticmethod
+    def create_conversation(user_id, title="New Chat"):
+        """Create a new chat conversation"""
+        conversation_data = {
+            'user_id': str(user_id),
+            'title': title,
+            'messages': [],
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        collection = mongo.get_collection('chat_conversations')
+        result = collection.insert_one(conversation_data)
+        return collection.find_one({'_id': result.inserted_id})
+    
+    @staticmethod
+    def get_conversation(conversation_id):
+        """Get a specific conversation"""
+        collection = mongo.get_collection('chat_conversations')
+        return collection.find_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def get_user_conversations(user_id):
+        """Get all conversations for a user"""
+        collection = mongo.get_collection('chat_conversations')
+        return list(collection.find({'user_id': str(user_id)}).sort('updated_at', -1))
+    
+    @staticmethod
+    def add_message(conversation_id, role, content):
+        """Add a message to a conversation"""
+        message = {
+            'role': role,
+            'content': content,
+            'timestamp': datetime.utcnow()
+        }
+        collection = mongo.get_collection('chat_conversations')
+        collection.update_one(
+            {'_id': ObjectId(conversation_id)},
+            {
+                '$push': {'messages': message},
+                '$set': {'updated_at': datetime.utcnow()}
+            }
+        )
+        return collection.find_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def delete_conversation(conversation_id):
+        """Delete a conversation"""
+        collection = mongo.get_collection('chat_conversations')
+        return collection.delete_one({'_id': ObjectId(conversation_id)})
+    
+    @staticmethod
+    def update_title(conversation_id, title):
+        """Update conversation title"""
+        collection = mongo.get_collection('chat_conversations')
+        collection.update_one(
+            {'_id': ObjectId(conversation_id)},
+            {'$set': {'title': title, 'updated_at': datetime.utcnow()}}
+        )
+        return collection.find_one({'_id': ObjectId(conversation_id)})

@@ -3,13 +3,13 @@ import './styles.css';
 import MeetingsCalendar from './MeetingsCalendar';
 
 const MODULES = [
+  { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
   { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
   { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
   { id: 'clients', title: 'Clients', icon: '👥' },
   { id: 'newsFeed', title: 'News Feed', icon: '📰' },
   { id: 'notes', title: 'Notes', icon: '📝' },
   { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
-  { id: 'chat', title: 'Chat', icon: '💬' },
   { id: 'calendar', title: 'Calendar', icon: '📆' }, // Renamed
 ];
 
@@ -39,7 +39,10 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   };
 
   const handleModuleClick = (id) => {
-    if (id === 'calendar') {
+    if (id === 'llama-chat') {
+      // Navigate to the Llama Chat page
+      if (typeof onNavigate === 'function') onNavigate('llama-chat');
+    } else if (id === 'calendar') {
       // Switch to the calendar view in App.js
       if (typeof onNavigate === 'function') onNavigate('calendar');
     } else if (id === 'weeklyStandup') {

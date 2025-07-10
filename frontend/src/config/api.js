@@ -34,6 +34,7 @@ export const API_ENDPOINTS = {
   CLIENTS: `${API_BASE_URL}/api/clients`,
   CLIENT_BY_ID: (id) => `${API_BASE_URL}/api/clients/${id}`,
   CLIENT_CARDS: (id) => `${API_BASE_URL}/api/clients/${id}/cards`,
+  CLIENT_CARD_BY_ID: (clientId, cardId) => `${API_BASE_URL}/api/clients/${clientId}/cards/${cardId}`,
   CLIENT_ACCESS: (id) => `${API_BASE_URL}/api/clients/${id}/access`,
   CLIENT_ACCESS_BY_ID: (clientId, accessId) => `${API_BASE_URL}/api/clients/${clientId}/access/${accessId}`,
   CLIENT_CONTENT_CALENDAR: (id) => `${API_BASE_URL}/api/clients/${id}/content-calendar`,
@@ -142,12 +143,42 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(clientData)
   }),
+
+  updateClient: (id, clientData) => apiCall(API_ENDPOINTS.CLIENT_BY_ID(id), {
+    method: 'PUT',
+    body: JSON.stringify(clientData)
+  }),
+
+  deleteClient: (id) => apiCall(API_ENDPOINTS.CLIENT_BY_ID(id), {
+    method: 'DELETE'
+  }),
   
   getClientCards: (clientId) => apiCall(API_ENDPOINTS.CLIENT_CARDS(clientId)),
   
   createClientCard: (clientId, cardData) => apiCall(API_ENDPOINTS.CLIENT_CARDS(clientId), {
     method: 'POST',
     body: JSON.stringify(cardData)
+  }),
+
+  deleteClientCard: (clientId, cardId) => apiCall(API_ENDPOINTS.CLIENT_CARD_BY_ID(clientId, cardId), {
+    method: 'DELETE'
+  }),
+
+  // Client Access Management
+  getClientAccess: (clientId) => apiCall(API_ENDPOINTS.CLIENT_ACCESS(clientId)),
+  
+  createClientAccess: (clientId, accessData) => apiCall(API_ENDPOINTS.CLIENT_ACCESS(clientId), {
+    method: 'POST',
+    body: JSON.stringify(accessData)
+  }),
+
+  updateClientAccess: (clientId, accessId, accessData) => apiCall(API_ENDPOINTS.CLIENT_ACCESS_BY_ID(clientId, accessId), {
+    method: 'PUT',
+    body: JSON.stringify(accessData)
+  }),
+
+  deleteClientAccess: (clientId, accessId) => apiCall(API_ENDPOINTS.CLIENT_ACCESS_BY_ID(clientId, accessId), {
+    method: 'DELETE'
   }),
   
   // Projects
