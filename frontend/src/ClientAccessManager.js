@@ -51,7 +51,7 @@ export default function ClientAccessManager({ clientId, userType }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: parseInt(selectedUser),
+          user_id: selectedUser, // send as string
           can_view: true,
           can_comment: true,
           can_approve: true
