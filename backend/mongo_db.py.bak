@@ -293,8 +293,8 @@ class MongoMeeting:
         meeting_doc = {
             'title': title,
             'description': description,
-            'start_time': datetime.fromisoformat(start_time.replace("Z", "+00:00") if isinstance(start_time, str) and start_time.endswith("Z") else start_time),
-            'end_time': datetime.fromisoformat(end_time.replace("Z", "+00:00") if isinstance(end_time, str) and end_time.endswith("Z") else end_time),
+            'start_time': datetime.fromisoformat(start_time),
+            'end_time': datetime.fromisoformat(end_time),
             'participants': participants,  # list of participant names or IDs
             'created_at': datetime.utcnow()
         }

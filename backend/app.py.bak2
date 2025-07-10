@@ -1228,42 +1228,6 @@ def mark_channel_read(channel_id):
 # Move business logic to core/business_logic.py and keep only Flask app/adapters here.
 # Example import:
 # from core.business_logic import get_access_requests_logic, approve_access_request_logic, ...
-
-# ─── TikTok Integration ───────────────────────────────────────────────────────
-@app.route('/api/tiktok/analyze', methods=['GET'])
-def tiktok_analyze():
-    """Handle TikTok OAuth callback and provide analysis"""
-    try:
-        # Get the authorization code from query parameters
-        code = request.args.get('code')
-        if not code:
-            return jsonify({'error': 'Missing TikTok authorization code'}), 400
-        
-        # 1. Exchange authorization code for access token (mock implementation)
-        # In a real implementation, you would call TikTok API here
-        # 2. Use the access token to fetch actual TikTok data
-        
-        # Mock analysis data for demo purposes
-        analysis_data = {
-            'account': 'Demo TikTok Account',
-            'followers': 45000,
-            'engagement_rate': 8.5,
-            'top_video': 'How to go viral on TikTok',
-            'views': 250000,
-            'likes': 12000,
-            'comments': 850,
-            'shares': 1200,
-            'hashtags': ['#fyp', '#viral', '#trending'],
-            'best_time_to_post': '7-9 PM',
-            'audience_age': '18-24 (65%)',
-            'top_locations': ['US', 'UK', 'Canada']
-        }
-        
-        return jsonify(analysis_data)
-    except Exception as e:
-        print(f'TikTok analysis error: {e}')
-        return jsonify({'error': 'Failed to process TikTok authorization'}), 500
-
 if __name__ == "__main__":
     import sys
     port = 5002  # Default to 5002 to avoid conflicts
