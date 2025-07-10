@@ -1,8 +1,8 @@
 import React from 'react';
 
 const TIKTOK_APP_ID = '7522384605962469377';
-const REDIRECT_URI = encodeURIComponent('https://www.action-labs.ai/tiktok-auth-callback');
-const AUTH_URL = `https://business-api.tiktok.com/portal/auth?app_id=${TIKTOK_APP_ID}&state=your_custom_params&redirect_uri=${REDIRECT_URI}`;
+const REDIRECT_URI = encodeURIComponent(window.location.origin + '/tiktok-auth-callback');
+const AUTH_URL = `https://business-api.tiktok.com/portal/auth?app_id=${TIKTOK_APP_ID}&state=${encodeURIComponent(window.location.href)}&redirect_uri=${REDIRECT_URI}`;
 
 export default function ConnectTikTokButton() {
   return (
