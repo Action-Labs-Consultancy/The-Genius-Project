@@ -17,6 +17,7 @@ import ProjectsPage from './ProjectsPage';
 import ProjectDetailPage from './ProjectDetailPage';
 import SocialMediaInsightsDashboard from './SocialMediaInsightsDashboard';
 import ContentCalendarPage from './ContentCalendarPage';
+import LlamaChat from './LlamaChat';
 import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
@@ -189,13 +190,15 @@ export default function App() {
           ) : view === 'settings' && user.is_admin ? (
             <Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />
           ) : view === 'chat' ? (
-            <ChatPage user={user} />
+            <ChatPage user={user} navigationContext={navigationContext} />
           ) : view === 'weeklyStandup' ? (
             <WeeklyStandUpPlanner user={user} />
           ) : view === 'standup' ? (
             <StandUpPage user={user} />
           ) : view === 'insights' ? (
             <SocialMediaInsightsDashboard user={user} />
+          ) : view === 'llama-chat' ? (
+            <LlamaChat userId={user.id} />
           ) : null}
         </div>
       </div>
