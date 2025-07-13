@@ -3,6 +3,7 @@ import './styles.css';
 import MeetingsCalendar from './MeetingsCalendar';
 
 const MODULES = [
+  { id: 'chat', title: 'Chat', icon: '💬' },
   { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
   { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
   { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
@@ -119,6 +120,15 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                     Settings
                   </button>
                 )}
+                <button
+                  className="menu-item"
+                  onClick={() => handleModuleClick('chat')}
+                  draggable={false}
+                  style={{ background: '#232428', color: '#FFD600', border: '2px solid #FFD600', borderRadius: 10, fontWeight: 700, fontSize: 16, marginBottom: 12, padding: '12px 18px', boxShadow: '0 2px 8px #FFD60022', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.18s, color 0.18s, transform 0.18s', justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
+                >
+                  <span className="menu-icon" style={{ fontSize: 22 }}>💬</span>
+                  Chat
+                </button>
               </div>
               {/* Remove Weekly Meetings Calendar from sidebar */}
               {/* <div style={{ marginTop: 24, width: '100%', maxWidth: 260 }}>

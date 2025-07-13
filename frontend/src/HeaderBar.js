@@ -23,9 +23,6 @@ export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
             Action Labs
           </span>
           <span className="role-pill" style={{ background: pillColor, color: pillTextColor, marginLeft: 12 }}>{roleLabel}</span>
-          <div className="nav-menu" style={{ marginLeft: 20 }}>
-            {/* Navigation items removed */}
-          </div>
         </div>
         <div className="header-bar-right">
           <span className="header-bar-welcome" style={{ color: '#111' }}>Welcome, <strong>{user?.name?.split(' ')[0] || ''}</strong></span>
