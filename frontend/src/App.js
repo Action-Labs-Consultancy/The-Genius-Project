@@ -18,17 +18,17 @@ import LlamaChat from './LlamaChat';
 import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
-import OpenAIPlugin from './plugins/openai/OpenAIPlugin';
-import PineconePlugin from './plugins/pinecone/PineconePlugin';
-import RevivePlugin from './plugins/revive/RevivePlugin';
-import AppAdapter from './adapters/AppAdapter';
+// import OpenAIPlugin from './plugins/openai/OpenAIPlugin';
+// import PineconePlugin from './plugins/pinecone/PineconePlugin';
+// import RevivePlugin from './plugins/revive/RevivePlugin';
+// import AppAdapter from './adapters/AppAdapter';
 import TikTokAuthCallback from './pages/tiktok-auth-callback';
 
-const appAdapter = new AppAdapter({
-  aiPlugin: new OpenAIPlugin(),
-  vectorDBPlugin: new PineconePlugin(),
-  adserverPlugin: new RevivePlugin(),
-});
+// const appAdapter = new AppAdapter({
+//   aiPlugin: new OpenAIPlugin(),
+//   vectorDBPlugin: new PineconePlugin(),
+//   adserverPlugin: new RevivePlugin(),
+// });
 
 export default function App() {
   const [view, setView] = useState('dashboard');

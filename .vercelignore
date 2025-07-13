@@ -11,3 +11,13 @@ venv/
 .env
 *.log
 *.bak
+llama.cpp/
+backend/revive-adserver/
+backend/uploads/
+backend/instance/
+backend/migrations/
+uploads/
+revive-integration/
+gemini-cli/
+migrations/
+plugins/
