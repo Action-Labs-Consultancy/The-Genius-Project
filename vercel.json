@@ -44,32 +44,36 @@
       "dest": "/api/index.py"
     },
     {
-      "src": "/login.html",
-      "dest": "/frontend/public/login.html"
+      "src": "/health",
+      "dest": "/api/index.py"
     },
     {
-      "src": "/test.html",
-      "dest": "/frontend/public/test.html"
+      "src": "/test",
+      "dest": "/api/index.py"
     },
     {
       "src": "/manifest.json",
-      "dest": "/frontend/public/manifest.json"
+      "dest": "/frontend/build/manifest.json"
     },
     {
       "src": "/favicon.ico",
-      "dest": "/frontend/public/favicon.ico"
+      "dest": "/frontend/build/favicon.ico"
     },
     {
       "src": "/logo192.png",
-      "dest": "/frontend/public/logo192.png"
+      "dest": "/frontend/build/logo192.png"
     },
     {
       "src": "/logo512.png",
-      "dest": "/frontend/public/logo512.png"
+      "dest": "/frontend/build/logo512.png"
     },
     {
       "src": "/robots.txt",
-      "dest": "/frontend/public/robots.txt"
+      "dest": "/frontend/build/robots.txt"
+    },
+    {
+      "src": "/static/(.*)",
+      "dest": "/frontend/build/static/$1"
     },
     {
       "handle": "filesystem"
