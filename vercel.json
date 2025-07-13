@@ -19,56 +19,21 @@
     }
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/login",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/create-admin",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/request-access",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/forgot-password",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/set-password",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/health",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/test",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/frontend/build/manifest.json"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/frontend/build/favicon.ico"
-    },
-    {
-      "src": "/static/(.*)",
-      "dest": "/frontend/build/static/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/build/index.html"
-    }
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/login", "dest": "/api/index.py" },
+    { "src": "/create-admin", "dest": "/api/index.py" },
+    { "src": "/request-access", "dest": "/api/index.py" },
+    { "src": "/forgot-password", "dest": "/api/index.py" },
+    { "src": "/set-password", "dest": "/api/index.py" },
+    { "src": "/health", "dest": "/api/index.py" },
+    { "src": "/test", "dest": "/api/index.py" },
+    { "src": "/manifest.json", "dest": "/frontend/build/manifest.json" },
+    { "src": "/favicon.ico", "dest": "/frontend/build/favicon.ico" },
+    { "src": "/logo192.png", "dest": "/frontend/build/logo192.png" },
+    { "src": "/logo512.png", "dest": "/frontend/build/logo512.png" },
+    { "src": "/robots.txt", "dest": "/frontend/build/robots.txt" },
+    { "src": "/static/(.*)", "dest": "/frontend/build/static/$1" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/frontend/build/index.html" }
   ]
 }
