@@ -598,7 +598,7 @@ def login():
             return jsonify({'error': 'Email and password required'}), 400
 
         # Check if MongoDB is available
-        if not mongo.db:
+        if mongo.db is None:
             print("[ERROR] MongoDB not connected")
             return jsonify({'error': 'Database connection unavailable'}), 503
 
@@ -1818,6 +1818,7 @@ def tiktok_analyze():
         return jsonify(analysis)
     except Exception as e:
         print(f"Error in tiktok_analyze: {e}")
+
         return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
 # Add a simple test endpoint for debugging
