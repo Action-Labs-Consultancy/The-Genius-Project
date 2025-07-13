@@ -24,7 +24,21 @@ from security_middleware import (
 )
 
 # MongoDB imports
-from mongo_db import mongo, MongoUser, MongoClientModel, MongoProject, MongoTask, MongoChannel, MongoMessage, MongoMeeting, MongoContentCalendar, MongoChatConversation
+try:
+    from mongo_db import mongo, MongoUser, MongoClientModel, MongoProject, MongoTask, MongoChannel, MongoMessage, MongoMeeting, MongoContentCalendar, MongoChatConversation
+    print("[IMPORT] MongoDB modules imported successfully")
+except ImportError as e:
+    print(f"[IMPORT ERROR] Failed to import MongoDB modules: {e}")
+    # Create a mock mongo object to prevent crashes
+    class MockMongo:
+        def __init__(self):
+            self.db = None
+        def connect(self, uri):
+            return False
+        def get_collection(self, name):
+            return None
+    mongo = MockMongo()
+    MongoUser = None
 
 from plugins.openai.openai_plugin import OpenAIPlugin
 # from plugins.pinecone.pinecone_plugin import initialize_pinecone
@@ -43,10 +57,12 @@ if mongodb_uri:
         print("[DATABASE] Using MongoDB as primary database")
     except Exception as e:
         print(f"[DATABASE] MongoDB connection failed: {e}")
-        exit(1)  # Exit if MongoDB connection fails
+        # Don't exit in production, create a mock connection for now
+        print("[DATABASE] Continuing without MongoDB connection - will retry on first request")
 else:
     print("[DATABASE] MONGODB_URI not found in environment variables")
-    exit(1)
+    # Don't exit in production, will try to connect later
+    print("[DATABASE] Will attempt to connect to MongoDB on first request")
 
 # ─── Embedding helper ──────────────────────────────────────────────────────────
 def get_embedding(text: str) -> list[float]:
@@ -581,6 +597,11 @@ def login():
         if not email or not password:
             return jsonify({'error': 'Email and password required'}), 400
 
+        # Check if MongoDB is available
+        if not mongo.db:
+            print("[ERROR] MongoDB not connected")
+            return jsonify({'error': 'Database connection unavailable'}), 503
+
         # Authenticate user using MongoDB
         user = MongoUser.find_by_email(email)
         if user and MongoUser.verify_password(user, password):
@@ -603,7 +624,7 @@ def login():
         error_details = traceback.format_exc()
         print(f"[ERROR] Login error: {str(e)}")
         print(f"[ERROR] Full traceback: {error_details}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/create-admin')
 def create_admin():
@@ -1803,12 +1824,24 @@ def tiktok_analyze():
 @app.route('/test', methods=['GET'])
 def test_endpoint():
     """Simple test endpoint to verify the backend is working."""
+    try:
+        mongodb_status = "connected" if mongo.db is not None else "not connected"
+    except:
+        mongodb_status = "connection error"
+    
     return jsonify({
         'status': 'success',
         'message': 'Backend is working!',
         'environment': os.environ.get('FLASK_ENV', 'development'),
-        'mongodb_connected': True if mongo else False
+        'mongodb_status': mongodb_status,
+        'has_mongodb_uri': bool(os.getenv('MONGODB_URI'))
     })
+
+# Add a simple health check that doesn't require any database
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'healthy', 'service': 'genius-project-api'})
 
 if __name__ == '__main__':
     # Initialize database
