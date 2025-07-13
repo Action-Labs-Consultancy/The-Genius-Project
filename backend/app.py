@@ -70,7 +70,12 @@ def find_available_port(start_port=5000, max_port=9000):
 
 # ─── Flask setup ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"], supports_credentials=True)
+CORS(app, origins=[
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000",
+    "https://www.action-labs.ai",
+    "https://action-labs.ai"
+], supports_credentials=True)
 bcrypt = Bcrypt(app)
 
 # File upload configuration
