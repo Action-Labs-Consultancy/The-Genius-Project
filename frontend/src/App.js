@@ -13,10 +13,7 @@ import OutlookCalendar from './OutlookCalendar';
 import MeetingsCalendar from './MeetingsCalendar';
 import WeeklyStandUpPlanner from './WeeklyStandUpPlanner';
 import StandUpPage from './StandUpPage';
-import ProjectsPage from './ProjectsPage';
-import ProjectDetailPage from './ProjectDetailPage';
 import SocialMediaInsightsDashboard from './SocialMediaInsightsDashboard';
-import ContentCalendarPage from './ContentCalendarPage';
 import LlamaChat from './LlamaChat';
 import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
@@ -185,8 +182,6 @@ export default function App() {
                 </div>
               )}
             </div>
-          ) : view === 'content-calendar' ? (
-            <ContentCalendarPage user={user} onNavigate={handleNavigate} />
           ) : view === 'settings' && user.is_admin ? (
             <Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />
           ) : view === 'chat' ? (

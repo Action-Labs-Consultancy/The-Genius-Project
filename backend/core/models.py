@@ -45,10 +45,7 @@ class Client(db.Model):
     status = db.Column(db.String(64))
     created_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime)
-    # Access control fields
-    access_level = db.Column(db.String(32), default='restricted')  # 'restricted', 'limited', 'full'
-    can_comment = db.Column(db.Boolean, default=True)
-    can_approve = db.Column(db.Boolean, default=True)
+    allowed_viewers = db.Column(db.Text, default='')  # Comma-separated user IDs
     # ...add any other fields as needed...
 
 class Card(db.Model):
@@ -59,12 +56,6 @@ class Card(db.Model):
     icon = db.Column(db.String(32))
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
-    # Access control fields
-    requires_approval = db.Column(db.Boolean, default=True)
-    is_public = db.Column(db.Boolean, default=False)
-    approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    approved_at = db.Column(db.DateTime, nullable=True)
-    content = db.Column(db.Text)
     # ...add any other fields as needed...
 
 class AccessRequest(db.Model):
@@ -146,22 +137,8 @@ class StandupTask(db.Model):
         }
 
 class ClientAccess(db.Model):
-    """Controls which clients can access what content"""
-    __tablename__ = 'client_access'
-    
     id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
-    resource_type = db.Column(db.String(64), nullable=False)  # 'content', 'card', 'calendar', etc.
-    resource_id = db.Column(db.Integer, nullable=False)
-    can_view = db.Column(db.Boolean, default=False)
-    can_comment = db.Column(db.Boolean, default=False)
-    granted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    granted_at = db.Column(db.DateTime, default=datetime.utcnow)
-    expires_at = db.Column(db.DateTime, nullable=True)
-    
-    # Relationships
-    client = db.relationship('Client', backref=db.backref('access_permissions', lazy='dynamic'))
-    granter = db.relationship('User', backref=db.backref('granted_permissions', lazy='dynamic'))
+    # ...fields...
 
 class ContentCalendar(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -194,44 +171,5 @@ class ContentFile(db.Model):
     # Add any other fields as needed...
 
 class ContentFeedback(db.Model):
-    """Stores client feedback and comments on content"""
-    __tablename__ = 'client_feedback'
-    
     id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    resource_type = db.Column(db.String(64), nullable=False)  # 'content', 'card', etc.
-    resource_id = db.Column(db.Integer, nullable=False)
-    comment = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(32), nullable=True)  # 'approved', 'disapproved', 'pending'
-    feedback_type = db.Column(db.String(32), default='comment')  # 'comment', 'approval'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    client = db.relationship('Client', backref=db.backref('feedback', lazy='dynamic'))
-    user = db.relationship('User', backref=db.backref('feedback_given', lazy='dynamic'))
-
-class ContentItem(db.Model):
-    """Content calendar items that clients can view and approve"""
-    __tablename__ = 'content_items'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(256), nullable=False)
-    description = db.Column(db.Text)
-    content = db.Column(db.Text)
-    content_type = db.Column(db.String(64))  # 'post', 'campaign', 'ad', etc.
-    platform = db.Column(db.String(64))  # 'facebook', 'instagram', 'linkedin', etc.
-    scheduled_date = db.Column(db.DateTime)
-    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    status = db.Column(db.String(32), default='draft')  # 'draft', 'pending_approval', 'approved', 'rejected', 'published'
-    requires_approval = db.Column(db.Boolean, default=True)
-    approved_by_client = db.Column(db.Boolean, default=False)
-    approved_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    client = db.relationship('Client', backref=db.backref('content_items', lazy='dynamic'))
-    creator = db.relationship('User', backref=db.backref('created_content', lazy='dynamic'))
+    # ...fields...

@@ -26,7 +26,12 @@ export default function ClientsPage({ user, onClientSelect }) {
       setLoading(true);
       try {
         const data = await api.getClients();
-        setClients(data);
+        // Restrict client users to only their own client card
+        let filteredClients = data;
+        if (user && user.role === 'client') {
+          filteredClients = data.filter(c => c.id === user.client_id);
+        }
+        setClients(filteredClients);
       } catch (err) {
         setError('Could not load clients.');
       } finally {
@@ -180,7 +185,10 @@ export default function ClientsPage({ user, onClientSelect }) {
           <h2 style={{ color: YELLOW, fontWeight: 900, fontSize: 38, margin: 0, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
             Clients
           </h2>
-          <button className="add-btn" style={{ ...addBtnStyle, background: YELLOW, color: '#181818', marginTop: 8, boxShadow: '0 2px 8px #FFD60022' }} onClick={() => setShowAddClient(true)}>+ Add Client</button>
+          {/* Only show Add Client button for employees/admins */}
+          {(user && user.role !== 'client') && (
+            <button className="add-btn" style={{ ...addBtnStyle, background: YELLOW, color: '#181818', marginTop: 8, boxShadow: '0 2px 8px #FFD60022' }} onClick={() => setShowAddClient(true)}>+ Add Client</button>
+          )}
         </div>
         {clients.length === 0 ? (
           <div style={{ textAlign: 'center', margin: '80px 0 0 0', color: YELLOW, opacity: 0.8 }}>
@@ -225,17 +233,21 @@ export default function ClientsPage({ user, onClientSelect }) {
                     style={{ background: YELLOW, color: '#181818', border: 'none', borderRadius: 8, fontWeight: 700, padding: '7px 20px', cursor: 'pointer', fontSize: 15, boxShadow: '0 2px 8px #FFD60033', transition: 'background 0.2s, color 0.2s', display: 'flex', alignItems: 'center', gap: 8 }}
                     onClick={() => onClientSelect(client)}
                   >Open</button>
-                  <button
-                    style={{ background: 'transparent', color: YELLOW, border: `2px solid ${YELLOW}`, borderRadius: 8, fontWeight: 700, padding: '7px 20px', cursor: 'pointer', fontSize: 15, transition: 'background 0.2s, color 0.2s', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onClick={() => alert('Edit client coming soon!')}
-                  >Edit</button>
+                  {/* Only show Edit button for employees/admins */}
+                  {(user && user.role !== 'client') && (
+                    <button
+                      style={{ background: 'transparent', color: YELLOW, border: `2px solid ${YELLOW}`, borderRadius: 8, fontWeight: 700, padding: '7px 20px', cursor: 'pointer', fontSize: 15, transition: 'background 0.2s, color 0.2s', display: 'flex', alignItems: 'center', gap: 8 }}
+                      onClick={() => alert('Edit client coming soon!')}
+                    >Edit</button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-      {showAddClient && (
+      {/* Only show Add Client modal for employees/admins */}
+      {(showAddClient && user && user.role !== 'client') && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <form className="modal-anim" style={modalStyle} onSubmit={handleAddClient}>
             <h3 style={{ color: YELLOW, fontWeight: 800, fontSize: 24, margin: 0 }}>Add Client</h3>

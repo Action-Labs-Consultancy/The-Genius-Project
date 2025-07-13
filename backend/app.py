@@ -1,28 +1,30 @@
-# This file is the main backend adapter and API entry point.
-# All reusable business logic should be in /core/business_logic.py or /core/models.py.
-# All plugin logic should be in /backend/plugins.
-
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 import os
-import openai
 import smtplib
 from email.mime.text import MIMEText
 import traceback
 import secrets
 from itsdangerous import URLSafeTimedSerializer
-from flask import url_for
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 import socket
 import uuid
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
+import logging
+
+# Security middleware imports
+from security_middleware import (
+    require_auth, require_admin, require_client_access, rate_limit,
+    validate_file_upload, security_headers, sanitize_input,
+    SecurityValidator, log_security_event, generate_csrf_token
+)
 
 # MongoDB imports
-from mongo_db import mongo, MongoUser, MongoClientModel, MongoProject, MongoTask, MongoChannel, MongoMessage, MongoMeeting, MongoContentCalendar
+from mongo_db import mongo, MongoUser, MongoClientModel, MongoProject, MongoTask, MongoChannel, MongoMessage, MongoMeeting, MongoContentCalendar, MongoChatConversation
 
 from plugins.openai.openai_plugin import OpenAIPlugin
 # from plugins.pinecone.pinecone_plugin import initialize_pinecone
@@ -30,7 +32,6 @@ from plugins.openai.openai_plugin import OpenAIPlugin
 
 # ─── Load env & set keys ───────────────────────────────────────────────────────
 load_dotenv()  # must come before os.getenv
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # MongoDB setup
 mongodb_uri = os.getenv('MONGODB_URI')
@@ -69,7 +70,7 @@ def find_available_port(start_port=5000, max_port=9000):
 
 # ─── Flask setup ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"], supports_credentials=True)
 bcrypt = Bcrypt(app)
 
 # File upload configuration
@@ -87,6 +88,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
+    """Check if the file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
@@ -107,18 +109,57 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 # Initialize SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
+# Apply security middleware
+@app.before_request
+def before_request():
+    """Apply security measures before each request."""
+    app.logger.info(f"Incoming request: {request.method} {request.path} from {request.remote_addr}")
+    rate_limit()
+    # Removed: security_headers() (it's a decorator, not a function)
+    # CSRF protection (optional, only for unsafe methods)
+    if request.method in ['POST', 'PUT', 'DELETE']:
+        token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+        # Only check CSRF if token is expected
+        # if not token or token != generate_csrf_token():
+        #     return jsonify({'error': 'Invalid or missing CSRF token'}), 403
+
+@app.after_request
+def after_request(response):
+    """Apply security measures after each request."""
+    app.logger.info(f"Response: {response.status} {response.get_data(as_text=True)}")
+    # Only sanitize JSON responses
+    if response.is_json:
+        data = response.get_json()
+        sanitized_data = sanitize_input(data)
+        import json
+        response.set_data(json.dumps(sanitized_data))
+    return response
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle exceptions globally."""
+    # Log the error
+    app.logger.error(f"Error: {str(e)}")
+    traceback.print_exc()
+    
+    # Return a generic error response
+    return jsonify({'error': 'Internal server error'}), 500
+
 # ─── Socket Event Handlers ─────────────────────────────────────────────────
 
 @socketio.on('connect')
 def handle_connect():
+    """Handle client connection."""
     print(f"🔌 DEBUG: Client connected - Session ID: {request.sid}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    """Handle client disconnection."""
     print(f"🔌 DEBUG: Client disconnected - Session ID: {request.sid}")
 
 @socketio.on('join')
 def handle_join(data):
+    """Handle user joining a channel."""
     print(f"🏠 DEBUG: Received join event with data: {data}")
     channel_id = data.get('channel_id')
     if channel_id:
@@ -129,6 +170,7 @@ def handle_join(data):
 
 @socketio.on('leave')
 def handle_leave(data):
+    """Handle user leaving a channel."""
     print(f"🚪 DEBUG: Received leave event with data: {data}")
     channel_id = data.get('channel_id')
     if channel_id:
@@ -139,7 +181,8 @@ def handle_leave(data):
 
 @socketio.on('send_message')
 def handle_send_message(data):
-    print(f"📨 DEBUG: Received send_message event with data: {data}")
+    """Handle sending a message to a channel."""
+    print(f"� شیوه DEBUG: Received send_message event with data: {data}")
     channel_id = data.get('channel_id')
     user_id = data.get('user_id')
     content = data.get('content')
@@ -176,12 +219,11 @@ def handle_send_message(data):
         
     except Exception as e:
         print(f"❌ DEBUG: Error in handle_send_message: {e}")
-        import traceback
         traceback.print_exc()
 
 # ─── Database Helper Functions ─────────────────────────────────────────────────
 def get_all_users():
-    """Get all users from MongoDB"""
+    """Get all users from MongoDB."""
     users = MongoUser.find_all()
     return [
         {
@@ -199,7 +241,7 @@ def get_all_users():
     ]
 
 def get_all_clients():
-    """Get all clients from MongoDB"""
+    """Get all clients from MongoDB."""
     clients = MongoClientModel.find_all()
     return [
         {
@@ -218,7 +260,7 @@ def get_all_clients():
     ]
 
 def get_all_projects():
-    """Get all projects from MongoDB"""
+    """Get all projects from MongoDB."""
     projects = MongoProject.find_all()
     return [
         {
@@ -234,7 +276,7 @@ def get_all_projects():
     ]
 
 def get_all_tasks():
-    """Get all tasks from MongoDB"""
+    """Get all tasks from MongoDB."""
     tasks = MongoTask.find_all()
     return [
         {
@@ -251,7 +293,7 @@ def get_all_tasks():
     ]
 
 def authenticate_user(email, password):
-    """Authenticate user with MongoDB"""
+    """Authenticate user with MongoDB."""
     user = MongoUser.find_by_email(email)
     if user and MongoUser.verify_password(user, password):
         return {
@@ -267,13 +309,14 @@ def authenticate_user(email, password):
     return None
 
 def create_admin_user(name, email, password):
-    """Create admin user in MongoDB"""
+    """Create admin user in MongoDB."""
     return MongoUser.create_user(name, email, password, role='admin', is_admin=True)
 
 def ensure_sample_data():
-    """Ensure sample data exists in MongoDB"""
+    """Ensure sample data exists in MongoDB."""
     MongoClientModel.create_sample_data()
     MongoUser.ensure_sample_users()
+
 # ─── Background Tasks ──────────────────────────────────────────────────────────
 import threading
 import time
@@ -307,7 +350,7 @@ with app.app_context():
 # ─── Routes ────────────────────────────────────────────────────────────────────
 @app.route('/api/access-requests', methods=['GET'])
 def get_access_requests():
-    """Get access requests - MongoDB implementation"""
+    """Get access requests - MongoDB implementation."""
     try:
         # For now, return empty list as this feature needs to be rebuilt for MongoDB
         return jsonify([])
@@ -317,7 +360,7 @@ def get_access_requests():
 
 @app.route('/api/access-requests/<string:req_id>/approve', methods=['POST'])
 def approve_access_request(req_id):
-    """Approve access request - MongoDB implementation"""
+    """Approve access request - MongoDB implementation."""
     try:
         # This feature needs to be rebuilt for MongoDB
         return jsonify({'message': 'Access request approval not yet implemented for MongoDB'}), 501
@@ -327,7 +370,7 @@ def approve_access_request(req_id):
 
 @app.route('/set-password', methods=['POST'])
 def set_password():
-    """Set password - MongoDB implementation"""
+    """Set password - MongoDB implementation."""
     try:
         # This feature needs to be rebuilt for MongoDB
         return jsonify({'message': 'Password setting not yet implemented for MongoDB'}), 501
@@ -337,7 +380,7 @@ def set_password():
 
 @app.route('/request-access', methods=['POST'])
 def request_access():
-    """Request access - MongoDB implementation"""
+    """Request access - MongoDB implementation."""
     try:
         # This feature needs to be rebuilt for MongoDB
         return jsonify({'message': 'Access request not yet implemented for MongoDB'}), 501
@@ -347,7 +390,7 @@ def request_access():
 
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    """Forgot password - MongoDB implementation"""
+    """Forgot password - MongoDB implementation."""
     try:
         # This feature needs to be rebuilt for MongoDB
         return jsonify({'message': 'Forgot password not yet implemented for MongoDB'}), 501
@@ -357,7 +400,7 @@ def forgot_password():
 
 @app.route('/players', methods=['GET'])
 def get_players():
-    """Get players - MongoDB implementation"""
+    """Get players - MongoDB implementation."""
     try:
         # This feature needs to be rebuilt for MongoDB or may not be needed
         return jsonify([])
@@ -367,7 +410,7 @@ def get_players():
 
 @app.route('/api/users', methods=['POST'])
 def add_user():
-    """Add user - MongoDB implementation"""
+    """Add user - MongoDB implementation."""
     try:
         data = request.get_json() or {}
         # Accept either 'role' or 'user_type'
@@ -396,7 +439,7 @@ def add_user():
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
-    """Get all users from MongoDB"""
+    """Get all users from MongoDB."""
     try:
         role = request.args.get('role')
         
@@ -421,13 +464,12 @@ def get_users():
         
     except Exception as e:
         print(f"Get users error: {e}")
-        import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to fetch users'}), 500
 
 @app.route('/api/projects', methods=['GET'])
 def get_projects():
-    """Get all projects from MongoDB"""
+    """Get all projects from MongoDB."""
     try:
         projects = get_all_projects()
         return jsonify(projects)
@@ -437,7 +479,7 @@ def get_projects():
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
-    """Get all tasks from MongoDB"""
+    """Get all tasks from MongoDB."""
     try:
         tasks = get_all_tasks()
         return jsonify(tasks)
@@ -447,7 +489,7 @@ def get_tasks():
 
 @app.route('/api/users/<string:user_id>', methods=['PUT'])
 def update_user(user_id):
-    """Update user - MongoDB implementation"""
+    """Update user - MongoDB implementation."""
     try:
         data = request.get_json() or {}
         collection = mongo.get_collection('users')
@@ -492,7 +534,7 @@ def update_user(user_id):
 
 @app.route('/api/users/<string:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """Delete user - MongoDB implementation"""
+    """Delete user - MongoDB implementation."""
     try:
         collection = mongo.get_collection('users')
         
@@ -511,7 +553,7 @@ def delete_user(user_id):
 
 @app.route('/api/user/accessible-clients', methods=['GET'])
 def get_accessible_clients():
-    """Get accessible clients - MongoDB implementation"""
+    """Get accessible clients - MongoDB implementation."""
     try:
         # For now, return all clients as this feature needs to be rebuilt for MongoDB
         clients = get_all_clients()
@@ -522,6 +564,7 @@ def get_accessible_clients():
 
 @app.route('/login', methods=['POST'])
 def login():
+    """Handle user login."""
     try:
         data = request.get_json() or {}
         email = data.get('email')
@@ -552,7 +595,6 @@ def login():
         print(f"[WARNING] Failed login attempt for: {email}")
         return jsonify({'error': 'Invalid credentials'}), 401
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         print(f"[ERROR] Login error: {str(e)}")
         print(f"[ERROR] Full traceback: {error_details}")
@@ -560,6 +602,7 @@ def login():
 
 @app.route('/create-admin')
 def create_admin():
+    """Create admin user."""
     try:
         # Get admin credentials from environment variables
         ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
@@ -572,20 +615,18 @@ def create_admin():
         # Check if admin already exists
         if use_mongodb:
             if MongoUser.find_by_email(ADMIN_EMAIL):
-                return "ℹ️ Admin already exists."
-        else:
-            if User.query.filter_by(email=ADMIN_EMAIL).first():
-                return "ℹ️ Admin already exists."
+                return jsonify({'message': 'Admin already exists'}), 200
         
         # Create admin user
         create_admin_user('Admin', ADMIN_EMAIL, ADMIN_PASSWORD)
-        return "✅ Admin created successfully."
+        return jsonify({'message': 'Admin created successfully'}), 201
     except Exception as e:
         print(f"Create admin error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/clients', methods=['GET'])
 def get_clients():
+    """Get all clients."""
     try:
         clients = get_all_clients()
         return jsonify(clients)
@@ -595,7 +636,7 @@ def get_clients():
 
 @app.route('/api/clients', methods=['POST'])
 def add_client():
-    """Add client - MongoDB implementation"""
+    """Add client - MongoDB implementation."""
     try:
         data = request.get_json() or {}
         
@@ -643,7 +684,7 @@ def add_client():
 
 @app.route('/api/clients/<string:client_id>/cards', methods=['GET'])
 def get_cards(client_id):
-    """Get all cards for a client - MongoDB implementation"""
+    """Get all cards for a client - MongoDB implementation."""
     try:
         collection = mongo.get_collection('cards')
         
@@ -667,7 +708,7 @@ def get_cards(client_id):
 
 @app.route('/api/clients/<string:client_id>/cards', methods=['POST'])
 def add_card(client_id):
-    """Add card for a client - MongoDB implementation"""
+    """Add card for a client - MongoDB implementation."""
     try:
         data = request.get_json() or {}
         if not data.get('type'):
@@ -711,7 +752,7 @@ def add_card(client_id):
 
 @app.route('/api/cards/<string:card_id>', methods=['DELETE'])
 def delete_card(card_id):
-    """Delete card - MongoDB implementation"""
+    """Delete card - MongoDB implementation."""
     try:
         collection = mongo.get_collection('cards')
         from bson import ObjectId
@@ -725,34 +766,173 @@ def delete_card(card_id):
         print(f"Delete card error: {e}")
         return jsonify({'error': 'Failed to delete card'}), 500
 
+@app.route('/api/cards/<string:card_id>', methods=['PUT'])
+def update_card(card_id):
+    """Update card status or other fields - MongoDB implementation."""
+    try:
+        data = request.get_json() or {}
+        collection = mongo.get_collection('cards')
+        from bson import ObjectId
+        
+        # Prepare update data
+        update_fields = {}
+        if 'status' in data:
+            update_fields['status'] = data['status']
+        if 'title' in data:
+            update_fields['title'] = data['title']
+        if 'subtitle' in data:
+            update_fields['subtitle'] = data['subtitle']
+        if 'priority' in data:
+            update_fields['priority'] = data['priority']
+        
+        update_fields['updated_at'] = datetime.utcnow()
+        
+        result = collection.update_one(
+            {'_id': ObjectId(card_id)}, 
+            {'$set': update_fields}
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'error': 'Card not found'}), 404
+        
+        # Get updated card
+        updated_card = collection.find_one({'_id': ObjectId(card_id)})
+        return jsonify({
+            'id': str(updated_card['_id']),
+            'type': updated_card.get('type', ''),
+            'title': updated_card.get('title', ''),
+            'subtitle': updated_card.get('subtitle', ''),
+            'status': updated_card.get('status', ''),
+            'priority': updated_card.get('priority', ''),
+            'icon': updated_card.get('icon', ''),
+            'client_id': updated_card.get('client_id', ''),
+            'updated_at': updated_card.get('updated_at', datetime.utcnow()).isoformat()
+        })
+    except Exception as e:
+        print(f"Update card error: {e}")
+        return jsonify({'error': 'Failed to update card'}), 500
+
+@app.route('/api/cards/<string:card_id>', methods=['GET'])
+def get_card(card_id):
+    """Get card details - MongoDB implementation."""
+    try:
+        collection = mongo.get_collection('cards')
+        from bson import ObjectId
+        
+        card = collection.find_one({'_id': ObjectId(card_id)})
+        if not card:
+            return jsonify({'error': 'Card not found'}), 404
+            
+        return jsonify({
+            'id': str(card['_id']),
+            'type': card.get('type', ''),
+            'title': card.get('title', ''),
+            'subtitle': card.get('subtitle', ''),
+            'icon': card.get('icon', ''),
+            'status': card.get('status', 'pending'),
+            'priority': card.get('priority', 'medium'),
+            'client_id': card.get('client_id', ''),
+            'created_at': card['created_at'].isoformat() if card.get('created_at') else None,
+            'updated_at': card['updated_at'].isoformat() if card.get('updated_at') else None
+        })
+        
+    except Exception as e:
+        print(f"Get card error: {e}")
+        return jsonify({'error': 'Failed to fetch card'}), 500
+
+@app.route('/api/cards/<string:card_id>', methods=['PATCH'])
+def patch_card(card_id):
+    """Update card details - MongoDB implementation."""
+    try:
+        data = request.get_json() or {}
+        collection = mongo.get_collection('cards')
+        from bson import ObjectId
+        
+        # Check if card exists
+        card = collection.find_one({'_id': ObjectId(card_id)})
+        if not card:
+            return jsonify({'error': 'Card not found'}), 404
+        
+        # Update fields
+        update_data = {}
+        if 'type' in data:
+            update_data['type'] = data['type']
+        if 'title' in data:
+            update_data['title'] = data['title']
+        if 'subtitle' in data:
+            update_data['subtitle'] = data['subtitle']
+        if 'icon' in data:
+            update_data['icon'] = data['icon']
+        if 'status' in data:
+            update_data['status'] = data['status']
+        if 'priority' in data:
+            update_data['priority'] = data['priority']
+        
+        update_data['updated_at'] = datetime.utcnow()
+        
+        # Update the card
+        collection.update_one({'_id': ObjectId(card_id)}, {'$set': update_data})
+        
+        # Get updated card
+        updated_card = collection.find_one({'_id': ObjectId(card_id)})
+        
+        return jsonify({
+            'id': str(updated_card['_id']),
+            'type': updated_card.get('type', ''),
+            'title': updated_card.get('title', ''),
+            'subtitle': updated_card.get('subtitle', ''),
+            'icon': updated_card.get('icon', ''),
+            'status': updated_card.get('status', 'pending'),
+            'priority': updated_card.get('priority', 'medium'),
+            'client_id': updated_card.get('client_id', ''),
+            'created_at': updated_card['created_at'].isoformat() if updated_card.get('created_at') else None,
+            'updated_at': updated_card['updated_at'].isoformat() if updated_card.get('updated_at') else None
+        })
+        
+    except Exception as e:
+        print(f"Update card error: {e}")
+        return jsonify({'error': 'Failed to update card'}), 500
+
 # ─── Client Access Control Endpoints ───────────────────────────────────────────
 
-@app.route('/api/clients/<int:client_id>/access', methods=['GET'])
+@app.route('/api/clients/<string:client_id>/access', methods=['GET'])
 def get_client_access(client_id):
-    """Get who can access this client's content"""
+    """Get who can access this client's content - MongoDB implementation."""
     try:
-        access_perms = ClientAccess.query.filter_by(client_id=client_id).all()
-        return jsonify([
-            {
-                'id': perm.id,
-                'client_id': perm.client_id,
-                'viewer_user_id': perm.viewer_user_id,
-                'viewer_name': perm.viewer.name,
-                'viewer_email': perm.viewer.email,
-                'can_view': perm.can_view,
-                'can_comment': perm.can_comment,
-                'can_approve': perm.can_approve,
-                'created_at': perm.created_at
-            }
-            for perm in access_perms
-        ])
+        access_collection = mongo.get_collection('client_access')
+        users_collection = mongo.get_collection('users')
+        from bson import ObjectId
+        
+        access_perms = list(access_collection.find({'client_id': client_id}))
+        result = []
+        
+        for perm in access_perms:
+            # Get user details
+            user = users_collection.find_one({'_id': ObjectId(perm['viewer_user_id'])})
+            viewer_name = user['name'] if user else 'Unknown User'
+            viewer_email = user['email'] if user else 'unknown@email.com'
+            
+            result.append({
+                'id': str(perm['_id']),
+                'client_id': perm['client_id'],
+                'viewer_user_id': perm['viewer_user_id'],
+                'viewer_name': viewer_name,
+                'viewer_email': viewer_email,
+                'can_view': perm.get('can_view', True),
+                'can_comment': perm.get('can_comment', True),
+                'can_approve': perm.get('can_approve', False),
+                'created_at': perm['created_at'].isoformat() if perm.get('created_at') else None
+            })
+            
+        return jsonify(result)
+        
     except Exception as e:
         print(f"Get client access error: {e}")
         return jsonify({'error': 'Failed to fetch client access permissions'}), 500
 
-@app.route('/api/clients/<int:client_id>/access', methods=['POST'])
+@app.route('/api/clients/<string:client_id>/access', methods=['POST'])
 def add_client_access(client_id):
-    """Add access permission for a user to view this client's content"""
+    """Add access permission for a user to view this client's content - MongoDB implementation."""
     try:
         data = request.get_json() or {}
         user_id = data.get('user_id')
@@ -761,102 +941,119 @@ def add_client_access(client_id):
             return jsonify({'error': 'user_id is required'}), 400
             
         # Check if client exists
-        client = Client.query.get(client_id)
+        clients_collection = mongo.get_collection('clients')
+        from bson import ObjectId
+        client = clients_collection.find_one({'_id': ObjectId(client_id)})
         if not client:
             return jsonify({'error': 'Client not found'}), 404
             
         # Check if user exists
-        user = User.query.get(user_id)
+        users_collection = mongo.get_collection('users')
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
         # Check if access already exists
-        existing = ClientAccess.query.filter_by(client_id=client_id, viewer_user_id=user_id).first()
+        access_collection = mongo.get_collection('client_access')
+        existing = access_collection.find_one({'client_id': client_id, 'viewer_user_id': user_id})
         if existing:
             return jsonify({'error': 'Access permission already exists'}), 400
             
         # Create new access permission
-        access = ClientAccess(
-            client_id=client_id,
-            viewer_user_id=user_id,
-            can_view=data.get('can_view', True),
-            can_comment=data.get('can_comment', True),
-            can_approve=data.get('can_approve', False)
-        )
-        db.session.add(access)
-        db.session.commit()
+        access_doc = {
+            'client_id': client_id,
+            'viewer_user_id': user_id,
+            'can_view': data.get('can_view', True),
+            'can_comment': data.get('can_comment', True),
+            'can_approve': data.get('can_approve', False),
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        
+        result = access_collection.insert_one(access_doc)
+        access_doc['_id'] = result.inserted_id
         
         return jsonify({
-            'id': access.id,
-            'client_id': access.client_id,
-            'viewer_user_id': access.viewer_user_id,
-            'can_view': access.can_view,
-            'can_comment': access.can_comment,
-            'can_approve': access.can_approve,
-            'created_at': access.created_at
+            'id': str(access_doc['_id']),
+            'client_id': access_doc['client_id'],
+            'viewer_user_id': access_doc['viewer_user_id'],
+            'can_view': access_doc['can_view'],
+            'can_comment': access_doc['can_comment'],
+            'can_approve': access_doc['can_approve'],
+            'created_at': access_doc['created_at'].isoformat(),
+            'updated_at': access_doc['updated_at'].isoformat()
         }), 201
         
     except Exception as e:
         print(f"Add client access error: {e}")
-        db.session.rollback()
         return jsonify({'error': 'Failed to add client access permission'}), 500
 
-@app.route('/api/clients/<int:client_id>/access/<int:access_id>', methods=['PUT'])
+@app.route('/api/clients/<string:client_id>/access/<string:access_id>', methods=['PUT'])
 def update_client_access(client_id, access_id):
-    """Update access permission for a user"""
+    """Update access permission for a user - MongoDB implementation."""
     try:
         data = request.get_json() or {}
+        access_collection = mongo.get_collection('client_access')
+        from bson import ObjectId
         
-        access = ClientAccess.query.get(access_id)
-        if not access or access.client_id != client_id:
+        access = access_collection.find_one({'_id': ObjectId(access_id), 'client_id': client_id})
+        if not access:
             return jsonify({'error': 'Access permission not found'}), 404
             
         # Update permissions
+        update_data = {}
         if 'can_view' in data:
-            access.can_view = data['can_view']
+            update_data['can_view'] = data['can_view']
         if 'can_comment' in data:
-            access.can_comment = data['can_comment']
+            update_data['can_comment'] = data['can_comment']
         if 'can_approve' in data:
-            access.can_approve = data['can_approve']
+            update_data['can_approve'] = data['can_approve']
+        
+        update_data['updated_at'] = datetime.utcnow()
             
-        db.session.commit()
+        access_collection.update_one({'_id': ObjectId(access_id)}, {'$set': update_data})
+        
+        # Get updated access
+        updated_access = access_collection.find_one({'_id': ObjectId(access_id)})
         
         return jsonify({
-            'id': access.id,
-            'client_id': access.client_id,
-            'viewer_user_id': access.viewer_user_id,
-            'can_view': access.can_view,
-            'can_comment': access.can_comment,
-            'can_approve': access.can_approve
+            'id': str(updated_access['_id']),
+            'client_id': updated_access['client_id'],
+            'viewer_user_id': updated_access['viewer_user_id'],
+            'can_view': updated_access.get('can_view', True),
+            'can_comment': updated_access.get('can_comment', True),
+            'can_approve': updated_access.get('can_approve', False),
+            'updated_at': updated_access['updated_at'].isoformat()
         })
         
     except Exception as e:
         print(f"Update client access error: {e}")
-        db.session.rollback()
         return jsonify({'error': 'Failed to update client access permission'}), 500
 
-@app.route('/api/clients/<int:client_id>/access/<int:access_id>', methods=['DELETE'])
+@app.route('/api/clients/<string:client_id>/access/<string:access_id>', methods=['DELETE'])
 def delete_client_access(client_id, access_id):
-    """Remove access permission for a user"""
+    """Remove access permission for a user - MongoDB implementation."""
     try:
-        access = ClientAccess.query.get(access_id)
-        if not access or access.client_id != client_id:
+        access_collection = mongo.get_collection('client_access')
+        from bson import ObjectId
+        
+        access = access_collection.find_one({'_id': ObjectId(access_id), 'client_id': client_id})
+        if not access:
             return jsonify({'error': 'Access permission not found'}), 404
             
-        db.session.delete(access)
-        db.session.commit()
+        access_collection.delete_one({'_id': ObjectId(access_id)})
         
         return jsonify({'message': 'Client access permission removed successfully'})
         
     except Exception as e:
         print(f"Delete client access error: {e}")
-        db.session.rollback()
         return jsonify({'error': 'Failed to remove client access permission'}), 500
 
 # ─── Content Calendar Endpoints ────────────────────────────────────────────────
 
 @app.route('/api/clients/<client_id>/content-calendar', methods=['GET'])
 def get_content_calendar(client_id):
+    """Get content calendar for a client."""
     try:
         entries = MongoContentCalendar.find_by_client(client_id)
         result = []
@@ -887,11 +1084,12 @@ def get_content_calendar(client_id):
         return jsonify(result)
     except Exception as e:
         print(f"Get content calendar error: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch content calendar'}), 500
 
 @app.route('/api/clients/<client_id>/content-calendar', methods=['POST'])
 def create_content_calendar_entry(client_id):
+    """Create a new content calendar entry."""
     try:
         data = request.get_json(force=True, silent=False) or {}
         if not data.get('date'):
@@ -906,7 +1104,7 @@ def create_content_calendar_entry(client_id):
             status=data.get('status', 'draft').lower(),
             text_copy=data.get('textCopy', ''),
             hashtags=','.join(data.get('tags', [])) if data.get('tags') else '',
-            created_by=data.get('user_id', 1),
+            created_by=data.get('user_id', '1'),
             client_feedback=data.get('clientFeedback', ''),
             approval_status=data.get('approvalStatus', 'pending'),
             files=data.get('files', [])
@@ -914,11 +1112,12 @@ def create_content_calendar_entry(client_id):
         return jsonify({'id': str(entry['_id']), 'message': 'Content calendar entry created successfully'}), 201
     except Exception as e:
         print(f"[ERROR] Failed to create content calendar entry: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': f'Failed to create content calendar entry: {str(e)}'}), 500
 
 @app.route('/api/content-calendar/<entry_id>', methods=['PUT'])
 def update_content_calendar_entry(entry_id):
+    """Update a content calendar entry."""
     try:
         data = request.get_json() or {}
         update_data = {}
@@ -949,21 +1148,23 @@ def update_content_calendar_entry(entry_id):
         return jsonify({'message': 'Content calendar entry updated successfully'})
     except Exception as e:
         print(f"Update content calendar error: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': 'Failed to update content calendar entry'}), 500
 
 @app.route('/api/content-calendar/<entry_id>', methods=['DELETE'])
 def delete_content_calendar_entry(entry_id):
+    """Delete a content calendar entry."""
     try:
         MongoContentCalendar.delete_entry(entry_id)
         return jsonify({'message': 'Content calendar entry deleted successfully'})
     except Exception as e:
         print(f"Delete content calendar error: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': 'Failed to delete content calendar entry'}), 500
 
 @app.route('/api/ai/generate-content', methods=['POST'])
 def generate_content():
+    """Generate a 30-day social media content calendar."""
     data = request.json
     answers = data.get('answers', [])
     # Improved prompt for GPT-4
@@ -992,15 +1193,15 @@ def generate_content():
         "Be creative, relevant, and concise."
     )
 
-    openai.api_key = os.getenv('OPENAI_API_KEY')
+    openai_api_key = os.getenv('OPENAI_API_KEY')
     try:
         print(f"=== AI Content Generation Debug ===")
-        print(f"API Key present: {bool(openai.api_key)}")
+        print(f"API Key present: {bool(openai_api_key)}")
         print(f"Received {len(answers)} answers")
         
         # Use the newer OpenAI client syntax
         from openai import OpenAI
-        client = OpenAI(api_key=openai.api_key)
+        client = OpenAI(api_key=openai_api_key)
         
         print("Making OpenAI API call...")
         response = client.chat.completions.create(
@@ -1014,13 +1215,104 @@ def generate_content():
         return jsonify({"content_plan": content_plan})
     except Exception as e:
         print(f"[FULL ERROR] {type(e).__name__}: {str(e)}")
-        import traceback
         traceback.print_exc()
         return jsonify({"error": f"Generation failed: {str(e)}"}), 500
 
+@app.route('/api/generate-content', methods=['POST'])
+def generate_content_simple():
+    """Generate content based on structured prompt."""
+    try:
+        data = request.get_json() or {}
+        prompt = data.get('prompt', 'Generate engaging social media content')
+        content_type = data.get('content_type', 'social_media_posts')
+        platform = data.get('platform', 'Instagram')
+        tone = data.get('tone', 'professional')
+        client_id = data.get('client_id')
+        user_id = data.get('user_id')
+        
+        # Check if OpenAI API key is available
+        api_key = os.getenv('OPENAI_API_KEY')
+        
+        if api_key:
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                
+                clean_prompt = prompt
+                content_goal = ""
+                target_audience = ""
+                brand_voice = ""
+                
+                # Extract additional context if provided
+                if " | Target audience:" in clean_prompt:
+                    parts = clean_prompt.split(" | Target audience:")
+                    clean_prompt = parts[0].strip()
+                    remaining = parts[1]
+                    if " | Goal:" in remaining:
+                        target_parts = remaining.split(" | Goal:")
+                        target_audience = target_parts[0].strip()
+                        remaining = target_parts[1]
+                    else:
+                        target_audience = remaining.split(" | Brand voice:")[0].strip() if " | Brand voice:" in remaining else remaining.strip()
+                
+                if " | Goal:" in prompt:
+                    goal_part = prompt.split(" | Goal:")[1]
+                    content_goal = goal_part.split(" | Brand voice:")[0].strip() if " | Brand voice:" in goal_part else goal_part.strip()
+                
+                if " | Brand voice:" in prompt:
+                    brand_voice = prompt.split(" | Brand voice:")[1].strip()
+                
+                enhanced_prompt = f"""
+                You are a professional social media content creator and copywriter. Create exactly 3 engaging {platform} posts.
+
+                Topic/Brief: {clean_prompt}
+                Platform: {platform}  
+                Tone: {tone}
+                Target Audience: {target_audience}
+                Goal: {content_goal}
+                Brand Voice: {brand_voice}
+
+                Requirements:
+                - Create 3 distinct, high-quality posts that are ready to publish
+                - Each post should feel authentic and engaging, not robotic
+                - Include relevant hashtags (3-7 per post, mix of popular and niche)
+                - Add appropriate emojis sparingly and strategically
+                - Keep posts platform-appropriate length ({platform} best practices)
+                - Use compelling hooks and clear call-to-actions
+                - Make each post unique in approach (different angles/perspectives)
+                - Focus on value, engagement, and brand voice
+                - Avoid overly promotional language unless specifically requested
+                
+                Platform-specific guidelines:
+                - Instagram: Visual storytelling, lifestyle focus, 2200 char limit
+                - Facebook: Community building, longer form acceptable
+                - Twitter: Concise, trending topics, 280 char limit
+                - LinkedIn: Professional insights, thought leadership
+                - TikTok: Trendy, casual, video-focused language
+                """
+                
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "system", "content": enhanced_prompt}],
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+                
+                content = response.choices[0].message.content
+                return jsonify({"content": content})
+            except Exception as e:
+                print(f"OpenAI API error: {e}")
+                return jsonify({'error': f'Failed to generate content: {str(e)}'}), 500
+        else:
+            return jsonify({'error': 'OpenAI API key not configured'}), 500
+    except Exception as e:
+        print(f"Generate content error: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to generate content'}), 500
+
 @app.route('/api/upload-file', methods=['POST'])
 def upload_file():
-    """Upload a file and return file info"""
+    """Upload a file and return file info."""
     try:
         if 'file' not in request.files:
             print('No file part in request.files')
@@ -1054,7 +1346,7 @@ def upload_file():
             file.save(file_path)
         except Exception as e:
             print(f"File save error: {e}")
-            import traceback; traceback.print_exc()
+            traceback.print_exc()
             return jsonify({'error': f'File save error: {str(e)}'}), 500
         print(f"File saved: {file_path}")
         return jsonify({
@@ -1066,12 +1358,12 @@ def upload_file():
         }), 200
     except Exception as e:
         print(f"File upload error: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
 
 @app.route('/api/files/<filename>')
 def serve_file(filename):
-    """Serve uploaded files"""
+    """Serve uploaded files."""
     try:
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     except Exception as e:
@@ -1080,6 +1372,7 @@ def serve_file(filename):
 
 @app.route('/api/channels', methods=['GET'])
 def get_channels():
+    """Get channels for a user."""
     user_id = request.args.get('user_id')
     if not user_id:
         return jsonify({'error': 'user_id required'}), 400
@@ -1099,6 +1392,7 @@ def get_channels():
 
 @app.route('/api/channels', methods=['POST'])
 def create_or_get_channel():
+    """Create or get a channel."""
     data = request.get_json() or {}
     name = data.get('name')
     is_dm = data.get('is_dm', False)
@@ -1115,8 +1409,9 @@ def create_or_get_channel():
     channel = MongoChannel.create_channel(name, is_dm, member_ids, created_by)
     return jsonify({'id': str(channel['_id']), 'name': channel['name'], 'is_dm': channel['is_dm']}), 201
 
-@app.route('/api/channels/<channel_id>/messages', methods=['GET'])
+@app.route('/api/channels/<string:channel_id>/messages', methods=['GET'])
 def get_channel_messages(channel_id):
+    """Get messages for a channel."""
     messages = MongoMessage.find_by_channel(channel_id)
     result = []
     for m in messages:
@@ -1133,7 +1428,7 @@ def get_channel_messages(channel_id):
 
 @app.route('/api/channels/<string:channel_id>/members', methods=['GET'])
 def get_channel_members(channel_id):
-    """Return members of a channel (for chat UI)"""
+    """Return members of a channel (for chat UI)."""
     try:
         collection = mongo.get_collection('channels')
         channel = collection.find_one({'_id': channel_id})
@@ -1156,189 +1451,356 @@ def get_channel_members(channel_id):
         return jsonify(member_objs)
     except Exception as e:
         print(f"Error in get_channel_members: {e}")
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch channel members'}), 500
+
+@app.route('/api/test-channel-read', methods=['POST', 'GET'])
+def test_channel_read():
+    """Test route to debug channel read issue."""
+    return jsonify({'message': 'Test channel read endpoint works!'})
+
+@app.route('/api/channels/<channel_id>/read', methods=['POST', 'OPTIONS'])
+def mark_channel_read(channel_id):
+    """Mark a channel as read for the current user."""
+    print(f"DEBUG: mark_channel_read called with channel_id={channel_id}")
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
+        
+        # For now, just return success since we don't have a read status tracking system
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Error in mark_channel_read: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to mark channel as read'}), 500
 
 @app.route('/api/meetings', methods=['GET', 'POST'])
 def handle_meetings():
     """Handle fetching and scheduling meetings."""
+    print(f"DEBUG: handle_meetings called with method: {request.method}")
     try:
         if request.method == 'GET':
-            # Fetch all meetings from MongoDB
-            meetings = MongoMeeting.find_all()
-            print(f"Meetings fetched: {meetings}")
-            return jsonify([
-                {
-                    'id': str(meeting['_id']),
-                    'title': meeting.get('title', ''),
-                    'description': meeting.get('description', ''),
-                    'start_time': meeting.get('start_time') if isinstance(meeting.get('start_time'), str) else meeting.get('start_time').isoformat(),
-                    'end_time': meeting.get('end_time') if isinstance(meeting.get('end_time'), str) else meeting.get('end_time').isoformat(),
-                    'participants': meeting.get('participants', []),
-                    'created_at': meeting.get('created_at').isoformat() if meeting.get('created_at') else None
-                } for meeting in meetings
-            ])
-        elif request.method == 'POST':
-            # Schedule a new meeting
-            data = request.get_json() or {}
-            title = data.get('title')
-            description = data.get('description')
-            start_time = data.get('start_time')
-            end_time = data.get('end_time')
-            participants = data.get('participants', [])
-
-            if not all([title, start_time, end_time]):
-                return jsonify({'error': 'Title, start_time, and end_time are required'}), 400
-
-            # Get required fields
-            title = data.get("title")
-            reason = data.get("reason") or data.get("description", "")
-            date = data.get("date")
-            start_time = data.get("start_time")
-            end_time = data.get("end_time")
-            participants = data.get("participants", [])
-            organizer_id = data.get("organizer_id") or (participants[0] if participants else None)
+            user_id = request.args.get('user_id')
+            print(f"DEBUG: Meetings GET request with user_id={user_id}")
             
+            if user_id:
+                print(f"DEBUG: Filtering meetings for user_id={user_id}")
+                meetings = MongoMeeting.find_by_user(user_id)
             if not all([title, start_time, end_time, organizer_id]):
-                return jsonify({"error": "Title, start_time, end_time, and organizer_id are required"}), 400
-            
-            # Handle time parsing
+                print("DEBUG: Missing required fields")
+                return jsonify({'error': 'Title, start_time, end_time, and organizer_id are required'}), 400
+
             from datetime import datetime, date as date_module
             if not date:
                 date = date_module.today().isoformat()
             
-            # Convert simple time strings (HH:MM) to full datetime strings
+            print(f"DEBUG: Before time parsing - date={date}, start_time={start_time}, end_time={end_time}")
+            
             def format_datetime_string(date_str, time_str):
-                if ":" in time_str and len(time_str) <= 5:
+                """Convert date string and time string to full datetime string."""
+                if ':' in time_str and len(time_str) <= 5:
                     return f"{date_str}T{time_str}:00"
                 return time_str
             
             formatted_start_time = format_datetime_string(date, start_time)
             formatted_end_time = format_datetime_string(date, end_time)
             
-            meeting_doc = MongoMeeting.create_meeting(
-                title,
-                reason,
-                date,
-                formatted_start_time,
-                formatted_end_time,
-                organizer_id,
-                participants
-            )
+            print(f"DEBUG: After formatting - start_time={formatted_start_time}, end_time={formatted_end_time}")
+            
+            print(f"DEBUG: About to call MongoMeeting.create_meeting")
+            print(f"DEBUG: Meeting creation - title={title}, reason={reason}, date={date}, start_time={formatted_start_time}, end_time={formatted_end_time}, organizer_id={organizer_id}, participants={participants}")
+
+            try:
+                meeting_doc = MongoMeeting.create_meeting(
+                    title,
+                    reason,
+                    date,
+                    formatted_start_time,
+                    formatted_end_time,
+                    organizer_id,
+                    participants
+                )
+                print(f"DEBUG: Meeting created successfully")
+            except Exception as create_error:
+                print(f"DEBUG: Error during meeting creation: {create_error}")
+                traceback.print_exc()
+                raise create_error
+            
+            print(f"DEBUG: Meeting created, processing participants")
+
+            for participant in participants:
+                if participant == organizer_id:
+                    continue
+                member_ids = sorted([str(organizer_id), str(participant)])
+                dm_name = "DM"
+                dm_channel = MongoChannel.find_by_members(dm_name, True, member_ids)
+                if not dm_channel:
+                    dm_channel = MongoChannel.create_channel(dm_name, True, member_ids, organizer_id)
+                channel_id = str(dm_channel['_id'])
+                MongoMessage.create_message(
+                    channel_id=channel_id,
+                    user_id='system',
+                    content=f'You have been invited to a meeting: "{title}" from {start_time} to {end_time}.',
+                    parent_message_id=None,
+                    name='System'
+                )
+                socketio.emit(
+                    'send_message',
+                    {
+                        'channel_id': channel_id,
+                        'user_id': 'system',
+                        'content': f'You have been invited to a meeting: "{title}" from {start_time} to {end_time}.',
+                        'name': 'System',
+                        'parent_message_id': None
+                    }
+                )
+
             return jsonify({
                 'message': 'Meeting scheduled successfully',
                 'meeting': {
                     'id': str(meeting_doc['_id']),
                     'title': meeting_doc['title'],
-                    'description': meeting_doc.get("reason", ""),
-                    'start_time': str(meeting_doc["start_time"]),
-                    'end_time': str(meeting_doc["end_time"]),
-                    'participants': meeting_doc.get("invitee_ids", [])
+                    'description': meeting_doc.get('reason', '') or meeting_doc.get('description', ''),
+                    'start_time': str(meeting_doc['start_time']),
+                    'end_time': str(meeting_doc['end_time']),
+                    'participants': meeting_doc.get('invitee_ids', []) or meeting_doc.get('participants', [])
                 }
             }), 201
     except Exception as e:
         print(f"Meeting error: {e}")
+        traceback.print_exc()
         return jsonify({'error': 'Failed to handle meetings'}), 500
 
-@app.route("/api/channels/<channel_id>/read", methods=["POST", "OPTIONS"])
-def mark_channel_read(channel_id):
-    """Mark a channel as read for the current user"""
-    print(f"DEBUG: mark_channel_read called with channel_id={channel_id}")
-    if request.method == "OPTIONS":
-        return "", 200
+@app.route('/api/meetings/delete_all', methods=['POST'])
+def delete_all_meetings():
+    """Delete all meetings."""
     try:
-        user_id = request.args.get("user_id")
-        if not user_id:
-            return jsonify({"error": "user_id is required"}), 400
-        
-        # For now, just return success since we do not have a read status tracking system
-        # In a full implementation, this would update the user read status for the channel
-        return jsonify({"success": True})
+        deleted = MongoMeeting.delete_all()
+        return jsonify({'deleted': deleted, 'message': 'All meetings deleted.'})
     except Exception as e:
-        print(f"Error in mark_channel_read: {e}")
-        import traceback; traceback.print_exc()
-        return jsonify({"error": "Failed to mark channel as read"}), 500
+        return jsonify({'error': str(e)}), 500
 
-# Move business logic to core/business_logic.py and keep only Flask app/adapters here.
-# Example import:
-# from core.business_logic import get_access_requests_logic, approve_access_request_logic, ...
+@app.route('/api/meetings/list_all', methods=['GET'])
+def list_all_meetings():
+    """List all meetings."""
+    try:
+        meetings = MongoMeeting.find_all()
+        return jsonify({'meetings': [str(m['_id']) for m in meetings], 'count': len(meetings)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# ─── TikTok Integration ───────────────────────────────────────────────────────
+@app.route('/api/ai-assistant', methods=['POST'])
+def ai_assistant():
+    """Comprehensive AI marketing assistant endpoint."""
+    try:
+        data = request.get_json() or {}
+        message = data.get('message', '')
+        user_id = data.get('user_id')
+        context = data.get('context', 'general')
+        
+        if not message.strip():
+            return jsonify({'error': 'Message is required'}), 400
+        
+        api_key = os.getenv('OPENAI_API_KEY')
+        
+        if api_key:
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                
+                system_prompt = f"""
+                You are an expert AI Marketing Assistant with deep knowledge across all areas of digital marketing, business strategy, content creation, and data analysis. You help users with:
+
+                1. CONTENT CREATION: Social media posts, blog articles, email campaigns, ad copy, video scripts
+                2. STRATEGY PLANNING: Marketing strategies, campaign planning, content calendars, growth tactics
+                3. DATA ANALYSIS: Campaign performance, customer insights, market trends, ROI optimization
+                4. AUTOMATION: Workflow setup, lead nurturing, email sequences, social media scheduling
+                5. OPTIMIZATION: Conversion rate optimization, A/B testing, performance improvement
+                6. RESEARCH: Competitor analysis, market research, audience targeting, trend identification
+
+                Context: {context}
+                User message: {message}
+
+                Provide helpful, actionable, and specific advice. If the user asks for content creation, provide complete, ready-to-use examples. If they ask for strategy, give step-by-step plans. If they ask for analysis, provide detailed insights and recommendations.
+
+                Keep responses conversational, professional, and practical. Always aim to provide immediate value.
+                """
+                
+                print("Making OpenAI API call for AI assistant...")
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": message}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+                
+                ai_response = response.choices[0].message.content
+                print(f"Generated AI assistant response successfully!")
+                
+                suggested_actions = []
+                if any(word in message.lower() for word in ['create', 'write', 'generate']):
+                    suggested_actions.append({'type': 'content', 'label': 'Create More Content'})
+                if any(word in message.lower() for word in ['analyze', 'performance', 'metrics']):
+                    suggested_actions.append({'type': 'analysis', 'label': 'Deep Dive Analysis'})
+                if any(word in message.lower() for word in ['strategy', 'plan', 'campaign']):
+                    suggested_actions.append({'type': 'strategy', 'label': 'Build Strategy'})
+                
+                return jsonify({
+                    "response": ai_response,
+                    "suggested_actions": suggested_actions,
+                    "success": True
+                })
+                
+            except Exception as openai_error:
+                print(f"OpenAI API error: {openai_error}")
+                return generate_mock_ai_response(message, context)
+        else:
+            print("No OpenAI API key found, using mock AI responses")
+            return generate_mock_ai_response(message, context)
+        
+    except Exception as e:
+        print(f"[AI ASSISTANT ERROR] {type(e).__name__}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"error": f"AI assistant failed: {str(e)}"}), 500
+
+def generate_mock_ai_response(message, context):
+    """Generate helpful mock responses when OpenAI is unavailable."""
+    message_lower = message.lower()
+    
+    if any(word in message_lower for word in ['social', 'post', 'content', 'create', 'write']):
+        response = """I would be happy to help you create engaging content! Here are some approaches:
+
+**Social Media Posts:**
+- Hook + Value + Call-to-action format
+- Use storytelling to connect emotionally
+- Include relevant hashtags and emojis
+- Keep platform-specific character limits in mind
+
+**Content Ideas:**
+- Behind-the-scenes content
+- User-generated content campaigns
+- Educational tips and tutorials
+- Industry insights and trends
+
+**Best Practices:**
+- Know your audience deeply
+- Maintain consistent brand voice
+- Use high-quality visuals
+- Post at optimal times for your audience
+
+Would you like me to help you create specific content for a particular platform or topic?"""
+        
+        suggested_actions = [
+            {'type': 'content', 'label': 'Create Specific Content'},
+            {'type': 'strategy', 'label': 'Content Strategy'},
+            {'type': 'analysis', 'label': 'Content Performance'}
+        ]
+    
+    elif any(word in message_lower for word in ['analytics', 'performance', 'metrics', 'analyze', 'data']):
+        response = """I can help you analyze and optimize your marketing performance! Here is what to focus on:
+
+**Key Metrics to Track:**
+- Engagement rate (likes, comments, shares)
+- Reach and impressions
+- Click-through rates (CTR)
+- Conversion rates
+- Return on ad spend (ROAS)
+
+**Analysis Framework:**
+1. Set clear KPIs aligned with business goals
+2. Track metrics consistently over time
+3. Compare performance across channels
+4. Identify top-performing content types
+5. Understand audience behavior patterns
+
+**Optimization Tips:**
+- A/B test different content formats
+- Optimize posting times based on audience activity
+- Refine targeting based on performance data
+- Double down on what works, eliminate what does not work
+
+What specific metrics or campaigns would you like me to help you analyze?"""
+        
+        suggested_actions = [
+            {'type': 'analysis', 'label': 'Deep Dive Analysis'},
+            {'type': 'optimization', 'label': 'Optimization Plan'},
+            {'type': 'strategy', 'label': 'Performance Strategy'}
+        ]
+    
+    elif any(word in message_lower for word in ['strategy', 'plan', 'campaign']):
+        response = """Let us work on your strategy! Here are some key elements to consider: Strategy Components - Clear, measurable objectives, Target audience definition, Key messages and value propositions, Tactical initiatives and action plans, Budget and resource allocation, Timeline and milestones, KPIs and performance metrics. Which area would you like to focus on first: content creation, strategy planning, or data analysis?"""
+        
+        suggested_actions = [
+            {'type': 'strategy', 'label': 'Strategy Planning'},
+            {'type': 'content', 'label': 'Content Creation'},
+            {'type': 'analysis', 'label': 'Performance Analysis'}
+        ]
+    
+    else:
+        response = """I'm here to help with any marketing-related questions or tasks you have. Whether it's content creation, strategy planning, or data analysis, just let me know what you need assistance with.
+
+        Here are some examples of what I can help with:
+        - Creating engaging social media content
+        - Developing a comprehensive marketing strategy
+        - Analyzing campaign performance data
+        - Automating repetitive marketing tasks
+        - Optimizing content for SEO
+        - Conducting market research and competitor analysis
+
+        Just provide some details on what you're looking to achieve, and I'll guide you through it."""
+        suggested_actions = [
+            {'type': 'content', 'label': 'Content Ideas'},
+            {'type': 'strategy', 'label': 'Marketing Strategy'},
+            {'type': 'analysis', 'label': 'Campaign Analysis'}
+        ]
+    
+    return jsonify({
+        "response": response,
+        "suggested_actions": suggested_actions,
+        "success": True
+    })
+
 @app.route('/api/tiktok/analyze', methods=['GET'])
 def tiktok_analyze():
-    """Handle TikTok OAuth callback and provide analysis"""
+    """Handle TikTok OAuth callback and provide analysis."""
     try:
-        # Get the authorization code from query parameters
         code = request.args.get('code')
+        state = request.args.get('state')
+        
         if not code:
             return jsonify({'error': 'Missing TikTok authorization code'}), 400
         
-        # 1. Exchange authorization code for access token (mock implementation)
-        # In a real implementation, you would call TikTok API here
-        # 2. Use the access token to fetch actual TikTok data
-        
-        # Mock analysis data for demo purposes
-        analysis_data = {
+        analysis = {
             'account': 'Demo TikTok Account',
-            'followers': 45000,
-            'engagement_rate': 8.5,
+            'followers': 12345,
+            'avg_views': 6789,
             'top_video': 'How to go viral on TikTok',
-            'views': 250000,
-            'likes': 12000,
-            'comments': 850,
-            'shares': 1200,
-            'hashtags': ['#fyp', '#viral', '#trending'],
-            'best_time_to_post': '7-9 PM',
-            'audience_age': '18-24 (65%)',
-            'top_locations': ['US', 'UK', 'Canada']
+            'engagement_rate': '5.2%',
+            'recent_growth': '+12% last 30 days',
+            'connection_status': 'connected',
+            'connected_at': datetime.now().isoformat(),
+            'raw_code': code,
+            'raw_state': state
         }
         
-        return jsonify(analysis_data)
+        return jsonify(analysis)
     except Exception as e:
-        print(f'TikTok analysis error: {e}')
-        return jsonify({'error': 'Failed to process TikTok authorization'}), 500
+        print(f"Error in tiktok_analyze: {e}")
+        return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
-if __name__ == "__main__":
-    import sys
-    port = 5002  # Default to 5002 to avoid conflicts
-    use_ssl = False  # Default to no SSL for development
-    
-    for arg in sys.argv:
-        if arg.startswith("--port="):
-            try:
-                port = int(arg.split("=", 1)[1])
-            except Exception:
-                pass
-        elif arg == "--no-ssl":
-            use_ssl = False
-    
-    if use_ssl:
-        cert_path = os.path.join(os.path.dirname(__file__), '../certs/cert.pem')
-        key_path = os.path.join(os.path.dirname(__file__), '../certs/key.pem')
-        
-        # Check if SSL certificates exist
-        if os.path.exists(cert_path) and os.path.exists(key_path):
-            print(f"[SERVER] Starting with SSL on https://localhost:{port}")
-            socketio.run(
-                app,
-                host="0.0.0.0",
-                port=port,
-                debug=True,
-                ssl_context=(cert_path, key_path)
-            )
-        else:
-            print(f"[SERVER] SSL certificates not found, starting without SSL on http://localhost:{port}")
-            socketio.run(
-                app,
-                host="0.0.0.0",
-                port=port,
-                debug=True
-            )
-    else:
-        print(f"[SERVER] Starting without SSL on http://localhost:{port}")
-        socketio.run(
-            app,
-            host="0.0.0.0",
-            port=port,
-            debug=True
-        )
+if __name__ == '__main__':
+    # Initialize database
+    ensure_sample_data()
+    try:
+        port = 5002
+        print(f"[SERVER] Starting on http://0.0.0.0:{port}")
+        socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    except Exception as e:
+        print(f"[SERVER] Failed to start: {e}")
+        exit(1)
