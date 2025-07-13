@@ -1,0 +1,11 @@
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-Bcrypt==1.0.1
+Flask-SocketIO==5.3.6
+pymongo==4.5.0
+python-dotenv==1.0.0
+itsdangerous==2.1.2
+Werkzeug==2.3.7
+bleach==6.0.0
+python-jwt==4.0.0
+PyJWT==2.8.0

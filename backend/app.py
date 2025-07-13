@@ -1799,6 +1799,17 @@ def tiktok_analyze():
         print(f"Error in tiktok_analyze: {e}")
         return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
+# Add a simple test endpoint for debugging
+@app.route('/test', methods=['GET'])
+def test_endpoint():
+    """Simple test endpoint to verify the backend is working."""
+    return jsonify({
+        'status': 'success',
+        'message': 'Backend is working!',
+        'environment': os.environ.get('FLASK_ENV', 'development'),
+        'mongodb_connected': True if mongo else False
+    })
+
 if __name__ == '__main__':
     # Initialize database
     ensure_sample_data()

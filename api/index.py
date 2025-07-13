@@ -9,22 +9,24 @@ try:
     # Set environment for production
     os.environ.setdefault('FLASK_ENV', 'production')
     
+    # Set a SECRET_KEY if not provided
+    if not os.environ.get('SECRET_KEY'):
+        os.environ['SECRET_KEY'] = 'vercel-production-secret-key-change-me'
+    
     # Import the Flask app
     from backend.app import app
     
-    # Initialize database tables if needed
-    with app.app_context():
-        from core.models import db
-        try:
-            db.create_all()
-        except Exception as e:
-            print(f"Database initialization warning: {e}")
+    # Test the app is working
+    print("[VERCEL] Flask app imported successfully")
     
     # Export the app for Vercel (this is what Vercel will call)
     application = app
     
 except Exception as e:
     import traceback
+    
+    print(f"[VERCEL ERROR] Failed to import Flask app: {str(e)}")
+    print(f"[VERCEL ERROR] Traceback: {traceback.format_exc()}")
     
     # Create a simple error response Flask app for debugging
     error_app = Flask(__name__)
