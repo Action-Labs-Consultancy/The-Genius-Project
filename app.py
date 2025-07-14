@@ -16,9 +16,25 @@ os.environ.setdefault('FLASK_ENV', 'production')
 # Import the Flask app and socketio from backend
 from backend.app import app, socketio
 
+# Add the root route directly here
+@app.route('/')
+def home():
+    """Root route for health check and basic info."""
+    return {
+        'message': 'The Genius Project API is running!',
+        'status': 'healthy',
+        'version': '1.0.0',
+        'database': 'MongoDB',
+        'endpoints': {
+            'health': '/health',
+            'login': '/login',
+            'api': '/api'
+        }
+    }
+
 if __name__ == '__main__':
-    # Get port from environment (Render sets this)
-    port = int(os.environ.get('PORT', 5000))
+    # Get port from environment (Render sets this) - default to 10000 for Render
+    port = int(os.environ.get('PORT', 10000))
     print(f"[RENDER] Starting Flask app on port {port}")
     
     # For production, we need to handle Werkzeug warning differently
