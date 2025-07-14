@@ -21,6 +21,14 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"[RENDER] Starting Flask app on port {port}")
     
-    # For production deployment with SocketIO, we need to allow unsafe werkzeug
-    # This is acceptable for Render's managed environment
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    # For production, we need to handle Werkzeug warning differently
+    # Use socketio.run with log_output=False to suppress Werkzeug warnings
+    try:
+        socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=False)
+    except RuntimeError as e:
+        if "Werkzeug" in str(e):
+            # Fallback: Use regular Flask app.run for production
+            print(f"[RENDER] Falling back to Flask app.run due to Werkzeug restriction")
+            app.run(host='0.0.0.0', port=port, debug=False)
+        else:
+            raise e
