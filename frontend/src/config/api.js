@@ -8,10 +8,10 @@ const getApiBaseUrl = () => {
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // Production check - if we're on action-labs.ai, use the same domain for API
-  if (window.location.hostname.includes('action-labs.ai')) {
-    return 'https://www.action-labs.ai'; // Same domain, Vercel handles routing
-  }
+  // Production check - if we're on action-labs.ai, use the same domain for API (commented out for now)
+  // if (window.location.hostname.includes('action-labs.ai')) {
+  //   return 'https://www.action-labs.ai'; // Same domain, Vercel handles routing
+  // }
   
   // Default to the local MongoDB backend for development
   return 'http://localhost:5002';
