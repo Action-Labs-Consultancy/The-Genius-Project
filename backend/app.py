@@ -125,6 +125,7 @@ if not os.environ.get('SECRET_KEY'):
     os.environ['SECRET_KEY'] = secrets.token_hex(32)  # 256-bit random key
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
+app.config['SECRET_KEY'] = SECRET_KEY
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 # Initialize SocketIO
@@ -361,8 +362,8 @@ import time
 with app.app_context():
     # Create sample data in MongoDB
     try:
-        ensure_sample_data()
-        print("[DATABASE] Sample data ensured in MongoDB")
+        # ensure_sample_data() # Removed for production
+        print("[DATABASE] Sample data creation removed for production")
     except Exception as e:
         print(f"[DATABASE] Sample data creation failed: {e}")
         
@@ -1846,7 +1847,7 @@ def health_check():
 
 if __name__ == '__main__':
     # Initialize database
-    ensure_sample_data()
+    # ensure_sample_data() # Removed for production
     try:
         port = 5002
         print(f"[SERVER] Starting on http://0.0.0.0:{port}")
