@@ -15,12 +15,13 @@ os.environ.setdefault('FLASK_ENV', 'production')
 
 # Import the Flask app and socketio from backend
 from backend.app import app, socketio
+from flask import jsonify
 
 # Add the root route directly here
 @app.route('/')
 def home():
     """Root route for health check and basic info."""
-    return {
+    return jsonify({
         'message': 'The Genius Project API is running!',
         'status': 'healthy',
         'version': '1.0.0',
@@ -30,7 +31,7 @@ def home():
             'login': '/login',
             'api': '/api'
         }
-    }
+    })
 
 @app.route('/favicon.ico')
 def favicon():
