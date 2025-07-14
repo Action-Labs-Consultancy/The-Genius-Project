@@ -32,6 +32,11 @@ def home():
         }
     }
 
+@app.route('/favicon.ico')
+def favicon():
+    """Favicon route to prevent 404 errors."""
+    return '', 204  # No content response
+
 if __name__ == '__main__':
     # Get port from environment (Render sets this) - default to 10000 for Render
     port = int(os.environ.get('PORT', 10000))
