@@ -21,5 +21,6 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"[RENDER] Starting Flask app on port {port}")
     
-    # Run the app with SocketIO support
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    # For production deployment with SocketIO, we need to allow unsafe werkzeug
+    # This is acceptable for Render's managed environment
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
