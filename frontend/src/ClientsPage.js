@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AddCardModal from './AddCardModal';
 import { api } from './config/api';
 
@@ -13,13 +14,14 @@ function stringToColor(str) {
 
 const YELLOW = '#FFD600';
 
-export default function ClientsPage({ user, onClientSelect }) {
+export default function ClientsPage({ user }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddClient, setShowAddClient] = useState(false);
   const [newClient, setNewClient] = useState({ name: '', industry: '', email: '', phone: '', website: '', description: '' });
   const [addError, setAddError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchClients() {
@@ -231,7 +233,7 @@ export default function ClientsPage({ user, onClientSelect }) {
                 <div style={{ display: 'flex', gap: 10, marginTop: 'auto', width: '100%', justifyContent: 'flex-end' }}>
                   <button
                     style={{ background: YELLOW, color: '#181818', border: 'none', borderRadius: 8, fontWeight: 700, padding: '7px 20px', cursor: 'pointer', fontSize: 15, boxShadow: '0 2px 8px #FFD60033', transition: 'background 0.2s, color 0.2s', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onClick={() => onClientSelect(client)}
+                    onClick={() => navigate(`/clients/${client.id}`)}
                   >Open</button>
                   {/* Only show Edit button for employees/admins */}
                   {(user && user.role !== 'client') && (

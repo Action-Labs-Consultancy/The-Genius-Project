@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function TikTokAuthCallback() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Get URL parameters
@@ -25,12 +27,14 @@ export default function TikTokAuthCallback() {
           setError(data.error);
         } else {
           setAnalysis(data.analysis);
-          // Redirect back to original page after 3 seconds
+          // Redirect back to the exact same page where TikTok connect was clicked
           setTimeout(() => {
             if (state && state.startsWith('http')) {
-              window.location.href = state + '?tiktok_connected=true';
+              // Extract the path from the full URL and navigate to it
+              const url = new URL(state);
+              navigate(url.pathname);
             } else {
-              window.location.href = '/';
+              navigate('/insights');
             }
           }, 3000);
         }

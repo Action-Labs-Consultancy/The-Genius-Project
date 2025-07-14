@@ -1,78 +1,79 @@
+import os
+import sys
+import json
+import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-import pymongo
-from werkzeug.security import check_password_hash, generate_password_hash
-import traceback
+from flask_bcrypt import Bcrypt
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
+# Create Flask app
 app = Flask(__name__)
-CORS(app, origins=["https://action-labs.ai", "https://www.action-labs.ai", "http://localhost:3000"])
+CORS(app, origins=[
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000",
+    "https://www.action-labs.ai",
+    "https://action-labs.ai"
+], supports_credentials=True)
+
+bcrypt = Bcrypt(app)
 
 # MongoDB connection
-def get_db():
-    try:
-        mongodb_uri = os.getenv('MONGODB_URI')
-        if not mongodb_uri:
-            return None
-        
-        client = pymongo.MongoClient(mongodb_uri)
-        db = client.get_default_database()
-        return db
-    except Exception as e:
-        print(f"Database connection error: {e}")
-        return None
+try:
+    from pymongo import MongoClient
+    mongodb_uri = os.getenv('MONGODB_URI')
+    if mongodb_uri:
+        mongo_client = MongoClient(mongodb_uri)
+        db = mongo_client.get_default_database()
+        users_collection = db.users
+        print("[LOGIN] MongoDB connected successfully")
+    else:
+        print("[LOGIN] MONGODB_URI not found")
+        users_collection = None
+except Exception as e:
+    print(f"[LOGIN] MongoDB connection failed: {e}")
+    users_collection = None
 
-def login_handler(request):
+@app.route('/', methods=['POST'])
+def login():
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
         
-        email = data.get('email')
-        password = data.get('password')
-        
-        if not email or not password:
+        if not data or not data.get('email') or not data.get('password'):
             return jsonify({'error': 'Email and password are required'}), 400
         
-        # Connect to database
-        db = get_db()
-        if not db:
-            return jsonify({'error': 'Database connection failed'}), 500
+        email = data['email']
+        password = data['password']
         
-        # Find user
-        users_collection = db.users
+        if not users_collection:
+            return jsonify({'error': 'Database not available'}), 500
+        
+        # Find user by email
         user = users_collection.find_one({'email': email})
         
         if not user:
             return jsonify({'error': 'Invalid credentials'}), 401
         
         # Check password
-        if check_password_hash(user.get('password', ''), password):
-            # Return user data (excluding password)
-            user_data = {
+        if bcrypt.check_password_hash(user.get('password_hash', ''), password):
+            # Return user info (excluding password hash)
+            user_info = {
                 'id': str(user['_id']),
                 'email': user['email'],
                 'name': user.get('name', ''),
                 'role': user.get('role', 'user')
             }
-            return jsonify({
-                'message': 'Login successful',
-                'user': user_data,
-                'token': 'temp_token_' + str(user['_id'])
-            }), 200
+            return jsonify({'user': user_info}), 200
         else:
             return jsonify({'error': 'Invalid credentials'}), 401
             
     except Exception as e:
-        print(f"Login error: {e}")
-        print(traceback.format_exc())
+        print(f"[LOGIN] Login error: {e}")
+        traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
-# Vercel handler
-def handler(request):
-    if request.method == 'POST':
-        return login_handler(request)
-    elif request.method == 'GET':
-        return jsonify({'message': 'Login endpoint is working'}), 200
-    else:
-        return jsonify({'error': 'Method not allowed'}), 405
+# For Vercel
+application = app

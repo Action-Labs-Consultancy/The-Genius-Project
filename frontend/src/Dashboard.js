@@ -42,14 +42,14 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   const handleModuleClick = (id) => {
     if (id === 'llama-chat') {
       // Navigate to the Llama Chat page
-      if (typeof onNavigate === 'function') onNavigate('llama-chat');
+      if (typeof onNavigate === 'function') onNavigate('/llama-chat');
     } else if (id === 'calendar') {
       // Switch to the calendar view in App.js
-      if (typeof onNavigate === 'function') onNavigate('calendar');
+      if (typeof onNavigate === 'function') onNavigate('/calendar');
     } else if (id === 'weeklyStandup') {
-      if (typeof onNavigate === 'function') onNavigate('weeklyStandup');
+      if (typeof onNavigate === 'function') onNavigate('/weekly-standup');
     } else {
-      onNavigate(id);
+      onNavigate(`/${id}`);
     }
   };
 
