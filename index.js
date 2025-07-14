@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // MongoDB setup
-const mongoUri = 'mongodb+srv://rhasan:16nqDFnauBTEDORs@cluster0.tj04exd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const mongoUri = 'mongodb+srv://rhasan:GlassDoor2025@cluster0.tj04exd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 const mongoClient = new MongoClient(mongoUri);
 
 // Pinecone setup

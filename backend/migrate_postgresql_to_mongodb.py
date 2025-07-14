@@ -23,7 +23,7 @@ except ImportError:
 def connect_mongodb(uri=None):
     """Connect to MongoDB"""
     if not uri:
-        uri = os.getenv('MONGODB_URI', 'mongodb+srv://rhasan:16nqDFnauBTEDORs@cluster0.tj04exd.mongodb.net/genius_db')
+        uri = os.getenv('MONGODB_URI', 'mongodb+srv://rhasan:GlassDoor2025@cluster0.tj04exd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
     
     try:
         client = MongoClient(uri)

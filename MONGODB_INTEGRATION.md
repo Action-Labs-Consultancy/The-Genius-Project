@@ -16,7 +16,7 @@ This document describes the complete migration from PostgreSQL to MongoDB for Th
 
 ```env
 # MongoDB database connection (Primary Database)
-MONGODB_URI=mongodb+srv://rhasan:16nqDFnauBTEDORs@cluster0.tj04exd.mongodb.net/genius_db
+MONGODB_URI=mongodb+srv://rhasan:GlassDoor2025@cluster0.tj04exd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 ```
 
 #### 2. Backend Dependencies
@@ -213,10 +213,10 @@ curl -k -X POST https://localhost:5002/api/users \\
 ### MongoDB Atlas Configuration
 
 Your MongoDB Atlas cluster is configured with:
-- **Connection String:** `mongodb+srv://rhasan:16nqDFnauBTEDORs@cluster0.tj04exd.mongodb.net/genius_db`
+- **Connection String:** `mongodb+srv://rhasan:GlassDoor2025@cluster0.tj04exd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
 - **Database:** `genius_db`
 - **Username:** `rhasan`
-- **Password:** `16nqDFnauBTEDORs`
+- **Password:** `GlassDoor2025`
 
 ### Security Considerations
 
@@ -255,7 +255,7 @@ mongosh
 use genius_db
 db.createUser({
   user: "rhasan",
-  pwd: "16nqDFnauBTEDORs",
+  pwd: "GlassDoor2025",
   roles: ["readWrite"]
 })
 ```
