@@ -17,6 +17,13 @@ try:
     print(f"[VERCEL DEBUG] MONGODB_URI exists: {bool(os.environ.get('MONGODB_URI'))}")
     print(f"[VERCEL DEBUG] SECRET_KEY exists: {bool(os.environ.get('SECRET_KEY'))}")
     print(f"[VERCEL DEBUG] Python path: {sys.path}")
+    print(f"[VERCEL DEBUG] All environment variables: {os.environ}")
+    
+    # Check requirements.txt
+    requirements_path = os.path.join(os.path.dirname(__file__), 'requirements.txt')
+    if os.path.exists(requirements_path):
+        with open(requirements_path) as f:
+            print(f"[VERCEL DEBUG] requirements.txt:\n{f.read()}")
     
     # Import the Flask app
     from backend.app import app
@@ -32,6 +39,7 @@ except ImportError as e:
     
     print(f"[VERCEL IMPORT ERROR] Failed to import Flask app: {str(e)}")
     print(f"[VERCEL IMPORT ERROR] Traceback: {traceback.format_exc()}")
+    print(f"[VERCEL IMPORT ERROR] All environment variables: {os.environ}")
     
     # Create a simple error response Flask app for debugging
     error_app = Flask(__name__)
@@ -49,6 +57,7 @@ except Exception as e:
     
     print(f"[VERCEL ERROR] General error importing Flask app: {str(e)}")
     print(f"[VERCEL ERROR] Traceback: {traceback.format_exc()}")
+    print(f"[VERCEL ERROR] All environment variables: {os.environ}")
     
     # Create a simple error response Flask app for debugging
     error_app = Flask(__name__)
