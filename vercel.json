@@ -6,6 +6,34 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/dashboard/kpis.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/funnel.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/campaign.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/budget.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/top-ads.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/conversion-rates.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/tiktok/ads-data.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
@@ -24,6 +52,13 @@
   ],
   "routes": [
     { "src": "/api/hello", "dest": "/api/hello/index.py" },
+    { "src": "/api/dashboard/kpis", "dest": "/api/dashboard/kpis.py" },
+    { "src": "/api/dashboard/funnel", "dest": "/api/dashboard/funnel.py" },
+    { "src": "/api/dashboard/campaign", "dest": "/api/dashboard/campaign.py" },
+    { "src": "/api/dashboard/budget", "dest": "/api/dashboard/budget.py" },
+    { "src": "/api/dashboard/top-ads", "dest": "/api/dashboard/top-ads.py" },
+    { "src": "/api/dashboard/conversion-rates", "dest": "/api/dashboard/conversion-rates.py" },
+    { "src": "/api/tiktok/ads-data", "dest": "/api/tiktok/ads-data.py" },
     { "src": "/api/test", "dest": "/api/index.py" },
     { "src": "/api/(.*)", "dest": "/api/index.py" },
     { "src": "/health", "dest": "/api/index.py" },

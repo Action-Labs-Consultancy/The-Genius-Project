@@ -21,27 +21,12 @@ class MongoDB:
             raise ValueError("MongoDB URI not provided")
             
         try:
-            print(f"[MongoDB] Attempting to connect with URI: {uri[:50]}...")
-            # Add timeout parameters for better reliability
-            self.client = MongoClient(
-                uri,
-                connectTimeoutMS=30000,  # 30 seconds
-                socketTimeoutMS=None,
-                serverSelectionTimeoutMS=30000,  # 30 seconds
-                maxPoolSize=10,
-                retryWrites=True
-            )
-            
+            self.client = MongoClient(uri)
             # Extract database name from URI or use default
-            # For mongodb+srv://user:pass@cluster.mongodb.net/?options, use default db
-            if '/' in uri and len(uri.split('/')[-1].split('?')[0]) > 0:
+            if '/' in uri and '/' in uri.split('/')[-1] and uri.split('/')[-1].split('?')[0]:
                 db_name = uri.split('/')[-1].split('?')[0]
-                if not db_name:  # If no database specified in URI
-                    db_name = 'genius_db'
             else:
                 db_name = 'genius_db'
-                
-            print(f"[MongoDB] Using database: {db_name}")
             self.db = self.client[db_name]
             
             # Test connection
@@ -50,8 +35,6 @@ class MongoDB:
             return True
         except Exception as e:
             print(f"[MongoDB] Connection failed: {e}")
-            import traceback
-            print(f"[MongoDB] Full error: {traceback.format_exc()}")
             return False
     
     def get_collection(self, name):

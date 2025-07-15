@@ -61,6 +61,17 @@ export const API_ENDPOINTS = {
   REVIVE_CAMPAIGNS: `${API_BASE_URL}/api/revive/campaigns`,
   REVIVE_BANNERS: `${API_BASE_URL}/api/revive/banners`,
   
+  // Dashboard Data Endpoints
+  DASHBOARD_KPIS: `${API_BASE_URL}/api/dashboard/kpis`,
+  FUNNEL_DATA: `${API_BASE_URL}/api/dashboard/funnel`,
+  CAMPAIGN_DATA: `${API_BASE_URL}/api/dashboard/campaign`,
+  BUDGET_DATA: `${API_BASE_URL}/api/dashboard/budget`,
+  TOP_ADS: `${API_BASE_URL}/api/dashboard/top-ads`,
+  CONVERSION_RATES: `${API_BASE_URL}/api/dashboard/conversion-rates`,
+  TIKTOK_ADS_DATA: `${API_BASE_URL}/api/tiktok/ads-data`,
+  TIKTOK_CAMPAIGNS: `${API_BASE_URL}/api/tiktok/campaigns`,
+  TIKTOK_ANALYTICS: `${API_BASE_URL}/api/tiktok/analytics`,
+  
   // Pinecone/Vector DB
   PINECONE_STORE: `${API_BASE_URL}/store_data`,
   PINECONE_QUERY: `${API_BASE_URL}/query`,

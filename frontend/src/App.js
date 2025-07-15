@@ -4,6 +4,7 @@ import HeaderBar from './HeaderBar';
 import ClientsPage from './ClientsPage';
 import ClientDetailPage from './ClientDetailPage';
 import Dashboard from './Dashboard';
+import DataDashboard from './DataDashboard';
 import Settings from './Settings';
 import AuthenticationComponent from './AuthenticationComponent';
 import SetPasswordPage from './SetPasswordPage';
@@ -294,6 +295,7 @@ export default function App() {
           <Route path="/tiktok-auth-callback" element={<TikTokAuthCallback />} />
           <Route path="/" element={<Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />} />
           <Route path="/dashboard" element={<Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />} />
+          <Route path="/data-dashboard" element={<DataDashboard user={user} />} />
           <Route path="/clients" element={<ClientsPage user={user} />} />
           <Route path="/clients/:clientId" element={<ClientDetailWrapper user={user} />} />
           <Route path="/clients/:clientId/insights" element={<ClientInsightsWrapper user={user} />} />

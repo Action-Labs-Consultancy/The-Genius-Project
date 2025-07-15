@@ -40,6 +40,14 @@ except ImportError as e:
     mongo = MockMongo()
     MongoUser = None
 
+# Import dashboard routes
+try:
+    from dashboard_routes import dashboard_bp
+    print("[IMPORT] Dashboard routes imported successfully")
+except ImportError as e:
+    print(f"[IMPORT ERROR] Failed to import dashboard routes: {e}")
+    dashboard_bp = None
+
 from plugins.openai.openai_plugin import OpenAIPlugin
 # from plugins.pinecone.pinecone_plugin import initialize_pinecone
 # from plugins.revive.revive_plugin import get_revive_stats, create_campaign, create_banner
@@ -51,17 +59,12 @@ load_dotenv()  # must come before os.getenv
 mongodb_uri = os.getenv('MONGODB_URI')
 use_mongodb = True  # Force MongoDB usage
 
-print(f"[DATABASE] MongoDB URI found: {'Yes' if mongodb_uri else 'No'}")
 if mongodb_uri:
-    print(f"[DATABASE] MongoDB URI starts with: {mongodb_uri[:30]}...")
     try:
-        print("[DATABASE] Connecting to MongoDB...")
         mongo.connect(mongodb_uri)
-        print("[DATABASE] MongoDB connected successfully")
         print("[DATABASE] Using MongoDB as primary database")
     except Exception as e:
         print(f"[DATABASE] MongoDB connection failed: {e}")
-        print(f"[DATABASE] Full error: {traceback.format_exc()}")
         # Don't exit in production, create a mock connection for now
         print("[DATABASE] Continuing without MongoDB connection - will retry on first request")
 else:
@@ -1381,14 +1384,6 @@ def upload_file():
             traceback.print_exc()
             return jsonify({'error': f'File save error: {str(e)}'}), 500
         print(f"File saved: {file_path}")
-        return jsonify({
-            'filename': unique_filename,
-            'original_filename': file.filename,
-            'file_path': file_path,
-            'file_size': os.path.getsize(file_path),
-            'mime_type': file.content_type
-        }), 200
-    except Exception as e:
         print(f"File upload error: {e}")
         traceback.print_exc()
         return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
@@ -1827,35 +1822,6 @@ def tiktok_analyze():
 
         return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
-# Health check endpoint
-@app.route('/health', methods=['GET'])
-def health():
-    """Health check endpoint for monitoring"""
-    try:
-        # Test MongoDB connection
-        mongodb_status = "disconnected"
-        if mongo.db is not None:
-            try:
-                mongo.client.admin.command('ping')
-                mongodb_status = "connected"
-            except Exception as e:
-                mongodb_status = f"error: {str(e)}"
-        
-        return jsonify({
-            'status': 'ok',
-            'message': 'Backend is running',
-            'mongodb_status': mongodb_status,
-            'has_mongodb_uri': bool(os.getenv('MONGODB_URI')),
-            'environment': os.environ.get('FLASK_ENV', 'development'),
-            'port': os.environ.get('PORT', '5002')
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e),
-            'mongodb_status': 'unknown'
-        }), 500
-
 # Add a simple test endpoint for debugging
 @app.route('/test', methods=['GET'])
 def test_endpoint():
@@ -1873,19 +1839,19 @@ def test_endpoint():
         'has_mongodb_uri': bool(os.getenv('MONGODB_URI'))
     })
 
+# Add a simple health check that doesn't require any database
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'healthy', 'service': 'genius-project-api'})
+
 if __name__ == '__main__':
     # Initialize database
     # ensure_sample_data() # Removed for production
     try:
-        # Use PORT environment variable for Render, fallback to 5002 for local development
-        port = int(os.environ.get('PORT', 5002))
-        print(f"[SERVER] Environment PORT: {os.environ.get('PORT')}")
-        print(f"[SERVER] Resolved port: {port}")
+        port = 5002
         print(f"[SERVER] Starting on http://0.0.0.0:{port}")
-        
-        # Use debug=False for production
-        debug_mode = os.environ.get('FLASK_ENV') != 'production'
-        socketio.run(app, host='0.0.0.0', port=port, debug=debug_mode)
+        socketio.run(app, host='0.0.0.0', port=port, debug=True)
     except Exception as e:
         print(f"[SERVER] Failed to start: {e}")
         exit(1)
