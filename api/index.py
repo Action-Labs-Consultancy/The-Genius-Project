@@ -1,52 +1,50 @@
 import os
 import sys
+import json
 from flask import Flask, Response, jsonify
 from flask_cors import CORS
 
-# Add parent directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Create a simple Flask app for testing
+# Create a simple Flask app for Vercel
 app = Flask(__name__)
 CORS(app)
 
-# Set environment for production
-os.environ.setdefault('FLASK_ENV', 'production')
+# Set basic configuration
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vercel-secret-key')
 
-# Set a SECRET_KEY if not provided
-if not os.environ.get('SECRET_KEY'):
-    os.environ['SECRET_KEY'] = 'vercel-production-secret-key-change-me'
-
-@app.route('/api/hello')
+@app.route('/api/hello', methods=['GET'])
 def hello():
-    return jsonify({"message": "Backend is working!"})
+    """Simple hello endpoint for testing"""
+    return jsonify({"message": "Backend is working!", "status": "success"})
 
-@app.route('/health')
+@app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "healthy", "service": "genius-project-api"})
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy", 
+        "service": "genius-project-api",
+        "environment": "vercel-serverless"
+    })
 
-@app.route('/api/test')
+@app.route('/api/test', methods=['GET'])
 def test():
-    return jsonify({"message": "API test endpoint working!"})
+    """Test endpoint"""
+    return jsonify({
+        "message": "API test endpoint working!",
+        "python_version": sys.version,
+        "environment": dict(os.environ)
+    })
 
-try:
-    # Try to import the main backend app for additional routes
-    from backend.app import app as backend_app
-    
-    # Copy routes from backend app to our Vercel app
-    for rule in backend_app.url_map.iter_rules():
-        if rule.endpoint != 'static':
-            app.add_url_rule(rule.rule, rule.endpoint, backend_app.view_functions[rule.endpoint], methods=rule.methods)
-    
-    print("[VERCEL] Backend app routes imported successfully")
-    
-except ImportError as e:
-    print(f"[VERCEL] Could not import backend app: {str(e)}")
-    print("[VERCEL] Using basic API endpoints only")
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint"""
+    return jsonify({
+        "message": "The Genius Project API",
+        "endpoints": ["/api/hello", "/health", "/api/test"]
+    })
 
-except Exception as e:
-    print(f"[VERCEL] Error importing backend app: {str(e)}")
-    print("[VERCEL] Using basic API endpoints only")
-
-# Export the app for Vercel (this is what Vercel will call)
+# Export the app for Vercel
 application = app
+
+# For local testing
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
