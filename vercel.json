@@ -19,14 +19,17 @@
     }
   ],
   "routes": [
+    { "src": "/api/hello", "dest": "/api/index.py" },
+    { "src": "/api/test", "dest": "/api/index.py" },
     { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/health", "dest": "/api/index.py" },
     { "src": "/login", "dest": "/api/index.py" },
     { "src": "/create-admin", "dest": "/api/index.py" },
     { "src": "/request-access", "dest": "/api/index.py" },
     { "src": "/forgot-password", "dest": "/api/index.py" },
     { "src": "/set-password", "dest": "/api/index.py" },
-    { "src": "/health", "dest": "/api/index.py" },
     { "src": "/test", "dest": "/api/index.py" },
+    { "src": "/test_vercel_api.html", "dest": "/test_vercel_api.html" },
     { "src": "/manifest.json", "dest": "/manifest.json" },
     { "src": "/favicon.ico", "dest": "/favicon.ico" },
     { "src": "/logo192.png", "dest": "/logo192.png" },

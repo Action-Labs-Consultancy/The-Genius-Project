@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vercel API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Test Vercel API Endpoints</h1>
+    
+    <button onclick="testHelloAPI()">Test /api/hello</button>
+    <button onclick="testHealthAPI()">Test /health</button>
+    <button onclick="testTestAPI()">Test /api/test</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testAPI(endpoint, name) {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                
+                resultsDiv.innerHTML += `
+                    <div class="result success">
+                        <strong>${name}:</strong> ✅ Success<br>
+                        <strong>URL:</strong> ${endpoint}<br>
+                        <strong>Status:</strong> ${response.status}<br>
+                        <strong>Response:</strong> ${JSON.stringify(data, null, 2)}
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="result error">
+                        <strong>${name}:</strong> ❌ Error<br>
+                        <strong>URL:</strong> ${endpoint}<br>
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function testHelloAPI() {
+            testAPI('/api/hello', 'Hello API');
+        }
+
+        function testHealthAPI() {
+            testAPI('/health', 'Health API');
+        }
+
+        function testTestAPI() {
+            testAPI('/api/test', 'Test API');
+        }
+
+        // Test all endpoints on page load
+        window.onload = function() {
+            testHelloAPI();
+            testHealthAPI();
+            testTestAPI();
+        };
+    </script>
+</body>
+</html>
