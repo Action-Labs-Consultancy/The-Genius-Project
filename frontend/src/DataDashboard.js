@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import './DataDashboard.css';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from './config/api';
 
 const DataDashboard = ({ user }) => {
   const [data, setData] = useState({

@@ -1384,10 +1384,17 @@ def upload_file():
             traceback.print_exc()
             return jsonify({'error': f'File save error: {str(e)}'}), 500
         print(f"File saved: {file_path}")
+        return jsonify({
+            "filename": unique_filename,
+            "original_filename": file.filename,
+            "file_path": file_path,
+            "file_size": os.path.getsize(file_path),
+            "mime_type": file.content_type
+        }), 200
+    except Exception as e:
         print(f"File upload error: {e}")
         traceback.print_exc()
-        return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
-
+        return jsonify({"error": f"Failed to upload file: {str(e)}"}), 500
 @app.route('/api/files/<filename>')
 def serve_file(filename):
     """Serve uploaded files."""
