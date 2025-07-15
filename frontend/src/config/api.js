@@ -8,10 +8,10 @@ const getApiBaseUrl = () => {
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // Production check - if we're on action-labs.ai, use the same domain for API (commented out for now)
-  // if (window.location.hostname.includes('action-labs.ai')) {
-  //   return 'https://www.action-labs.ai'; // Same domain, Vercel handles routing
-  // }
+  // Production check - if we're on action-labs.ai, use the same domain for API
+  if (window.location.hostname.includes('action-labs.ai')) {
+    return ''; // Same domain, Vercel handles routing - no need for full URL
+  }
   
   // Default to the local MongoDB backend for development
   return 'http://localhost:5002';
@@ -22,6 +22,11 @@ export const API_BASE_URL = getApiBaseUrl();
 
 // API endpoint configurations
 export const API_ENDPOINTS = {
+  // Test endpoints
+  HELLO: `${API_BASE_URL}/api/hello`,
+  HEALTH: `${API_BASE_URL}/health`,
+  TEST: `${API_BASE_URL}/api/test`,
+  
   // Authentication
   LOGIN: `${API_BASE_URL}/login`,
   LOGOUT: `${API_BASE_URL}/logout`,
