@@ -51,12 +51,17 @@ load_dotenv()  # must come before os.getenv
 mongodb_uri = os.getenv('MONGODB_URI')
 use_mongodb = True  # Force MongoDB usage
 
+print(f"[DATABASE] MongoDB URI found: {'Yes' if mongodb_uri else 'No'}")
 if mongodb_uri:
+    print(f"[DATABASE] MongoDB URI starts with: {mongodb_uri[:30]}...")
     try:
+        print("[DATABASE] Connecting to MongoDB...")
         mongo.connect(mongodb_uri)
+        print("[DATABASE] MongoDB connected successfully")
         print("[DATABASE] Using MongoDB as primary database")
     except Exception as e:
         print(f"[DATABASE] MongoDB connection failed: {e}")
+        print(f"[DATABASE] Full error: {traceback.format_exc()}")
         # Don't exit in production, create a mock connection for now
         print("[DATABASE] Continuing without MongoDB connection - will retry on first request")
 else:
@@ -1822,6 +1827,35 @@ def tiktok_analyze():
 
         return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
+# Health check endpoint
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for monitoring"""
+    try:
+        # Test MongoDB connection
+        mongodb_status = "disconnected"
+        if mongo.db is not None:
+            try:
+                mongo.client.admin.command('ping')
+                mongodb_status = "connected"
+            except Exception as e:
+                mongodb_status = f"error: {str(e)}"
+        
+        return jsonify({
+            'status': 'ok',
+            'message': 'Backend is running',
+            'mongodb_status': mongodb_status,
+            'has_mongodb_uri': bool(os.getenv('MONGODB_URI')),
+            'environment': os.environ.get('FLASK_ENV', 'development'),
+            'port': os.environ.get('PORT', '5002')
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'mongodb_status': 'unknown'
+        }), 500
+
 # Add a simple test endpoint for debugging
 @app.route('/test', methods=['GET'])
 def test_endpoint():
@@ -1838,12 +1872,6 @@ def test_endpoint():
         'mongodb_status': mongodb_status,
         'has_mongodb_uri': bool(os.getenv('MONGODB_URI'))
     })
-
-# Add a simple health check that doesn't require any database
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint."""
-    return jsonify({'status': 'healthy', 'service': 'genius-project-api'})
 
 if __name__ == '__main__':
     # Initialize database
