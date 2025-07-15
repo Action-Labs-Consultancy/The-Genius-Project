@@ -2,6 +2,10 @@
   "version": 2,
   "builds": [
     {
+      "src": "api/hello/index.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
@@ -19,7 +23,7 @@
     }
   ],
   "routes": [
-    { "src": "/api/hello", "dest": "/api/index.py" },
+    { "src": "/api/hello", "dest": "/api/hello/index.py" },
     { "src": "/api/test", "dest": "/api/index.py" },
     { "src": "/api/(.*)", "dest": "/api/index.py" },
     { "src": "/health", "dest": "/api/index.py" },
