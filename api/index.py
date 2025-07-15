@@ -1,71 +1,52 @@
 import os
 import sys
-from flask import Flask, Response
+from flask import Flask, Response, jsonify
+from flask_cors import CORS
 
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Create a simple Flask app for testing
+app = Flask(__name__)
+CORS(app)
+
+# Set environment for production
+os.environ.setdefault('FLASK_ENV', 'production')
+
+# Set a SECRET_KEY if not provided
+if not os.environ.get('SECRET_KEY'):
+    os.environ['SECRET_KEY'] = 'vercel-production-secret-key-change-me'
+
+@app.route('/api/hello')
+def hello():
+    return jsonify({"message": "Backend is working!"})
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "service": "genius-project-api"})
+
+@app.route('/api/test')
+def test():
+    return jsonify({"message": "API test endpoint working!"})
+
 try:
-    # Set environment for production
-    os.environ.setdefault('FLASK_ENV', 'production')
+    # Try to import the main backend app for additional routes
+    from backend.app import app as backend_app
     
-    # Set a SECRET_KEY if not provided
-    if not os.environ.get('SECRET_KEY'):
-        os.environ['SECRET_KEY'] = 'vercel-production-secret-key-change-me'
+    # Copy routes from backend app to our Vercel app
+    for rule in backend_app.url_map.iter_rules():
+        if rule.endpoint != 'static':
+            app.add_url_rule(rule.rule, rule.endpoint, backend_app.view_functions[rule.endpoint], methods=rule.methods)
     
-    # Debug environment variables
-    print(f"[VERCEL DEBUG] MONGODB_URI exists: {bool(os.environ.get('MONGODB_URI'))}")
-    print(f"[VERCEL DEBUG] SECRET_KEY exists: {bool(os.environ.get('SECRET_KEY'))}")
-    print(f"[VERCEL DEBUG] Python path: {sys.path}")
-    print(f"[VERCEL DEBUG] All environment variables: {os.environ}")
-    
-    # Check requirements.txt
-    requirements_path = os.path.join(os.path.dirname(__file__), 'requirements.txt')
-    if os.path.exists(requirements_path):
-        with open(requirements_path) as f:
-            print(f"[VERCEL DEBUG] requirements.txt:\n{f.read()}")
-    
-    # Import the Flask app
-    from backend.app import app
-    
-    # Test the app is working
-    print("[VERCEL] Flask app imported successfully")
-    
-    # Export the app for Vercel (this is what Vercel will call)
-    application = app
+    print("[VERCEL] Backend app routes imported successfully")
     
 except ImportError as e:
-    import traceback
-    
-    print(f"[VERCEL IMPORT ERROR] Failed to import Flask app: {str(e)}")
-    print(f"[VERCEL IMPORT ERROR] Traceback: {traceback.format_exc()}")
-    print(f"[VERCEL IMPORT ERROR] All environment variables: {os.environ}")
-    
-    # Create a simple error response Flask app for debugging
-    error_app = Flask(__name__)
-    
-    @error_app.route('/', defaults={'path': ''})
-    @error_app.route('/<path:path>')
-    def catch_all(path):
-        error_details = f"Import error: {str(e)}\n{traceback.format_exc()}"
-        return Response(f"Import Error:\n{error_details}", status=500, mimetype='text/plain')
-    
-    application = error_app
-    
+    print(f"[VERCEL] Could not import backend app: {str(e)}")
+    print("[VERCEL] Using basic API endpoints only")
+
 except Exception as e:
-    import traceback
-    
-    print(f"[VERCEL ERROR] General error importing Flask app: {str(e)}")
-    print(f"[VERCEL ERROR] Traceback: {traceback.format_exc()}")
-    print(f"[VERCEL ERROR] All environment variables: {os.environ}")
-    
-    # Create a simple error response Flask app for debugging
-    error_app = Flask(__name__)
-    
-    @error_app.route('/', defaults={'path': ''})
-    @error_app.route('/<path:path>')
-    def catch_all(path):
-        error_details = f"General error: {str(e)}\n{traceback.format_exc()}"
-        return Response(f"Server Error:\n{error_details}", status=500, mimetype='text/plain')
-    
-    application = error_app
+    print(f"[VERCEL] Error importing backend app: {str(e)}")
+    print("[VERCEL] Using basic API endpoints only")
+
+# Export the app for Vercel (this is what Vercel will call)
+application = app
