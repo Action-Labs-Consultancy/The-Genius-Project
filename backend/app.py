@@ -1877,9 +1877,15 @@ if __name__ == '__main__':
     # Initialize database
     # ensure_sample_data() # Removed for production
     try:
-        port = 5002
+        # Use PORT environment variable for Render, fallback to 5002 for local development
+        port = int(os.environ.get('PORT', 5002))
+        print(f"[SERVER] Environment PORT: {os.environ.get('PORT')}")
+        print(f"[SERVER] Resolved port: {port}")
         print(f"[SERVER] Starting on http://0.0.0.0:{port}")
-        socketio.run(app, host='0.0.0.0', port=port, debug=True)
+        
+        # Use debug=False for production
+        debug_mode = os.environ.get('FLASK_ENV') != 'production'
+        socketio.run(app, host='0.0.0.0', port=port, debug=debug_mode)
     except Exception as e:
         print(f"[SERVER] Failed to start: {e}")
         exit(1)
