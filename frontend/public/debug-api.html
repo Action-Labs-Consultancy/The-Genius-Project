@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Vercel API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .result { margin: 10px 0; padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background-color: #0056b3; }
+        .loading { opacity: 0.7; }
+        .url-info { background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Vercel API</h1>
+        
+        <div class="url-info">
+            <strong>Current URL:</strong> <span id="currentUrl"></span><br>
+            <strong>Test Time:</strong> <span id="testTime"></span>
+        </div>
+        
+        <div>
+            <button onclick="testEndpoint('/api/hello', 'Hello API')">Test /api/hello</button>
+            <button onclick="testEndpoint('/health', 'Health API')">Test /health</button>
+            <button onclick="testEndpoint('/api/test', 'Test API')">Test /api/test</button>
+            <button onclick="testEndpoint('/', 'Root API')">Test /</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('testTime').textContent = new Date().toLocaleString();
+        
+        async function testEndpoint(endpoint, name) {
+            const resultsDiv = document.getElementById('results');
+            const button = event.target;
+            
+            // Show loading state
+            button.textContent = 'Testing...';
+            button.classList.add('loading');
+            
+            try {
+                console.log(`Testing ${endpoint}`);
+                
+                const startTime = Date.now();
+                const response = await fetch(endpoint);
+                const endTime = Date.now();
+                
+                const contentType = response.headers.get('content-type');
+                const isJSON = contentType && contentType.includes('application/json');
+                
+                let data;
+                let dataText;
+                
+                if (isJSON) {
+                    data = await response.json();
+                    dataText = JSON.stringify(data, null, 2);
+                } else {
+                    dataText = await response.text();
+                    data = { raw: dataText };
+                }
+                
+                const responseTime = endTime - startTime;
+                
+                resultsDiv.innerHTML += `
+                    <div class="result ${response.ok ? 'success' : 'error'}">
+                        <strong>${name}:</strong> ${response.ok ? '✅ Success' : '❌ Error'}
+                        <strong>URL:</strong> ${endpoint}
+                        <strong>Status:</strong> ${response.status} ${response.statusText}
+                        <strong>Response Time:</strong> ${responseTime}ms
+                        <strong>Content-Type:</strong> ${contentType || 'not set'}
+                        <strong>Response:</strong>
+                        ${dataText}
+                    </div>
+                `;
+                
+                console.log(`${name} result:`, data);
+                
+            } catch (error) {
+                console.error(`${name} error:`, error);
+                resultsDiv.innerHTML += `
+                    <div class="result error">
+                        <strong>${name}:</strong> ❌ Network Error
+                        <strong>URL:</strong> ${endpoint}
+                        <strong>Error:</strong> ${error.message}
+                        <strong>Type:</strong> ${error.name}
+                    </div>
+                `;
+            } finally {
+                // Reset button
+                button.textContent = `Test ${endpoint}`;
+                button.classList.remove('loading');
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Auto-test on page load
+        window.onload = function() {
+            setTimeout(() => {
+                testEndpoint('/api/hello', 'Hello API');
+            }, 500);
+        };
+    </script>
+</body>
+</html>
