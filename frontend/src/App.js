@@ -20,6 +20,7 @@ import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
 import TikTokAuthCallback from './pages/tiktok-auth-callback';
+import LeaveBoard from './pages/LeaveBoard';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -307,6 +308,8 @@ export default function App() {
           <Route path="/insights" element={<SocialMediaInsightsDashboard user={user} />} />
           <Route path="/llama-chat" element={<LlamaChat userId={user?.id} />} />
           <Route path="/ai-content" element={<AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />} />
+          <Route path="/leave-board" element={<LeaveBoard user={user} />} />
+          <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
           {user?.is_admin && (
             <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
           )}

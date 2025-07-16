@@ -62,6 +62,7 @@ export const API_ENDPOINTS = {
   REVIVE_BANNERS: `${API_BASE_URL}/api/revive/banners`,
   
   // Dashboard Data Endpoints
+  DASHBOARD_DATA: `${API_BASE_URL}/api/dashboard/data`,
   DASHBOARD_KPIS: `${API_BASE_URL}/api/dashboard/kpis`,
   FUNNEL_DATA: `${API_BASE_URL}/api/dashboard/funnel`,
   CAMPAIGN_DATA: `${API_BASE_URL}/api/dashboard/campaign`,
@@ -69,8 +70,17 @@ export const API_ENDPOINTS = {
   TOP_ADS: `${API_BASE_URL}/api/dashboard/top-ads`,
   CONVERSION_RATES: `${API_BASE_URL}/api/dashboard/conversion-rates`,
   TIKTOK_ADS_DATA: `${API_BASE_URL}/api/tiktok/ads-data`,
-  TIKTOK_CAMPAIGNS: `${API_BASE_URL}/api/tiktok/campaigns`,
-  TIKTOK_ANALYTICS: `${API_BASE_URL}/api/tiktok/analytics`,
+  UPLOAD_DAILY_REPORT: `${API_BASE_URL}/api/dashboard/upload-daily-report`,
+  IMPORT_DAILY_DATA: `${API_BASE_URL}/api/dashboard/import-daily-data`,
+  SOCIAL_MEDIA_DATA: `${API_BASE_URL}/api/social-media/real-time-data`,
+  
+  // Social Media Integration Endpoints
+  SOCIAL_CONNECTIONS: `${API_BASE_URL}/api/social-media/connections`,
+  CONNECT_TIKTOK: `${API_BASE_URL}/api/social-media/connect-tiktok`,
+  CONNECT_META: `${API_BASE_URL}/api/social-media/connect-meta`,
+  CONNECT_INSTAGRAM: `${API_BASE_URL}/api/social-media/connect-instagram`,
+  META_ADS_DATA: `${API_BASE_URL}/api/social-media/meta-ads`,
+  INSTAGRAM_DATA: `${API_BASE_URL}/api/social-media/instagram`,
   
   // Pinecone/Vector DB
   PINECONE_STORE: `${API_BASE_URL}/store_data`,

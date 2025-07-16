@@ -5,7 +5,6 @@ import MeetingsCalendar from './MeetingsCalendar';
 const MODULES = [
   { id: 'chat', title: 'Chat', icon: '💬' },
   { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
-  { id: 'data-dashboard', title: 'Data Dashboard', icon: '📊' },
   { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
   { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
   { id: 'clients', title: 'Clients', icon: '👥' },
@@ -13,6 +12,7 @@ const MODULES = [
   { id: 'notes', title: 'Notes', icon: '📝' },
   { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
   { id: 'calendar', title: 'Calendar', icon: '📆' }, // Renamed
+  { id: 'leaveboard', title: 'LeaveBoard', icon: '🏖️' },
 ];
 
 export default function Dashboard({ user, onNavigate, onLogout }) {
@@ -51,6 +51,8 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       if (typeof onNavigate === 'function') onNavigate('/weekly-standup');
     } else if (id === 'data-dashboard') {
       if (typeof onNavigate === 'function') onNavigate('/data-dashboard');
+    } else if (id === 'leaveboard') {
+      if (typeof onNavigate === 'function') onNavigate('/leaveboard');
     } else {
       onNavigate(`/${id}`);
     }

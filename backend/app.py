@@ -40,14 +40,6 @@ except ImportError as e:
     mongo = MockMongo()
     MongoUser = None
 
-# Import dashboard routes
-try:
-    from dashboard_routes import dashboard_bp
-    print("[IMPORT] Dashboard routes imported successfully")
-except ImportError as e:
-    print(f"[IMPORT ERROR] Failed to import dashboard routes: {e}")
-    dashboard_bp = None
-
 from plugins.openai.openai_plugin import OpenAIPlugin
 # from plugins.pinecone.pinecone_plugin import initialize_pinecone
 # from plugins.revive.revive_plugin import get_revive_stats, create_campaign, create_banner
@@ -119,6 +111,14 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     """Check if the file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Register dashboard routes
+from dashboard_routes import register_dashboard_routes
+register_dashboard_routes(app)
+
+# Register leave management routes
+from leave_routes import register_leave_routes
+register_leave_routes(app)
 
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
 # try:
@@ -1385,24 +1385,28 @@ def upload_file():
             return jsonify({'error': f'File save error: {str(e)}'}), 500
         print(f"File saved: {file_path}")
         return jsonify({
-            "filename": unique_filename,
-            "original_filename": file.filename,
-            "file_path": file_path,
-            "file_size": os.path.getsize(file_path),
-            "mime_type": file.content_type
+            'filename': unique_filename,
+            'original_filename': file.filename,
+            'file_path': file_path,
+            'file_size': os.path.getsize(file_path),
+            'mime_type': file.content_type
         }), 200
     except Exception as e:
         print(f"File upload error: {e}")
         traceback.print_exc()
-        return jsonify({"error": f"Failed to upload file: {str(e)}"}), 500
+        return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
+
 @app.route('/api/files/<filename>')
 def serve_file(filename):
     """Serve uploaded files."""
     try:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(f"[DEBUG] Attempting to serve file: {file_path}")
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     except Exception as e:
         print(f"File serve error: {e}")
-        return jsonify({'error': 'File not found'}), 404
+        import traceback; traceback.print_exc()
+        return jsonify({'error': f'File not found or error: {str(e)}'}), 500
 
 @app.route('/api/channels', methods=['GET'])
 def get_channels():
@@ -1814,7 +1818,7 @@ def tiktok_analyze():
             'account': 'Demo TikTok Account',
             'followers': 12345,
             'avg_views': 6789,
-            'top_video': 'How to go viral on TikTok',
+ 'top_video': 'How to go viral on TikTok',
             'engagement_rate': '5.2%',
             'recent_growth': '+12% last 30 days',
             'connection_status': 'connected',

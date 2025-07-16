@@ -20,6 +20,15 @@ function getDaysMatrix(year, month) {
   return days;
 }
 
+// Helper to get file URL (force backend port)
+const BACKEND_URL = 'http://localhost:5002';
+function getFileUrl(file) {
+  if (!file) return '';
+  if (file.url && file.url.startsWith('http')) return file.url;
+  if (file.filename) return `${BACKEND_URL}/api/files/${file.filename}`;
+  return '';
+}
+
 export default function SMContentCalendar({ clientId, user, onNavigate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -299,10 +308,9 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       const responseData = await res.json();
       if (!res.ok) throw new Error(responseData.error || 'Failed to save content');
       showAlert(editingContent ? 'Content updated successfully!' : 'Content saved successfully!', '✅ Success');
-      closeModal();
       // Force immediate refresh and wait for it to complete
       await fetchEntries();
-      // Debug: log what entries are received after save
+      closeModal();
       setTimeout(() => {
         setLoading(false);
         console.log('[DEBUG] Entries after save:', entries);
@@ -1111,7 +1119,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                     {formData.existingFiles.map((file, index) => {
                       const fileName = file.original_filename || file.filename || `File ${index + 1}`;
                       const fileType = file.mime_type || file.type || '';
-                      const fileUrl = file.url || `/api/files/${file.filename}`;
+                      const fileUrl = getFileUrl(file);
                       
                       return (
                         <div key={index} style={{ 
@@ -1135,6 +1143,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                                   objectFit: 'cover',
                                   borderRadius: '4px'
                                 }}
+                                onError={(e) => { e.target.onerror = null; e.target.src = ''; e.target.alt = 'File not found'; e.target.style.color = '#ff4444'; }}
                               />
                             ) : isVideoFile(fileName) ? (
                               <div style={{ 
@@ -1355,7 +1364,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                   {selectedContent.files.map((file, index) => {
                     const fileName = file.original_filename || file.filename || `File ${index + 1}`;
                     const fileType = file.mime_type || file.type || '';
-                    const fileUrl = file.url || `/api/files/${file.filename}`;
+                    const fileUrl = getFileUrl(file);
                     
                     return (
                       <div key={index} style={{ 
@@ -1388,10 +1397,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                                 background: '#000',
                                 border: '1px solid #FFD600'
                               }}
-                              onError={(e) => {
-                                console.error('❌ Video error:', e.target.error);
-                                console.log('Video src:', fileUrl);
-                              }}
+                              onError={(e) => { e.target.onerror = null; e.target.poster = ''; alert('Video file could not be loaded.'); }}
                               onLoadStart={() => console.log('🔄 Video loading:', fileName)}
                               onCanPlay={() => console.log('✅ Video ready to play:', fileName)}
                               onPlay={() => console.log('▶️ Video started playing:', fileName)}
@@ -1443,6 +1449,7 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                               cursor: 'pointer'
                             }}
                             onClick={() => window.open(fileUrl, '_blank')}
+                            onError={(e) => { e.target.onerror = null; e.target.src = ''; e.target.alt = 'File not found'; e.target.style.color = '#ff4444'; }}
                             title="Click to view full size"
                           />
                         ) : (

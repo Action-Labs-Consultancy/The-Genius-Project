@@ -6,6 +6,10 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/dashboard/data.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "api/dashboard/kpis.py",
       "use": "@vercel/python"
     },
@@ -30,6 +34,30 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/dashboard/upload-daily-report.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/dashboard/import-daily-data.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/social-media/real-time-data.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/social-media/connections.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/social-media/connect-tiktok.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/social-media/connect-meta.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "api/tiktok/ads-data.py",
       "use": "@vercel/python"
     },
@@ -48,14 +76,32 @@
         "distDir": "frontend/build",
         "buildCommand": "cd frontend && npm install && npm run build"
       }
+    },
+    {
+      "src": "api/dashboard/upload-daily-report.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/social-media/real-time-data.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     { "src": "/api/hello", "dest": "/api/hello/index.py" },
+    { "src": "/api/dashboard/data", "dest": "/api/dashboard/data.py" },
     { "src": "/api/dashboard/kpis", "dest": "/api/dashboard/kpis.py" },
     { "src": "/api/dashboard/funnel", "dest": "/api/dashboard/funnel.py" },
     { "src": "/api/dashboard/campaign", "dest": "/api/dashboard/campaign.py" },
     { "src": "/api/dashboard/budget", "dest": "/api/dashboard/budget.py" },
+    { "src": "/api/dashboard/top-ads", "dest": "/api/dashboard/top-ads.py" },
+    { "src": "/api/dashboard/conversion-rates", "dest": "/api/dashboard/conversion-rates.py" },
+    { "src": "/api/dashboard/upload-daily-report", "dest": "/api/dashboard/upload-daily-report.py" },
+    { "src": "/api/dashboard/import-daily-data", "dest": "/api/dashboard/import-daily-data.py" },
+    { "src": "/api/social-media/real-time-data", "dest": "/api/social-media/real-time-data.py" },
+    { "src": "/api/social-media/connections", "dest": "/api/social-media/connections.py" },
+    { "src": "/api/social-media/connect-tiktok", "dest": "/api/social-media/connect-tiktok.py" },
+    { "src": "/api/social-media/connect-meta", "dest": "/api/social-media/connect-meta.py" },
+    { "src": "/api/tiktok/ads-data", "dest": "/api/tiktok/ads-data.py" },
     { "src": "/api/dashboard/top-ads", "dest": "/api/dashboard/top-ads.py" },
     { "src": "/api/dashboard/conversion-rates", "dest": "/api/dashboard/conversion-rates.py" },
     { "src": "/api/tiktok/ads-data", "dest": "/api/tiktok/ads-data.py" },
@@ -76,6 +122,8 @@
     { "src": "/robots.txt", "dest": "/robots.txt" },
     { "src": "/static/(.*)", "dest": "/static/$1" },
     { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/index.html" },
+    { "src": "/api/dashboard/upload-daily-report", "dest": "/api/dashboard/upload-daily-report.py" },
+    { "src": "/api/social-media/real-time-data", "dest": "/api/social-media/real-time-data.py" }
   ]
 }

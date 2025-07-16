@@ -1,0 +1,378 @@
+/* Funnel Chart Styles */
+.funnel-chart {
+  padding: 0;
+}
+
+.funnel-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.funnel-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.funnel-subtitle {
+  color: #64748b;
+  font-size: 16px;
+  margin: 0;
+}
+
+/* Visual Funnel */
+.funnel-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.funnel-step {
+  position: relative;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin: 4px 0;
+}
+
+.funnel-step:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.funnel-step.hovered {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.funnel-step-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  width: 100%;
+}
+
+.step-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.step-info {
+  flex: 1;
+  text-align: center;
+}
+
+.step-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.step-value {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.step-percentage {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.funnel-hover-details {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  min-width: 200px;
+  margin-top: 8px;
+}
+
+.hover-description {
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.conversion-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.conversion-rate {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.conversion-lost {
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* Conversion Rates */
+.conversion-rates {
+  margin-bottom: 32px;
+}
+
+.conversion-rates h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 16px 0;
+}
+
+.rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.rate-card {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.rate-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.rate-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rate-from {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.rate-arrow {
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.rate-to {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.rate-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.rate-lost {
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+/* Funnel Performance Chart */
+.funnel-performance {
+  margin-bottom: 32px;
+}
+
+.funnel-performance h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 16px 0;
+}
+
+/* Funnel Insights */
+.funnel-insights h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 16px 0;
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.insight-item {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.insight-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.insight-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.insight-content h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.insight-content p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 8px 0;
+}
+
+.insight-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+/* Funnel Tooltip */
+.funnel-tooltip {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  max-width: 250px;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tooltip-icon {
+  font-size: 20px;
+}
+
+.tooltip-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.tooltip-content {
+  text-align: left;
+}
+
+.tooltip-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.tooltip-percentage {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.tooltip-description {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .funnel-visual {
+    padding: 16px;
+  }
+  
+  .funnel-step {
+    min-height: 60px;
+    margin: 2px 0;
+  }
+  
+  .funnel-step-content {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .step-icon {
+    font-size: 20px;
+  }
+  
+  .step-value {
+    font-size: 18px;
+  }
+  
+  .rates-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .funnel-hover-details {
+    position: static;
+    transform: none;
+    margin-top: 8px;
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.funnel-step {
+  animation: slideIn 0.6s ease-out;
+}
+
+.funnel-step:nth-child(1) { animation-delay: 0.1s; }
+.funnel-step:nth-child(2) { animation-delay: 0.2s; }
+.funnel-step:nth-child(3) { animation-delay: 0.3s; }
+.funnel-step:nth-child(4) { animation-delay: 0.4s; }
+.funnel-step:nth-child(5) { animation-delay: 0.5s; }
