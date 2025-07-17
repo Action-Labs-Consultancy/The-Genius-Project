@@ -158,14 +158,13 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
     if (!date) return [];
     const dateStr = date.toISOString().split('T')[0];
     const filteredEntries = getFilteredEntries();
-    // Debug: log all entry dates for this day
-    console.log('[DEBUG] getEntriesForDate', { dateStr, entries: filteredEntries.map(e => e.date) });
-    // More flexible date matching
+    // Try to match both entry.date and entry.scheduledDate
     const dateEntries = filteredEntries.filter(entry => {
-      if (!entry.date) return false;
-      // Handle both YYYY-MM-DD and other date formats
-      const entryDateStr = entry.date.split('T')[0]; // Remove time part if present
-      return entryDateStr === dateStr;
+      if (!entry.date && !entry.scheduledDate) return false;
+      // Normalize both possible date fields
+      const entryDateStr = entry.date ? entry.date.split('T')[0] : null;
+      const scheduledDateStr = entry.scheduledDate ? entry.scheduledDate.split('T')[0] : null;
+      return entryDateStr === dateStr || scheduledDateStr === dateStr;
     });
     console.log('[DEBUG] Entries for', dateStr, dateEntries);
     return dateEntries;

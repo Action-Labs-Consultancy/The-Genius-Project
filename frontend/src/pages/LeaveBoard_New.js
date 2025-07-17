@@ -13,8 +13,6 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Menu,
   X,
   Bell,
@@ -31,7 +29,8 @@ import DashboardView from '../components/LeaveBoard/DashboardView';
 import LeavesView from '../components/LeaveBoard/LeavesView';
 import ManageTeamView from '../components/LeaveBoard/ManageTeamView';
 import AnalyticsView from '../components/LeaveBoard/AnalyticsView';
-import CalendarView from '../components/LeaveBoard/CalendarView';
+import SupportView from '../components/LeaveBoard/SupportView';
+import AccountView from '../components/LeaveBoard/AccountView';
 
 const LeaveBoard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -67,15 +66,16 @@ const LeaveBoard = ({ user }) => {
           fetch(`${API_BASE_URL}/api/leave/who-is-off-today`)
         ];
 
-        // If HR, fetch team members
+        // If HR, fetch all requests and team members
         if (isHR) {
           promises.push(
+            fetch(`${API_BASE_URL}/api/leave/all-requests`),
             fetch(`${API_BASE_URL}/api/leave/team-members`)
           );
         }
 
         const responses = await Promise.all(promises);
-        const [balancesRes, requestsRes, teamRes, holidaysRes, whoIsOffRes, teamMembersRes] = responses;
+        const [balancesRes, requestsRes, teamRes, holidaysRes, whoIsOffRes, allRequestsRes, teamMembersRes] = responses;
 
         // Process responses
         const balances = balancesRes.ok ? await balancesRes.json() : {};
@@ -90,14 +90,11 @@ const LeaveBoard = ({ user }) => {
         setPublicHolidays(holidays);
         setWhoIsOffToday(whoIsOff);
 
-        // For HR users, requests already includes all requests
-        // For regular users, requests only includes their own requests
-        if (isHR) {
-          setAllRequests(requests);
-          const teamMembers = teamMembersRes && teamMembersRes.ok ? await teamMembersRes.json() : [];
+        if (isHR && allRequestsRes && teamMembersRes) {
+          const allRequests = allRequestsRes.ok ? await allRequestsRes.json() : [];
+          const teamMembers = teamMembersRes.ok ? await teamMembersRes.json() : [];
+          setAllRequests(allRequests);
           setTeamMembers(teamMembers);
-        } else {
-          setAllRequests(requests);
         }
       } catch (e) {
         console.error('Error fetching data:', e);
@@ -120,27 +117,20 @@ const LeaveBoard = ({ user }) => {
   }, [user, isHR]);
 
   // Approve/Reject handler for HR
-  const handleApproveReject = async (requestId, action, rejectionComment = '') => {
+  const handleApproveReject = async (requestId, action) => {
     try {
       const req = leaveRequests.find(r => r.id === requestId || r._id === requestId) ||
                   allRequests.find(r => r.id === requestId || r._id === requestId);
       if (!req) return;
 
-      const requestBody = {
-        status: action,
-        manager_id: user.id,
-        action_date: new Date().toISOString()
-      };
-
-      // Add rejection comment if rejecting
-      if (action === 'rejected' && rejectionComment) {
-        requestBody.rejection_reason = rejectionComment;
-      }
-
       const res = await fetch(`${API_BASE_URL}/api/leave/requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          status: action,
+          manager_id: user.id,
+          action_date: new Date().toISOString()
+        })
       });
 
       if (res.ok) {
@@ -150,15 +140,6 @@ const LeaveBoard = ({ user }) => {
           refreshLeaveBalances(req.user_id),
           refreshTeamLeaves()
         ]);
-        
-        // Update the local state immediately for better UX
-        const updatedRequest = { ...req, status: action, rejection_reason: rejectionComment };
-        setLeaveRequests(prev => prev.map(r => 
-          (r.id === requestId || r._id === requestId) ? updatedRequest : r
-        ));
-        setAllRequests(prev => prev.map(r => 
-          (r.id === requestId || r._id === requestId) ? updatedRequest : r
-        ));
       }
     } catch (error) {
       console.error('Error updating leave request:', error);
@@ -172,10 +153,14 @@ const LeaveBoard = ({ user }) => {
       if (response.ok) {
         const requests = await response.json();
         setLeaveRequests(requests);
-        
-        // For HR, the requests endpoint already returns all requests
-        // For regular users, it returns only their own requests
-        setAllRequests(requests);
+      }
+      
+      if (isHR) {
+        const allResponse = await fetch(`${API_BASE_URL}/api/leave/all-requests`);
+        if (allResponse.ok) {
+          const allRequests = await allResponse.json();
+          setAllRequests(allRequests);
+        }
       }
     } catch (error) {
       console.error('Error refreshing leave requests:', error);
@@ -243,41 +228,6 @@ const LeaveBoard = ({ user }) => {
     } catch (error) {
       console.error('Error submitting leave request:', error);
     }
-  };
-
-  // Check for conflicting leave dates
-  const checkLeaveConflicts = (startDate, endDate) => {
-    const conflicts = [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    // Check against all approved team leaves
-    const approvedLeaves = teamLeaves.filter(leave => 
-      leave.status === 'approved' && leave.user_id !== user.id
-    );
-    
-    // Check against all pending requests from other users
-    const pendingRequests = allRequests.filter(request => 
-      request.status === 'pending' && request.user_id !== user.id
-    );
-    
-    [...approvedLeaves, ...pendingRequests].forEach(leave => {
-      const leaveStart = new Date(leave.start_date);
-      const leaveEnd = new Date(leave.end_date);
-      
-      // Check if dates overlap
-      if (start <= leaveEnd && end >= leaveStart) {
-        conflicts.push({
-          name: leave.employee_name || leave.user_name,
-          startDate: leave.start_date,
-          endDate: leave.end_date,
-          type: leave.leave_type || leave.type,
-          status: leave.status
-        });
-      }
-    });
-    
-    return conflicts;
   };
 
   // Helper function to get leave type color
@@ -362,11 +312,51 @@ const LeaveBoard = ({ user }) => {
               {!sidebarCollapsed && <span>Analytics</span>}
             </button>
           )}
+          
+          <button 
+            className={`nav-item ${activeTab === 'support' ? 'active' : ''}`}
+            onClick={() => setActiveTab('support')}
+          >
+            <Bell className="nav-icon" />
+            {!sidebarCollapsed && <span>Support</span>}
+          </button>
+          
+          <button 
+            className={`nav-item ${activeTab === 'account' ? 'active' : ''}`}
+            onClick={() => setActiveTab('account')}
+          >
+            <User className="nav-icon" />
+            {!sidebarCollapsed && <span>My Account</span>}
+          </button>
         </nav>
       </div>
 
       {/* Main Content */}
       <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {/* Header */}
+        <div className="content-header">
+          <div className="welcome-section">
+            <h1>Welcome back, {user?.name || user?.username}!</h1>
+            <p>Manage your leave requests and team calendar</p>
+          </div>
+          <div className="header-actions">
+            <button 
+              className="quick-action-btn primary"
+              onClick={() => setShowRequestForm(true)}
+            >
+              <PlusCircle className="btn-icon" />
+              Request Leave
+            </button>
+            <button 
+              className="quick-action-btn secondary"
+              onClick={() => setActiveTab('calendar')}
+            >
+              <Calendar className="btn-icon" />
+              Check Team Calendar
+            </button>
+          </div>
+        </div>
+
         {/* Loading State */}
         {loading && (
           <div className="loading-container">
@@ -375,7 +365,7 @@ const LeaveBoard = ({ user }) => {
           </div>
         )}
 
-        {/* Tab Content - Remove ugly welcome header */}
+        {/* Tab Content */}
         {!loading && (
           <div className="tab-content">
             {activeTab === 'dashboard' && (
@@ -392,21 +382,17 @@ const LeaveBoard = ({ user }) => {
                 onApproveReject={handleApproveReject}
                 getLeaveTypeColor={getLeaveTypeColor}
                 getStatusColor={getStatusColor}
-                loading={loading}
-                error={null}
               />
             )}
             
             {activeTab === 'calendar' && (
               <CalendarView 
                 teamLeaves={teamLeaves}
-                allRequests={allRequests}
-                publicHolidays={publicHolidays}
-                user={user}
-                isHR={isHR}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
                 getLeaveTypeColor={getLeaveTypeColor}
-                loading={loading}
-                error={null}
+                isHR={isHR}
+                user={user}
               />
             )}
             
@@ -418,8 +404,6 @@ const LeaveBoard = ({ user }) => {
                 onRequestLeave={() => setShowRequestForm(true)}
                 getLeaveTypeColor={getLeaveTypeColor}
                 getStatusColor={getStatusColor}
-                loading={loading}
-                error={null}
               />
             )}
 
@@ -436,10 +420,6 @@ const LeaveBoard = ({ user }) => {
                 setFilterStatus={setFilterStatus}
                 dateRange={dateRange}
                 setDateRange={setDateRange}
-                publicHolidays={publicHolidays}
-                isHR={isHR}
-                loading={loading}
-                error={null}
               />
             )}
 
@@ -447,12 +427,16 @@ const LeaveBoard = ({ user }) => {
               <AnalyticsView 
                 allRequests={allRequests}
                 teamMembers={teamMembers}
-                publicHolidays={publicHolidays}
                 getLeaveTypeColor={getLeaveTypeColor}
-                isHR={isHR}
-                loading={loading}
-                error={null}
               />
+            )}
+            
+            {activeTab === 'support' && (
+              <SupportView user={user} />
+            )}
+            
+            {activeTab === 'account' && (
+              <AccountView user={user} leaveBalances={leaveBalances} />
             )}
           </div>
         )}
@@ -465,15 +449,112 @@ const LeaveBoard = ({ user }) => {
           onCancel={() => setShowRequestForm(false)}
           leaveBalances={leaveBalances}
           user={user}
-          checkLeaveConflicts={checkLeaveConflicts}
         />
       )}
     </div>
   );
 };
 
+// Keep the existing CalendarView and LeaveRequestForm components
+const CalendarView = ({ teamLeaves, selectedDate, onDateSelect, getLeaveTypeColor, isHR, user }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    const days = [];
+    for (let i = 0; i < startingDay; i++) days.push(null);
+    for (let day = 1; day <= daysInMonth; day++) days.push(day);
+    return days;
+  };
+
+  const isWeekend = (day) => {
+    if (!day) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    return date.getDay() === 5 || date.getDay() === 6;
+  };
+
+  const hasLeave = (day) => {
+    if (!day) return false;
+    const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return teamLeaves.some(leave => {
+      const startDate = leave.start_date || leave.start;
+      const endDate = leave.end_date || leave.end;
+      return dateStr >= startDate && dateStr <= endDate;
+    });
+  };
+
+  const getLeaveForDay = (day) => {
+    if (!day) return [];
+    const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return teamLeaves.filter(leave => {
+      const startDate = leave.start_date || leave.start;
+      const endDate = leave.end_date || leave.end;
+      return dateStr >= startDate && dateStr <= endDate;
+    });
+  };
+
+  const days = getDaysInMonth(currentMonth);
+  const monthNames = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+
+  return (
+    <div className="calendar-view">
+      <div className="calendar-header">
+        <button 
+          className="nav-btn"
+          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+        >
+          ←
+        </button>
+        <h2>{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h2>
+        <button 
+          className="nav-btn"
+          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+        >
+          →
+        </button>
+      </div>
+      <div className="calendar-grid">
+        <div className="calendar-weekdays">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="weekday">{day}</div>
+          ))}
+        </div>
+        <div className="calendar-days">
+          {days.map((day, index) => (
+            <div 
+              key={index} 
+              className={`calendar-day ${day ? 'has-day' : 'empty'} ${hasLeave(day) ? 'has-leave' : ''} ${isWeekend(day) ? 'weekend' : ''}`}
+              onClick={() => day && onDateSelect(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day))}
+            >
+              {day && (
+                <>
+                  <span className="day-number">{day}</span>
+                  {getLeaveForDay(day).map((leave, idx) => (
+                    <div 
+                      key={idx} 
+                      className="leave-indicator"
+                      style={{ backgroundColor: getLeaveTypeColor(leave.type) }}
+                      title={`${leave.employee} - ${leave.type}`}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Request Form Component
-const LeaveRequestForm = ({ onSubmit, onCancel, leaveBalances, user, checkLeaveConflicts }) => {
+const LeaveRequestForm = ({ onSubmit, onCancel, leaveBalances, user }) => {
   const [formData, setFormData] = useState({
     type: 'vacation',
     startDate: '',
@@ -482,35 +563,8 @@ const LeaveRequestForm = ({ onSubmit, onCancel, leaveBalances, user, checkLeaveC
     attachments: []
   });
 
-  const [conflicts, setConflicts] = useState([]);
-  const [showConflictWarning, setShowConflictWarning] = useState(false);
-
-  // Check for conflicts when dates change
-  useEffect(() => {
-    if (formData.startDate && formData.endDate) {
-      const foundConflicts = checkLeaveConflicts(formData.startDate, formData.endDate);
-      setConflicts(foundConflicts);
-      setShowConflictWarning(foundConflicts.length > 0);
-    } else {
-      setConflicts([]);
-      setShowConflictWarning(false);
-    }
-  }, [formData.startDate, formData.endDate, checkLeaveConflicts]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
-    const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-    
-    onSubmit({
-      ...formData,
-      duration
-    });
-  };
-
-  const handleProceedWithConflict = () => {
-    setShowConflictWarning(false);
     const startDate = new Date(formData.startDate);
     const endDate = new Date(formData.endDate);
     const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
@@ -583,59 +637,14 @@ const LeaveRequestForm = ({ onSubmit, onCancel, leaveBalances, user, checkLeaveC
             />
           </div>
 
-          {/* Conflict Warning */}
-          {showConflictWarning && (
-            <div className="conflict-warning">
-              <div className="warning-header">
-                <AlertCircle className="warning-icon" />
-                <h4>Team Member Conflicts Detected</h4>
-              </div>
-              <p>The following team members will also be on leave during your requested dates:</p>
-              <div className="conflict-list">
-                {conflicts.map((conflict, index) => (
-                  <div key={index} className="conflict-item">
-                    <div className="conflict-details">
-                      <strong>{conflict.name}</strong>
-                      <span className="conflict-dates">
-                        {new Date(conflict.startDate).toLocaleDateString()} - 
-                        {new Date(conflict.endDate).toLocaleDateString()}
-                      </span>
-                      <span className={`conflict-status ${conflict.status}`}>
-                        {conflict.status} {conflict.type}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="conflict-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary"
-                  onClick={() => setShowConflictWarning(false)}
-                >
-                  Choose Different Dates
-                </button>
-                <button 
-                  type="button" 
-                  className="btn-primary"
-                  onClick={handleProceedWithConflict}
-                >
-                  Proceed Anyway
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!showConflictWarning && (
-            <div className="form-actions">
-              <button type="button" onClick={onCancel} className="cancel-btn">
-                Cancel
-              </button>
-              <button type="submit" className="submit-btn">
-                Submit Request
-              </button>
-            </div>
-          )}
+          <div className="form-actions">
+            <button type="button" onClick={onCancel} className="cancel-btn">
+              Cancel
+            </button>
+            <button type="submit" className="submit-btn">
+              Submit Request
+            </button>
+          </div>
         </form>
       </div>
     </div>

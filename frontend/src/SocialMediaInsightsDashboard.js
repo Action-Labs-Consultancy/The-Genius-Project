@@ -163,7 +163,7 @@ export default function SocialMediaInsightsDashboard({ user }) {
       { key: 'totalCreditCardApproved', label: 'Credit Card' },
       { key: 'totalPersonalFinanceApproved', label: 'Personal Finance' }
     ];
-    return categories.map(cat => ({
+    return (categories || []).map(cat => ({
       label: cat.label,
       value: filteredData.reduce((sum, row) => sum + (row[cat.key] || 0), 0)
     }));
@@ -245,7 +245,7 @@ export default function SocialMediaInsightsDashboard({ user }) {
           <div style={{ color: '#fff', fontWeight: 500, fontSize: 16 }}>No insights available yet. Import more data to get AI-powered recommendations.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {insights.map((insight, idx) => (
+            {(insights || []).map((insight, idx) => (
               <div key={idx} style={{ background: '#181818', borderRadius: 10, padding: 18, display: 'flex', alignItems: 'flex-start', gap: 16, boxShadow: '0 2px 8px #0003' }}>
                 <span style={{ fontSize: 28 }}>{insight.icon}</span>
                 <div>
@@ -432,6 +432,23 @@ export default function SocialMediaInsightsDashboard({ user }) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  // Example usage in your dashboard component:
+  const userName = user?.name || 'User';
+  const now = new Date();
+  const month = now.toLocaleString('default', { month: 'long' });
+  const year = now.getFullYear();
+
+  const kpiDataForPDF = [
+    { label: 'Total Finances Disbursed', value: `$${kpiData.totalAchieved}` },
+    { label: 'Cost per Acquisition (CAC)', value: `$${kpiData.cac}` },
+    { label: 'Month-over-Month Growth', value: `${kpiData.kpiAchievedPercent?.toFixed(2) || 0}%` },
+  ];
+  const campaigns = (user.campaigns || []).map(c => `${c.name}: Engagement ${c.engagement}, Conversions ${c.conversions}`);
+  const prCoverage = (user.pr || []).map(pr => `${pr.headline} (${pr.link})`);
+  const upcoming = (user.upcoming || []).map(up => `${up.title} on ${up.date}`);
+  const insights = user.insights || [];
+  const socialLinks = ['Instagram', 'TikTok', 'LinkedIn'];
 
   return (
     <InsightsContext.Provider value={contextValue}>
@@ -714,6 +731,25 @@ export default function SocialMediaInsightsDashboard({ user }) {
           <div style={{background:'#232323', borderRadius:'18px', padding:'32px', border:'2px solid #ffd600', textAlign:'center', margin:'24px 0', boxShadow: '0 4px 24px #0006'}}>
             <DataImport isImporting={isImporting} setIsImporting={setIsImporting} onDataImported={handleDataImported} />
             <div style={{color:'#fff', fontSize:13, marginTop:'10px', opacity:0.7}}>Supported formats: <b>.xlsx</b>, <b>.xls</b></div>
+          </div>
+
+          {/* --- PDF DOWNLOAD SECTION --- */}
+          <div style={{ background: '#181818', borderRadius: 16, padding: 28, boxShadow: '0 2px 12px #0006', border: '2px solid #FFD600', marginBottom: 40 }}>
+            <h2 style={{ color: '#FFD600', fontWeight: 800, fontSize: 22, marginBottom: 16 }}>Download Insights Report</h2>
+            <div style={{ color: '#fff', fontWeight: 500, fontSize: 16, marginBottom: 24 }}>
+              Get a comprehensive PDF report of your social media insights, KPIs, and performance analysis.
+            </div>
+            <NewsletterPDFDownload
+              userName={userName}
+              month={month}
+              year={year}
+              kpiData={kpiDataForPDF}
+              campaigns={campaigns}
+              prCoverage={prCoverage}
+              upcoming={upcoming}
+              insights={insights}
+              socialLinks={socialLinks}
+            />
           </div>
         </div>
       </div>
