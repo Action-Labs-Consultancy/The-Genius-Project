@@ -118,7 +118,9 @@ register_dashboard_routes(app)
 
 # Register leave management routes
 from leave_routes import register_leave_routes
+from equipment_routes import register_equipment_routes
 register_leave_routes(app)
+register_equipment_routes(app, mongo)
 
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
 # try:
@@ -156,7 +158,15 @@ def before_request():
 @app.after_request
 def after_request(response):
     """Apply security measures after each request."""
-    app.logger.info(f"Response: {response.status} {response.get_data(as_text=True)}")
+    # Don't log file content, only metadata
+    if response.content_type and response.content_type.startswith('image/'):
+        app.logger.info(f"Response: {response.status} [IMAGE FILE]")
+    else:
+        try:
+            app.logger.info(f"Response: {response.status} {response.get_data(as_text=True)}")
+        except:
+            app.logger.info(f"Response: {response.status} [BINARY DATA]")
+    
     # Only sanitize JSON responses
     if response.is_json:
         data = response.get_json()

@@ -43,13 +43,48 @@ def register_leave_routes(app):
                 leave_balances.insert_one(default_balances)
                 user_balances = leave_balances.find_one({'user_id': user_id})
             
-            return jsonify({
-                'vacation': user_balances.get('vacation', 20),
+            # Get user's start date from users collection
+            users = mongo.get_collection('users')
+            user_doc = users.find_one({'_id': ObjectId(user_id)})
+            start_date = user_doc.get('start_date') if user_doc else None
+            
+            # Calculate workdays since start date
+            workdays = 0
+            calculated_vacation = 20  # Default fallback
+            
+            if start_date:
+                try:
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                    today = datetime.utcnow()
+                    current = start_dt
+                    while current <= today:
+                        # Skip Friday (4) and Saturday (5)
+                        if current.weekday() not in [4, 5]:
+                            workdays += 1
+                        current += timedelta(days=1)
+                    
+                    # Calculate vacation based on workdays: 0.83333 days per workday
+                    calculated_vacation = round(workdays * 0.83333, 2)
+                except Exception as e:
+                    print(f"Error parsing start_date: {e}")
+            else:
+                # For users without start_date, assume 1 year of work (approximately 260 workdays)
+                workdays = 260
+                calculated_vacation = round(260 * 0.83333, 2)  # About 216.67 days
+            
+            # Add start_date and workdays to response
+            compensations_count = len(user_balances.get('compensations', []))
+            response_data = {
+                'vacation': calculated_vacation,
                 'sick': user_balances.get('sick', 10),
                 'personal': user_balances.get('personal', 5),
                 'maternity': user_balances.get('maternity', 90),
-                'unpaid': user_balances.get('unpaid', 30)
-            })
+                'unpaid': user_balances.get('unpaid', 30),
+                'compensation': compensations_count,
+                'start_date': start_date,
+                'workdays': workdays
+            }
+            return jsonify(response_data)
         
         except Exception as e:
             print(f"Error getting leave balances: {str(e)}")
@@ -335,4 +370,186 @@ def register_leave_routes(app):
         
         except Exception as e:
             print(f"Error getting team leaves: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/leave/team-members', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_team_members():
+        """Get all users for HR to select for compensation days"""
+        try:
+            # Handle preflight requests
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            users = mongo.get_collection('users')
+            team = list(users.find({}, {'_id': 1, 'name': 1, 'email': 1, 'department': 1, 'start_date': 1}))
+            for member in team:
+                member['id'] = str(member['_id'])
+                member['_id'] = str(member['_id'])
+            return jsonify(team)
+        except Exception as e:
+            print(f"Error getting team members: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/leave/compensation', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def add_compensation_day():
+        """HR grants a compensation day to a user for extra workday"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Request data is required'}), 400
+            user_id = data.get('user_id')
+            date = data.get('date')
+            reason = data.get('reason')
+            comment = data.get('comment')
+            added_by = data.get('added_by')
+            if not user_id or not date or not reason:
+                return jsonify({'error': 'Missing required fields'}), 400
+
+            # Save compensation day to user leave_balances
+            leave_balances = mongo.get_collection('leave_balances')
+            result = leave_balances.update_one(
+                {'user_id': user_id},
+                {'$push': {
+                    'compensations': {
+                        'date': date,
+                        'reason': reason,
+                        'comment': comment,
+                        'added_by': added_by,
+                        'added_date': datetime.utcnow().isoformat()
+                    }
+                }},
+                upsert=True
+            )
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            print(f"Error adding compensation day: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/users', methods=['POST', 'PUT', 'OPTIONS'])
+    @cross_origin()
+    def create_or_update_user():
+        """Create or update a user, including start_date"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, PUT, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Request data is required'}), 400
+            
+            print(f"Received data: {data}")  # Debug log
+            
+            user_id = data.get('id')
+            user_doc = {
+                'name': data.get('name'),
+                'user_type': data.get('user_type', 'employee'),
+                'department': data.get('department', ''),
+                'is_admin': data.get('is_admin', False),
+                'email': data.get('email'),
+                'password': data.get('password'),
+                'start_date': data.get('start_date', None)
+            }
+            
+            print(f"User doc to save: {user_doc}")  # Debug log
+            
+            users = mongo.get_collection('users')
+            if request.method == 'POST':
+                result = users.insert_one(user_doc)
+                user_doc['_id'] = str(result.inserted_id)
+                print(f"Created user with ID: {result.inserted_id}")  # Debug log
+                return jsonify(user_doc), 201
+            elif request.method == 'PUT':
+                if not user_id:
+                    return jsonify({'error': 'User ID required for update'}), 400
+                    
+                print(f"Updating user {user_id} with doc: {user_doc}")  # Debug log
+                
+                # Filter out None values for update operation
+                update_doc = {k: v for k, v in user_doc.items() if v is not None}
+                if data.get('start_date') is not None:
+                    update_doc['start_date'] = data.get('start_date')
+                
+                print(f"Final update doc: {update_doc}")  # Debug log
+                
+                result = users.update_one({'_id': ObjectId(user_id)}, {'$set': update_doc})
+                print(f"Update result: matched={result.matched_count}, modified={result.modified_count}")  # Debug log
+                
+                # Fetch the updated user to return
+                updated_user = users.find_one({'_id': ObjectId(user_id)})
+                if updated_user:
+                    updated_user['_id'] = str(updated_user['_id'])
+                    # Remove non-serializable fields
+                    if 'password_hash' in updated_user:
+                        del updated_user['password_hash']
+                    # Convert any datetime objects to strings
+                    for key, value in updated_user.items():
+                        if isinstance(value, datetime):
+                            updated_user[key] = value.isoformat()
+                    
+                    print(f"Updated user from DB: {updated_user}")  # Debug log
+                    return jsonify(updated_user), 200
+                else:
+                    return jsonify({'error': 'User not found after update'}), 404
+                    
+        except Exception as e:
+            print(f"Error creating/updating user: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/leave/public-holidays', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_public_holidays():
+        """Get public holidays for calendar display"""
+        try:
+            # Handle preflight requests
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            # Return empty array for now - can be expanded with actual holiday API
+            holidays = []
+            return jsonify(holidays)
+        
+        except Exception as e:
+            print(f"Error getting public holidays: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/leave/who-is-off-today', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_who_is_off_today():
+        """Get who is off today"""
+        try:
+            # Handle preflight requests
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            # Return empty array for now - can be expanded with actual leave tracking
+            who_is_off = []
+            return jsonify(who_is_off)
+        
+        except Exception as e:
+            print(f"Error getting who is off today: {str(e)}")
             return jsonify({'error': 'Internal server error'}), 500

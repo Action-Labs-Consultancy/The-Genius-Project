@@ -11,6 +11,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     is_admin: false,
     email: '',
     password: '',
+    start_date: '', // Add start date field
   });
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -104,7 +105,9 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       return;
     }
     try {
-      const payload = { ...form, role: form.user_type };
+      const payload = { ...form, role: form.user_type, start_date: form.start_date || null };
+      console.log('Creating new user with payload:', payload);
+      
       const res = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,12 +115,15 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       });
       if (!res.ok) throw new Error('Failed to add user');
       const newUser = await res.json();
+      console.log('Created user response:', newUser);
+      
       setUsers(prev => [newUser, ...prev]);
-      setForm({ name: '', user_type: 'employee', department: '', is_admin: false, email: '', password: '' });
+      setForm({ name: '', user_type: 'employee', department: '', is_admin: false, email: '', password: '', start_date: '' });
       setShowModal(false);
       setMsg('User added successfully!');
       setTimeout(() => setMsg(''), 2000);
     } catch (err) {
+      console.error('Error creating user:', err);
       setMsg('Failed to add user.');
     }
     setLoading(false);
@@ -133,6 +139,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       user_type: user.user_type || 'employee',
       department: user.department || '',
       is_admin: user.is_admin || false,
+      start_date: user.start_date || '', // Add start date to edit form
     });
   };
 
@@ -140,24 +147,31 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
     e.preventDefault();
     setMsg('');
     setLoading(true);
-    
-    // Validate that employees have a department
     if (editForm.user_type === 'employee' && !editForm.department.trim()) {
       setMsg('Employees must have a department assigned');
       setLoading(false);
       return;
     }
-    
     try {
-      const res = await fetch(`${API_BASE_URL}/api/users/${editUser.id}`, {
+      // Always send id as string and ensure start_date is included
+      const payload = { 
+        ...editForm, 
+        id: editUser.id || editUser._id, 
+        start_date: editForm.start_date || null 
+      };
+      console.log('Sending payload for user update:', payload);
+      
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Failed to update user');
       const updated = await res.json();
-      setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
-      if (user && updated.id === user.id && onUserUpdate) {
+      console.log('Updated user response:', updated);
+      
+      setUsers(prev => prev.map(u => (u.id === updated._id || u._id === updated._id) ? updated : u));
+      if (user && (updated._id === user.id || updated._id === user._id) && onUserUpdate) {
         onUserUpdate(updated);
       }
       setEditUser(null);
@@ -165,6 +179,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
       setMsg('User updated successfully!');
       setTimeout(() => setMsg(''), 2000);
     } catch (err) {
+      console.error('Error updating user:', err);
       setMsg('Failed to update user.');
     }
     setLoading(false);
@@ -663,6 +678,17 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                   </select>
                 </>
               )}
+              <div className="form-group">
+                <label style={{ color: '#FFD600', fontWeight: 600 }}>Start Date</label>
+                <input
+                  type="date"
+                  value={form.start_date}
+                  onChange={e => setForm({ ...form, start_date: e.target.value })}
+                  className="modern-input"
+                  required={form.user_type === 'employee'}
+                  style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10, fontSize: 15, padding: '10px' }}
+                />
+              </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFD600', fontSize: '0.98rem', cursor: 'pointer', fontWeight: 600 }}>
                 <input
                   type="checkbox"
@@ -776,6 +802,17 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                     </select>
                   </>
                 )}
+                <div className="form-group">
+                  <label style={{ color: '#FFD600', fontWeight: 600 }}>Start Date</label>
+                  <input
+                    type="date"
+                    value={editForm?.start_date || ''}
+                    onChange={e => setEditForm({ ...editForm, start_date: e.target.value })}
+                    className="modern-input"
+                    required={editForm?.user_type === 'employee'}
+                    style={{ background: '#111', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 10, fontSize: 15, padding: '10px' }}
+                  />
+                </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: '#FFD600', fontSize: '0.98rem', cursor: 'pointer', fontWeight: 600 }}>
                   <input
                     type="checkbox"

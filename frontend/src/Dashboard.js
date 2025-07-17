@@ -2,24 +2,36 @@ import React, { useState } from 'react';
 import './styles.css';
 import MeetingsCalendar from './MeetingsCalendar';
 
-const MODULES = [
-  { id: 'chat', title: 'Chat', icon: '💬' },
-  { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
-  { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
-  { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
-  { id: 'clients', title: 'Clients', icon: '👥' },
-  { id: 'newsFeed', title: 'News Feed', icon: '📰' },
-  { id: 'notes', title: 'Notes', icon: '📝' },
-  { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
-  { id: 'calendar', title: 'Calendar', icon: '📆' }, // Renamed
-  { id: 'leaveboard', title: 'LeaveBoard', icon: '🏖️' },
-];
+const getModules = (user) => {
+  const baseModules = [
+    { id: 'chat', title: 'Chat', icon: '💬' },
+    { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
+    { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
+    { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
+    { id: 'clients', title: 'Clients', icon: '👥' },
+    { id: 'newsFeed', title: 'News Feed', icon: '📰' },
+    { id: 'notes', title: 'Notes', icon: '📝' },
+    { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
+    { id: 'calendar', title: 'Calendar', icon: '📆' },
+    { id: 'leaveboard', title: 'LeaveBoard', icon: '🏖️' },
+  ];
+
+  // Add equipment options based on user role
+  if (user?.is_admin) {
+    baseModules.push({ id: 'equipment', title: 'Equipment Management', icon: '📦' });
+  }
+  baseModules.push({ id: 'equipment-request', title: 'Request Equipment', icon: '📋' });
+
+  return baseModules;
+};
 
 export default function Dashboard({ user, onNavigate, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pinned, setPinned] = useState([]);
   const [ideaInput, setIdeaInput] = useState('');
   const [search, setSearch] = useState('');
+
+  const MODULES = getModules(user);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -53,6 +65,10 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       if (typeof onNavigate === 'function') onNavigate('/data-dashboard');
     } else if (id === 'leaveboard') {
       if (typeof onNavigate === 'function') onNavigate('/leaveboard');
+    } else if (id === 'equipment') {
+      if (typeof onNavigate === 'function') onNavigate('/equipment');
+    } else if (id === 'equipment-request') {
+      if (typeof onNavigate === 'function') onNavigate('/equipment-request');
     } else {
       onNavigate(`/${id}`);
     }

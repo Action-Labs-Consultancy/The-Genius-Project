@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './LeaveBoard.css';
 import { API_BASE_URL } from '../config/api';
 import { 
@@ -54,15 +54,27 @@ const LeaveBoard = ({ user }) => {
   // Check if user is HR
   const isHR = user?.department?.toLowerCase() === 'hr' || user?.is_admin || user?.role === 'hr';
 
+  // Memoize user properties to prevent unnecessary re-renders
+  const userId = useMemo(() => user?.id, [user?.id]);
+  const userDepartment = useMemo(() => user?.department, [user?.department]);
+  const isUserAdmin = useMemo(() => user?.is_admin, [user?.is_admin]);
+  const userRole = useMemo(() => user?.role, [user?.role]);
+
   // Enhanced fetch function with real-time updates
   useEffect(() => {
     async function fetchData() {
+      if (!userId) {
+        console.warn('No user ID available for fetching data');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       try {
         const promises = [
-          fetch(`${API_BASE_URL}/api/leave/balances?user_id=${user?.id}`),
-          fetch(`${API_BASE_URL}/api/leave/requests?user_id=${user?.id}`),
-          fetch(`${API_BASE_URL}/api/leave/team?user_id=${user?.id}`),
+          fetch(`${API_BASE_URL}/api/leave/balances?user_id=${userId}`),
+          fetch(`${API_BASE_URL}/api/leave/requests?user_id=${userId}`),
+          fetch(`${API_BASE_URL}/api/leave/team?user_id=${userId}`),
           fetch(`${API_BASE_URL}/api/leave/public-holidays`),
           fetch(`${API_BASE_URL}/api/leave/who-is-off-today`)
         ];
@@ -77,13 +89,16 @@ const LeaveBoard = ({ user }) => {
         const responses = await Promise.all(promises);
         const [balancesRes, requestsRes, teamRes, holidaysRes, whoIsOffRes, teamMembersRes] = responses;
 
-        // Process responses
-        const balances = balancesRes.ok ? await balancesRes.json() : {};
+        // Process responses with better error handling
+        const balances = balancesRes.ok ? await balancesRes.json() : {
+          vacation: 20.0, sick: 15, personal: 5, maternity: 60, compensation: 0
+        };
         const requests = requestsRes.ok ? await requestsRes.json() : [];
         const team = teamRes.ok ? await teamRes.json() : [];
         const holidays = holidaysRes.ok ? await holidaysRes.json() : [];
         const whoIsOff = whoIsOffRes.ok ? await whoIsOffRes.json() : [];
 
+        // Use the backend data directly - it already has the correct calculations
         setLeaveBalances(balances);
         setLeaveRequests(requests);
         setTeamLeaves(team);
@@ -101,7 +116,10 @@ const LeaveBoard = ({ user }) => {
         }
       } catch (e) {
         console.error('Error fetching data:', e);
-        setLeaveBalances({});
+        // Set reasonable defaults on error
+        setLeaveBalances({
+          vacation: 20.0, sick: 15, personal: 5, maternity: 60, compensation: 0
+        });
         setLeaveRequests([]);
         setTeamLeaves([]);
         setPublicHolidays([]);
@@ -110,14 +128,10 @@ const LeaveBoard = ({ user }) => {
       setLoading(false);
     }
 
-    if (user?.id) {
+    if (userId) {
       fetchData();
-      
-      // Set up real-time updates every 30 seconds
-      const interval = setInterval(fetchData, 30000);
-      return () => clearInterval(interval);
     }
-  }, [user, isHR]);
+  }, [userId]);
 
   // Approve/Reject handler for HR
   const handleApproveReject = async (requestId, action, rejectionComment = '') => {

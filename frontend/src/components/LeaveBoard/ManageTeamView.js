@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './LeaveBoard.css';
 import { Users, Search, Filter, CheckCircle, XCircle, Clock, Eye, MessageSquare, X, Plus, Calendar } from 'lucide-react';
 import { calculateWorkingDays, isWeekend, isPublicHoliday } from './utils';
 
 const ManageTeamView = ({ 
   allRequests, 
-  teamMembers, 
+  teamMembers: initialTeamMembers, 
   onApproveReject,
   getLeaveTypeColor,
   getStatusColor,
@@ -27,6 +27,8 @@ const ManageTeamView = ({
   const [extraWorkdayReason, setExtraWorkdayReason] = useState('');
   const [extraWorkdays, setExtraWorkdays] = useState([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [searchDropdownVisible, setSearchDropdownVisible] = useState(false);
+  const [teamMembers, setTeamMembers] = useState(initialTeamMembers);
 
   // Only show if user is HR
   if (!isHR) {
@@ -37,6 +39,23 @@ const ManageTeamView = ({
       </div>
     );
   }
+
+  useEffect(() => {
+    async function fetchTeamMembers() {
+      if (isHR) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/leave/team-members`);
+          if (res.ok) {
+            const members = await res.json();
+            setTeamMembers(members);
+          }
+        } catch (e) {
+          setTeamMembers([]);
+        }
+      }
+    }
+    fetchTeamMembers();
+  }, [isHR]);
 
   const filteredRequests = allRequests?.filter(request => {
     const matchesSearch = !searchTerm || 
@@ -84,8 +103,25 @@ const ManageTeamView = ({
     }
   };
 
-  const handleExtraWorkdaySubmit = () => {
+  const handleExtraWorkdaySubmit = async () => {
     if (selectedEmployee && extraWorkdayDate && extraWorkdayReason.trim()) {
+      // Save to backend
+      try {
+        await fetch(`${API_BASE_URL}/api/leave/compensation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: selectedEmployee.id,
+            date: extraWorkdayDate,
+            reason: extraWorkdayReason.trim(),
+            comment: `Granted by HR on ${extraWorkdayDate}`,
+            added_by: 'HR'
+          })
+        });
+      } catch (e) {
+        // Optionally show error
+      }
+      // Add to local state for immediate UI feedback
       const workday = {
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
@@ -94,16 +130,27 @@ const ManageTeamView = ({
         addedBy: 'HR',
         addedDate: new Date().toISOString()
       };
-      
-      // Add to local state (in real app, would save to backend)
       setExtraWorkdays([...extraWorkdays, workday]);
-      
-      // Reset form
       setShowExtraWorkdaysModal(false);
       setSelectedEmployee(null);
       setExtraWorkdayDate('');
       setExtraWorkdayReason('');
     }
+  };
+
+  const handleEmployeeSearchChange = (e) => {
+    setEmployeeSearch(e.target.value);
+    setSearchDropdownVisible(true);
+    // Only clear selectedEmployee if input is cleared
+    if (e.target.value === "") {
+      setSelectedEmployee(null);
+    }
+  };
+
+  const handleEmployeeSelect = (member) => {
+    setSelectedEmployee(member);
+    setEmployeeSearch(getEmployeeName(member));
+    setSearchDropdownVisible(false);
   };
 
   const RejectModal = () => (
@@ -156,38 +203,52 @@ const ManageTeamView = ({
       <div className="extra-workdays-modal">
         <div className="modal-header">
           <h3>Mark Extra Workday</h3>
-          <button className="close-btn" onClick={() => setShowExtraWorkdaysModal(false)}>
+          <button type="button" className="close-btn" onClick={() => setShowExtraWorkdaysModal(false)}>
             <X />
           </button>
         </div>
         <div className="modal-content">
           <div className="form-group">
             <label>Employee:</label>
-            <input
-              type="text"
-              placeholder="Search employee name..."
-              value={employeeSearch}
-              onChange={e => {
-                setEmployeeSearch(e.target.value);
-                setSelectedEmployee(null); // Clear selection when typing
-              }}
-              className="modern-input"
-              style={{ marginBottom: "8px" }}
-              autoComplete="off"
-            />
-            {employeeSearch && (
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search employee name..."
+                value={employeeSearch}
+                onChange={handleEmployeeSearchChange}
+                className="modern-input"
+                style={{ marginBottom: "8px" }}
+                autoComplete="off"
+                onFocus={() => setSearchDropdownVisible(true)}
+              />
+              {employeeSearch && (
+                <button
+                  type="button"
+                  style={{ position: 'absolute', right: 8, top: 8, background: 'none', border: 'none', color: '#FFD600', cursor: 'pointer', fontSize: 18 }}
+                  onClick={() => {
+                    setEmployeeSearch("");
+                    setSelectedEmployee(null);
+                    setSearchDropdownVisible(true);
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X />
+                </button>
+              )}
+            </div>
+            {searchDropdownVisible && employeeSearch && (
               <div className="employee-dropdown-list">
                 {filteredEmployees?.length > 0 ? (
                   filteredEmployees.map(member => (
                     <div
                       key={member.id}
                       className={`employee-dropdown-item${selectedEmployee?.id === member.id ? ' selected' : ''}`}
-                      onClick={() => {
-                        setSelectedEmployee(member);
-                        setEmployeeSearch(member.name || member.employee_name);
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        handleEmployeeSelect(member);
                       }}
                     >
-                      {member.name || member.employee_name}
+                      {getEmployeeName(member)}
                     </div>
                   ))
                 ) : (
@@ -216,14 +277,14 @@ const ManageTeamView = ({
           </div>
         </div>
         <div className="modal-actions">
-          <button 
-            className="secondary-btn" 
+          <button type="button"
+            className="secondary-btn"
             onClick={() => setShowExtraWorkdaysModal(false)}
           >
             Cancel
           </button>
-          <button 
-            className="primary-btn" 
+          <button type="button"
+            className="primary-btn"
             onClick={handleExtraWorkdaySubmit}
             disabled={!selectedEmployee || !extraWorkdayDate || !extraWorkdayReason.trim()}
           >

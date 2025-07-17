@@ -21,6 +21,8 @@ import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
 import TikTokAuthCallback from './pages/tiktok-auth-callback';
 import LeaveBoard from './pages/LeaveBoard';
+import EquipmentManagement from './pages/EquipmentManagement';
+import EquipmentRequest from './pages/EquipmentRequest';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -310,6 +312,8 @@ export default function App() {
           <Route path="/ai-content" element={<AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />} />
           <Route path="/leave-board" element={<LeaveBoard user={user} />} />
           <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
+          <Route path="/equipment" element={<EquipmentManagement user={user} />} />
+          <Route path="/equipment-request" element={<EquipmentRequest user={user} onNavigate={handleNavigate} />} />
           {user?.is_admin && (
             <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
           )}

@@ -58,21 +58,47 @@ const DashboardView = ({
       <div className="dashboard-grid-horizontal">
         {/* Leave Balance Cards - Each in separate box, animated, colored */}
         <div className="balance-cards-grid">
-          {Object.entries(leaveBalances).map(([type, balance], idx) => (
-            <div key={type} className={`balance-card animated balance-${type}`}
-              style={{
-                background: '#111',
-                color: '#FFD600',
-                border: `3px solid #FFD600`,
-                boxShadow: `0 8px 32px #FFD60033`,
-                borderRadius: '18px',
-                animation: `fadeInUp 0.5s ${0.1 * idx}s cubic-bezier(0.4,0,0.2,1)`
-              }}
-            >
-              <div className="balance-type">{type.charAt(0).toUpperCase() + type.slice(1)}</div>
-              <div className="balance-value">{balance}</div>
-            </div>
-          ))}
+          {/* Vacation */}
+          <div className="balance-card animated balance-vacation"
+            style={{ background: '#111', color: '#2196F3', border: '3px solid #2196F3', borderRadius: '18px' }}>
+            <div className="balance-type">Vacation</div>
+            <div className="balance-value">{
+              typeof leaveBalances.vacation === 'number' 
+                ? leaveBalances.vacation.toFixed(1) 
+                : (leaveBalances.vacation || '20.0')
+            }</div>
+          </div>
+          {/* Sick Leave */}
+          <div className="balance-card animated balance-sick"
+            style={{ background: '#111', color: '#43A047', border: '3px solid #43A047', borderRadius: '18px' }}>
+            <div className="balance-type">Sick Leave</div>
+            <div className="balance-value">{leaveBalances.sick || 15}</div>
+          </div>
+          {/* Maternity */}
+          <div className="balance-card animated balance-maternity"
+            style={{ background: '#111', color: '#FF69B4', border: '3px solid #FF69B4', borderRadius: '18px' }}>
+            <div className="balance-type">Maternity</div>
+            <div className="balance-value">{leaveBalances.maternity || 60}</div>
+          </div>
+          {/* Personal */}
+          <div className="balance-card animated balance-personal"
+            style={{ background: '#111', color: '#9C27B0', border: '3px solid #9C27B0', borderRadius: '18px' }}>
+            <div className="balance-type">Personal</div>
+            <div className="balance-value">{leaveBalances.personal || 5}</div>
+          </div>
+          {/* Compensation Days */}
+          <div className="balance-card animated balance-compensation"
+            style={{ background: '#111', color: '#FFD600', border: '3px solid #FFD600', borderRadius: '18px' }}>
+            <div className="balance-type">Compensation</div>
+            <div className="balance-value">{leaveBalances.compensation || 0}</div>
+            {leaveBalances.compensationComments && leaveBalances.compensationComments.length > 0 && (
+              <div className="compensation-comments">
+                {leaveBalances.compensationComments.map((comment, idx) => (
+                  <div key={idx} className="compensation-comment">{comment}</div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Recent Requests Card */}

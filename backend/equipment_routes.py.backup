@@ -1,0 +1,665 @@
+from datetime import datetime, timedelta
+from bson import ObjectId
+from flask import request, jsonify
+from flask_cors import cross_origin
+import os
+from werkzeug.utils import secure_filename
+
+def register_equipment_routes(app, mongo):
+    """Register all equipment management routes"""
+
+    # Equipment Categories
+    EQUIPMENT_CATEGORIES = [
+                  # Update checkout status
+            checkout            checkout_collection = mongo.get_collection('equipment_checkouts')
+
+            # Get checkout request to access user info
+            checkout = checkout_collection.find_one({'_id': ObjectId(checkout_id)})
+            if not checkout:
+                return jsonify({'error': 'Checkout request not found'}), 404
+
+            # Update checkout status
+            result = checkout_collection.update_one(
+                {'_id': ObjectId(checkout_id)},
+                {
+                    '$set': {
+                        'status': 'Rejected',
+                        'rejection_reason': rejection_reason,
+                        'approved_by': approver_name,
+                        'approval_date': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                }
+            )
+
+            if result.matched_count == 0:
+                return jsonify({'error': 'Checkout request not found'}), 404
+
+            # Create notification for user
+            equipment_names = [item['equipment_name'] for item in checkout['equipment_items']]
+            equipment_list = ', '.join(equipment_names)
+            notification_message = f"Your equipment request has been rejected. Equipment: {equipment_list}. Reason: {rejection_reason}"
+            create_notification(checkout['requester_name'], notification_message, 'error')
+
+            return jsonify({'message': 'Checkout request rejected successfully'})ne(
+                {'_id': ObjectId(checkout_id)},
+                {
+                    '$set': {
+                        'status': 'Approved',
+                        'approved_by': approver_name,
+                        'approval_date': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                }
+            )
+
+            # Create notification for user
+            equipment_names = [item['equipment_name'] for item in checkout['equipment_items']]
+            equipment_list = ', '.join(equipment_names)
+            notification_message = f"Your equipment request has been approved! Equipment: {equipment_list}. You can now pick up your items."
+            create_notification(checkout['requester_name'], notification_message, 'success')
+
+            return jsonify({'message': 'Checkout request approved successfully'})
+
+        except Exception as e:
+            print(f"Error approving checkout: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    # Equipment Categories
+    EQUIPMENT_CATEGORIES = [
+        'Camera', 'Lens', 'Tripod', 'Lighting', 'Audio', 'Computer', 
+        'Monitor', 'Accessory', 'Storage', 'Other'
+    ]
+
+    # Equipment Status Options
+    EQUIPMENT_STATUS = [
+        'Available', 'In Use', 'Out of Stock', 'Needs Repair', 
+        'Missing', 'Scrapped', 'Sold'
+    ]
+
+    @app.route('/api/equipment/categories', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_equipment_categories():
+        """Get available equipment categories"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            return jsonify(EQUIPMENT_CATEGORIES)
+        except Exception as e:
+            print(f"Error getting categories: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/status-options', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_equipment_status_options():
+        """Get available equipment status options"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            return jsonify(EQUIPMENT_STATUS)
+        except Exception as e:
+            print(f"Error getting status options: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment', methods=['GET', 'POST', 'OPTIONS'])
+    @cross_origin()
+    def handle_equipment():
+        """Handle equipment CRUD operations"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            equipment_collection = mongo.get_collection('equipment')
+
+            if request.method == 'GET':
+                # Get all equipment items
+                equipment_list = list(equipment_collection.find())
+                for item in equipment_list:
+                    item['_id'] = str(item['_id'])
+                    item['id'] = str(item['_id'])
+                return jsonify(equipment_list)
+
+            elif request.method == 'POST':
+                # Create new equipment item
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'Request data is required'}), 400
+
+                required_fields = ['item_name', 'category', 'quantity_available']
+                for field in required_fields:
+                    if not data.get(field):
+                        return jsonify({'error': f'Missing required field: {field}'}), 400
+
+                # Auto-generate unique ID based on category and count
+                category_prefix = data['category'][:3].upper()
+                existing_count = equipment_collection.count_documents({'category': data['category']})
+                unique_id = f"{category_prefix}{str(existing_count + 1).zfill(3)}"
+                
+                # Ensure uniqueness
+                while equipment_collection.find_one({'unique_id': unique_id}):
+                    existing_count += 1
+                    unique_id = f"{category_prefix}{str(existing_count + 1).zfill(3)}"
+
+                new_equipment = {
+                    'item_name': data['item_name'],
+                    'category': data['category'],
+                    'unique_id': unique_id,  # Auto-generated
+                    'quantity_available': int(data['quantity_available']),
+                    'quantity_total': int(data['quantity_available']),  # Track original quantity
+                    'item_status': data.get('item_status', 'Available'),
+                    'item_image': data.get('item_image', ''),
+                    'special_instructions': data.get('special_instructions', ''),
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                }
+
+                result = equipment_collection.insert_one(new_equipment)
+                new_equipment['_id'] = str(result.inserted_id)
+                new_equipment['id'] = str(result.inserted_id)
+                
+                return jsonify(new_equipment), 201
+
+        except Exception as e:
+            print(f"Error handling equipment: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/<equipment_id>', methods=['GET', 'PUT', 'DELETE', 'OPTIONS'])
+    @cross_origin()
+    def handle_single_equipment(equipment_id):
+        """Handle single equipment item operations"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            equipment_collection = mongo.get_collection('equipment')
+
+            if request.method == 'GET':
+                # Get single equipment item
+                equipment = equipment_collection.find_one({'_id': ObjectId(equipment_id)})
+                if not equipment:
+                    return jsonify({'error': 'Equipment not found'}), 404
+                
+                equipment['_id'] = str(equipment['_id'])
+                equipment['id'] = str(equipment['_id'])
+                return jsonify(equipment)
+
+            elif request.method == 'PUT':
+                # Update equipment item
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'Request data is required'}), 400
+
+                update_data = {
+                    'updated_at': datetime.utcnow()
+                }
+
+                # Update allowed fields
+                allowed_fields = ['item_name', 'category', 'quantity_available', 'item_status', 
+                                'item_image', 'special_instructions']
+                for field in allowed_fields:
+                    if field in data:
+                        if field == 'quantity_available':
+                            update_data[field] = int(data[field])
+                        else:
+                            update_data[field] = data[field]
+
+                result = equipment_collection.update_one(
+                    {'_id': ObjectId(equipment_id)},
+                    {'$set': update_data}
+                )
+
+                if result.matched_count == 0:
+                    return jsonify({'error': 'Equipment not found'}), 404
+
+                # Return updated equipment
+                equipment = equipment_collection.find_one({'_id': ObjectId(equipment_id)})
+                equipment['_id'] = str(equipment['_id'])
+                equipment['id'] = str(equipment['_id'])
+                return jsonify(equipment)
+
+            elif request.method == 'DELETE':
+                # Delete equipment item
+                result = equipment_collection.delete_one({'_id': ObjectId(equipment_id)})
+                if result.deleted_count == 0:
+                    return jsonify({'error': 'Equipment not found'}), 404
+                
+                return jsonify({'message': 'Equipment deleted successfully'})
+
+        except Exception as e:
+            print(f"Error handling single equipment: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/projects', methods=['GET', 'POST', 'OPTIONS'])
+    @cross_origin()
+    def handle_projects():
+        """Handle project management for equipment checkout"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            projects_collection = mongo.get_collection('equipment_projects')
+
+            if request.method == 'GET':
+                # Get all projects
+                projects = list(projects_collection.find())
+                for project in projects:
+                    project['_id'] = str(project['_id'])
+                    project['id'] = str(project['_id'])
+                return jsonify(projects)
+
+            elif request.method == 'POST':
+                # Create new project
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'Request data is required'}), 400
+
+                required_fields = ['project_name', 'client_name']
+                for field in required_fields:
+                    if not data.get(field):
+                        return jsonify({'error': f'Missing required field: {field}'}), 400
+
+                new_project = {
+                    'project_name': data['project_name'],
+                    'client_name': data['client_name'],
+                    'description': data.get('description', ''),
+                    'status': data.get('status', 'Active'),
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                }
+
+                result = projects_collection.insert_one(new_project)
+                new_project['_id'] = str(result.inserted_id)
+                new_project['id'] = str(result.inserted_id)
+                
+                return jsonify(new_project), 201
+
+        except Exception as e:
+            print(f"Error handling projects: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/checkout', methods=['GET', 'POST', 'OPTIONS'])
+    @cross_origin()
+    def handle_checkout():
+        """Handle equipment requests"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            checkout_collection = mongo.get_collection('equipment_checkouts')
+
+            if request.method == 'GET':
+                # Get all equipment requests
+                checkouts = list(checkout_collection.find().sort('created_at', -1))
+                for checkout in checkouts:
+                    checkout['_id'] = str(checkout['_id'])
+                    checkout['id'] = str(checkout['_id'])
+                return jsonify(checkouts)
+
+            elif request.method == 'POST':
+                # Create new equipment request
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'Request data is required'}), 400
+
+                required_fields = ['requester_name', 'project_id', 'pickup_time', 'expected_return_time', 'equipment_items']
+                for field in required_fields:
+                    if not data.get(field):
+                        return jsonify({'error': f'Missing required field: {field}'}), 400
+
+                new_checkout = {
+                    'requester_name': data['requester_name'],
+                    'project_id': data['project_id'],
+                    'pickup_time': data['pickup_time'],
+                    'expected_return_time': data['expected_return_time'],
+                    'equipment_items': data['equipment_items'],  # List of {equipment_id, quantity_requested, notes}
+                    'status': 'Pending Approval',
+                    'notes': data.get('notes', ''),
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow(),
+                    'approved_by': None,
+                    'approval_date': None,
+                    'rejection_reason': None
+                }
+
+                result = checkout_collection.insert_one(new_checkout)
+                new_checkout['_id'] = str(result.inserted_id)
+                new_checkout['id'] = str(result.inserted_id)
+                
+                return jsonify(new_checkout), 201
+
+        except Exception as e:
+            print(f"Error handling checkout: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/checkout/<checkout_id>/approve', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def approve_checkout(checkout_id):
+        """Approve equipment checkout request"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            data = request.get_json()
+            approver_name = data.get('approver_name', 'Unknown')
+
+            checkout_collection = mongo.get_collection('equipment_checkouts')
+            equipment_collection = mongo.get_collection('equipment')
+
+            # Get checkout request
+            checkout = checkout_collection.find_one({'_id': ObjectId(checkout_id)})
+            if not checkout:
+                return jsonify({'error': 'Checkout request not found'}), 404
+
+            if checkout['status'] != 'Pending Approval':
+                return jsonify({'error': 'Checkout request already processed'}), 400
+
+            # Update equipment status and quantities
+            for item in checkout['equipment_items']:
+                equipment_id = item['equipment_id']
+                quantity_requested = item['quantity_requested']
+                
+                equipment = equipment_collection.find_one({'_id': ObjectId(equipment_id)})
+                if equipment:
+                    new_available = equipment['quantity_available'] - quantity_requested
+                    new_status = 'Available' if new_available > 0 else 'Out of Stock'
+                    
+                    equipment_collection.update_one(
+                        {'_id': ObjectId(equipment_id)},
+                        {
+                            '$set': {
+                                'quantity_available': max(0, new_available),
+                                'item_status': new_status,
+                                'updated_at': datetime.utcnow()
+                            }
+                        }
+                    )
+
+            # Update checkout status
+            checkout_collection.update_one(
+                {'_id': ObjectId(checkout_id)},
+                {
+                    '$set': {
+                        'status': 'Approved',
+                        'approved_by': approver_name,
+                        'approval_date': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                }
+            )
+
+            # Create notification for approval
+            create_notification(checkout['requester_name'], f"Your checkout request for {len(checkout['equipment_items'])} items has been approved.", 'success')
+
+            return jsonify({'message': 'Checkout request approved successfully'})
+
+        except Exception as e:
+            print(f"Error approving checkout: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/checkout/<checkout_id>/reject', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def reject_checkout(checkout_id):
+        """Reject equipment checkout request"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            data = request.get_json()
+            rejection_reason = data.get('rejection_reason', 'No reason provided')
+            approver_name = data.get('approver_name', 'Unknown')
+
+            checkout_collection = mongo.get_collection('equipment_checkouts')
+
+            # Update checkout status
+            result = checkout_collection.update_one(
+                {'_id': ObjectId(checkout_id)},
+                {
+                    '$set': {
+                        'status': 'Rejected',
+                        'rejection_reason': rejection_reason,
+                        'approved_by': approver_name,
+                        'approval_date': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                }
+            )
+
+            if result.matched_count == 0:
+                return jsonify({'error': 'Checkout request not found'}), 404
+
+            # Create notification for rejection
+            create_notification(checkout['requester_name'], f"Your checkout request has been rejected. Reason: {rejection_reason}", 'error')
+
+            return jsonify({'message': 'Checkout request rejected successfully'})
+
+        except Exception as e:
+            print(f"Error rejecting checkout: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/return', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def handle_return():
+        """Handle equipment return"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Request data is required'}), 400
+
+            required_fields = ['checkout_id', 'equipment_returns']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+
+            returns_collection = mongo.get_collection('equipment_returns')
+            equipment_collection = mongo.get_collection('equipment')
+
+            # Process each returned item
+            for return_item in data['equipment_returns']:
+                equipment_id = return_item['equipment_id']
+                quantity_returned = return_item['quantity_returned']
+                return_status = return_item['return_status']  # 'Returned', 'Needs Repair', 'Missing', 'Scrapped'
+                
+                # Update equipment quantities and status
+                equipment = equipment_collection.find_one({'_id': ObjectId(equipment_id)})
+                if equipment:
+                    if return_status == 'Returned':
+                        new_available = equipment['quantity_available'] + quantity_returned
+                        new_status = 'Available'
+                    elif return_status == 'Needs Repair':
+                        new_available = equipment['quantity_available']  # Don't add back to available
+                        new_status = 'Needs Repair'
+                    elif return_status == 'Missing':
+                        new_available = equipment['quantity_available']  # Don't add back to available
+                        new_status = 'Missing'
+                    elif return_status == 'Scrapped':
+                        new_available = equipment['quantity_available']  # Don't add back to available
+                        new_status = 'Scrapped'
+                    
+                    equipment_collection.update_one(
+                        {'_id': ObjectId(equipment_id)},
+                        {
+                            '$set': {
+                                'quantity_available': new_available,
+                                'item_status': new_status,
+                                'updated_at': datetime.utcnow()
+                            }
+                        }
+                    )
+
+            # Log the return
+            return_record = {
+                'checkout_id': data['checkout_id'],
+                'equipment_returns': data['equipment_returns'],
+                'actual_return_time': datetime.utcnow(),
+                'returned_by': data.get('returned_by', 'Unknown'),
+                'notes': data.get('notes', ''),
+                'created_at': datetime.utcnow()
+            }
+
+            result = returns_collection.insert_one(return_record)
+            return_record['_id'] = str(result.inserted_id)
+            return_record['id'] = str(result.inserted_id)
+
+            return jsonify(return_record), 201
+
+        except Exception as e:
+            print(f"Error handling return: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/equipment/reports/status', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def equipment_status_report():
+        """Generate equipment status overview report"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            equipment_collection = mongo.get_collection('equipment')
+            
+            # Get all equipment with their current status
+            equipment_list = list(equipment_collection.find())
+            
+            # Group by status
+            status_summary = {}
+            for item in equipment_list:
+                status = item['item_status']
+                if status not in status_summary:
+                    status_summary[status] = []
+                
+                status_summary[status].append({
+                    'id': str(item['_id']),
+                    'item_name': item['item_name'],
+                    'category': item['category'],
+                    'unique_id': item['unique_id'],
+                    'quantity_available': item['quantity_available'],
+                    'quantity_total': item.get('quantity_total', item['quantity_available'])
+                })
+
+            return jsonify(status_summary)
+
+        except Exception as e:
+            print(f"Error generating status report: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    # Helper function to create notifications
+    def create_notification(user_name, message, notification_type='info'):
+        """Create a notification for a user"""
+        try:
+            notifications_collection = mongo.get_collection('notifications')
+            notification = {
+                'user_name': user_name,
+                'message': message,
+                'type': notification_type,  # 'success', 'error', 'info', 'warning'
+                'read': False,
+                'created_at': datetime.utcnow()
+            }
+            notifications_collection.insert_one(notification)
+            print(f"Notification created for {user_name}: {message}")
+        except Exception as e:
+            print(f"Error creating notification: {str(e)}")
+
+    @app.route('/api/notifications/<user_name>', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_user_notifications(user_name):
+        """Get notifications for a user"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            notifications_collection = mongo.get_collection('notifications')
+            
+            # Get recent unread notifications (last 30 days)
+            cutoff_date = datetime.utcnow() - timedelta(days=30)
+            notifications = list(notifications_collection.find({
+                'user_name': user_name,
+                'created_at': {'$gte': cutoff_date}
+            }).sort('created_at', -1).limit(50))
+
+            # Convert ObjectId to string
+            for notification in notifications:
+                notification['_id'] = str(notification['_id'])
+
+            return jsonify(notifications)
+
+        except Exception as e:
+            print(f"Error getting notifications: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    @app.route('/api/notifications/<notification_id>/mark-read', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def mark_notification_read(notification_id):
+        """Mark a notification as read"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            notifications_collection = mongo.get_collection('notifications')
+            
+            result = notifications_collection.update_one(
+                {'_id': ObjectId(notification_id)},
+                {'$set': {'read': True, 'read_at': datetime.utcnow()}}
+            )
+
+            if result.matched_count == 0:
+                return jsonify({'error': 'Notification not found'}), 404
+
+            return jsonify({'message': 'Notification marked as read'})
+
+        except Exception as e:
+            print(f"Error marking notification as read: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    return app

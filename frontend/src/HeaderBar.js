@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import NotificationCenter from './components/NotificationCenter';
 
 export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -31,6 +32,9 @@ export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
               🔥 {user.streak}
             </span>
           )}
+          <div style={{ marginLeft: 15, marginRight: 15 }}>
+            <NotificationCenter user={user} />
+          </div>
           <button
             className="logout-btn"
             type="button"

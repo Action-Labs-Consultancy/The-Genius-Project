@@ -8,6 +8,7 @@ import CampaignsSection from './components/CampaignsSection';
 import ContentAdsSection from './components/ContentAdsSection';
 import ConnectTikTokButton from './ConnectTikTokButton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { NewsletterPDFDownload } from './components/NewsletterPDF';
 
 // Central store context for cross-widget coordination
 const InsightsContext = createContext();
@@ -700,7 +701,6 @@ export default function SocialMediaInsightsDashboard({ user }) {
 
           {/* --- CONTENT & ADS SECTION --- */}
           <div style={{ background: '#232323', borderRadius: 18, padding: 32, boxShadow: '0 4px 24px #0006', border: '1.5px solid #FFD600', marginBottom: 40 }}>
-            <h2 style={{ color: '#FFD600', fontWeight: 800, fontSize: 22, marginBottom: 24 }}>Content & Ads</h2>
             <div style={{ display: 'flex', gap: 20, marginBottom: 24 }}>
               {PLATFORMS.map(p => (
                 <button
