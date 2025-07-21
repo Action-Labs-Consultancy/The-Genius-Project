@@ -72,6 +72,11 @@ const EquipmentManagement = ({ user }) => {
     notes: ''
   });
 
+  // Modal state
+  const [modalMessage, setModalMessage] = useState('');
+  const [showModalPopup, setShowModalPopup] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ show: false, message: '', onConfirm: null });
+
   // Load initial data
   useEffect(() => {
     loadInitialData();
@@ -207,7 +212,7 @@ const EquipmentManagement = ({ user }) => {
         resetEquipmentForm();
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showPopup(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating equipment:', error);
@@ -227,11 +232,11 @@ const EquipmentManagement = ({ user }) => {
         await loadEquipment();
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        showPopup(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error deleting equipment:', error);
-      alert('Error deleting equipment');
+      showPopup('Error deleting equipment');
     }
   };
 
@@ -263,65 +268,47 @@ const EquipmentManagement = ({ user }) => {
 
   // Equipment Request Approval/Rejection
   const handleApproveRequest = async (requestId) => {
-    if (!window.confirm('Are you sure you want to approve this request?')) {
+    if (!requestId) {
+      showPopup('Invalid request ID');
       return;
     }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/equipment/checkout/${requestId}/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          approver_name: user?.name || 'Admin'
-        }),
-      });
-
-      if (response.ok) {
-        alert('Request approved successfully!');
-        await loadCheckouts();
-        await loadEquipment(); // Refresh equipment to update availability
-      } else {
-        const error = await response.json();
-        alert(`Error approving request: ${error.error}`);
+    showConfirm('Are you sure you want to approve this request?', async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/equipment/checkout/${requestId}/approve`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          await loadCheckouts();
+        } else {
+          const error = await response.json();
+          showPopup(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        showPopup('Error approving request');
       }
-    } catch (error) {
-      console.error('Error approving request:', error);
-      alert('Error approving request');
-    }
+    });
   };
 
   const handleRejectRequest = async (requestId) => {
-    const rejectionReason = prompt('Please provide a reason for rejection (optional):') || 'No reason provided';
-    
-    if (!window.confirm('Are you sure you want to reject this request?')) {
+    if (!requestId) {
+      showPopup('Invalid request ID');
       return;
     }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/equipment/checkout/${requestId}/reject`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          approver_name: user?.name || 'Admin',
-          rejection_reason: rejectionReason
-        }),
-      });
-
-      if (response.ok) {
-        alert('Request rejected successfully!');
-        await loadCheckouts();
-      } else {
-        const error = await response.json();
-        alert(`Error rejecting request: ${error.error}`);
+    showConfirm('Are you sure you want to reject this request?', async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/equipment/checkout/${requestId}/reject`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          await loadCheckouts();
+        } else {
+          const error = await response.json();
+          showPopup(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        showPopup('Error rejecting request');
       }
-    } catch (error) {
-      console.error('Error rejecting request:', error);
-      alert('Error rejecting request');
-    }
+    });
   };
 
   // Reset forms
@@ -371,6 +358,11 @@ const EquipmentManagement = ({ user }) => {
     setShowModal(true);
   };
 
+  // Show confirmation modal
+  const showConfirm = (message, onConfirm) => {
+    setConfirmModal({ show: true, message, onConfirm });
+  };
+
   // Filter equipment
   const filteredEquipment = equipment.filter(item => {
     const matchesSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -402,6 +394,12 @@ const EquipmentManagement = ({ user }) => {
     }
   };
 
+  // Modal popup for errors/info
+  const showPopup = (msg) => {
+    setModalMessage(msg);
+    setShowModalPopup(true);
+  };
+
   if (loading) {
     return (
       <div className="equipment-loading">
@@ -417,6 +415,32 @@ const EquipmentManagement = ({ user }) => {
 
   return (
     <div className="equipment-management">
+      {/* Custom Modal Popup */}
+      {showModalPopup && (
+        <div className="custom-modal-overlay" onClick={() => setShowModalPopup(false)}>
+          <div className="custom-modal" onClick={e => e.stopPropagation()}>
+            <div className="custom-modal-content">
+              <p>{modalMessage}</p>
+              <button className="custom-modal-close" onClick={() => setShowModalPopup(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Custom Confirm Modal */}
+      {confirmModal.show && (
+        <div className="custom-modal-overlay" onClick={() => setConfirmModal({ ...confirmModal, show: false })}>
+          <div className="custom-modal" onClick={e => e.stopPropagation()}>
+            <div className="custom-modal-content">
+              <p>{confirmModal.message}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                <button className="custom-modal-close" onClick={() => { setConfirmModal({ ...confirmModal, show: false }); confirmModal.onConfirm && confirmModal.onConfirm(); }}>Yes</button>
+                <button className="custom-modal-close" style={{ background: '#333', color: '#FFD600' }} onClick={() => setConfirmModal({ ...confirmModal, show: false })}>No</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="equipment-header">
         <h1>Equipment Management</h1>
         <div className="header-actions">
@@ -506,7 +530,7 @@ const EquipmentManagement = ({ user }) => {
           {/* Equipment Grid */}
           <div className="equipment-grid">
             {filteredEquipment.map(item => (
-              <div key={item.id} className="equipment-card">
+              <div key={item._id} className="equipment-card">
                 <div className="equipment-card-header">
                   <div className="equipment-icon" style={{ position: 'relative' }}>
                     {getCategoryIcon(item.category)}
@@ -525,7 +549,7 @@ const EquipmentManagement = ({ user }) => {
                     <button onClick={() => openEquipmentModal(item)}>
                       <Icons.Edit />
                     </button>
-                    <button onClick={() => handleDeleteEquipment(item.id)}>
+                    <button onClick={() => handleDeleteEquipment(item._id)}>
                       <Icons.Delete />
                     </button>
                   </div>
@@ -578,9 +602,9 @@ const EquipmentManagement = ({ user }) => {
         <div className="checkouts-content">
           <div className="checkouts-list">
             {checkouts.map(checkout => (
-              <div key={checkout.id} className="checkout-card">
+              <div key={checkout._id} className="checkout-card">
                 <div className="checkout-header">
-                  <h3>Request #{checkout.id.slice(-6)}</h3>
+                  <h3>Request #{checkout._id ? checkout._id.slice(-6) : 'N/A'}</h3>
                   <div className={`checkout-status status-${checkout.status.toLowerCase().replace(' ', '-')}`}>
                     {checkout.status}
                   </div>
@@ -603,13 +627,13 @@ const EquipmentManagement = ({ user }) => {
                   <div className="checkout-actions">
                     <button 
                       className="btn-approve"
-                      onClick={() => handleApproveRequest(checkout.id)}
+                      onClick={() => handleApproveRequest(checkout._id)}
                     >
                       ✓ Approve
                     </button>
                     <button 
                       className="btn-reject"
-                      onClick={() => handleRejectRequest(checkout.id)}
+                      onClick={() => handleRejectRequest(checkout._id)}
                     >
                       ✗ Reject
                     </button>
@@ -662,7 +686,7 @@ const EquipmentManagement = ({ user }) => {
               <h3>Recent Activity</h3>
               <div className="activity-list">
                 {checkouts.slice(0, 5).map(checkout => (
-                  <div key={checkout.id} className="activity-item">
+                  <div key={checkout._id || Math.random()} className="activity-item">
                     <span>{checkout.requester_name}</span>
                     <span>{checkout.status}</span>
                     <span>{new Date(checkout.created_at).toLocaleDateString()}</span>

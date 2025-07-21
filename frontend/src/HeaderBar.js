@@ -19,11 +19,14 @@ export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
             role="link"
             tabIndex={0}
             aria-label="Go to dashboard"
-            onKeyPress={e => { if (e.key === 'Enter' || e.key === ' ') (onNavigate ? onNavigate('dashboard') : onLogoClick && onLogoClick()); }}
+            onKeyPress={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (onNavigate ? onNavigate('dashboard') : onLogoClick && onLogoClick()); } }}
           >
             Action Labs
           </span>
           <span className="role-pill" style={{ background: pillColor, color: pillTextColor, marginLeft: 12 }}>{roleLabel}</span>
+        </div>
+        <div className="header-bar-center" style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          {/* Navigation moved to sidebar */}
         </div>
         <div className="header-bar-right">
           <span className="header-bar-welcome" style={{ color: '#111' }}>Welcome, <strong>{user?.name?.split(' ')[0] || ''}</strong></span>

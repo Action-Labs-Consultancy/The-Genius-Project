@@ -1,3 +1,99 @@
+/* Improved Search Bar Styling */
+.modern-search-input::placeholder {
+  color: #999 !important;
+  opacity: 0.7;
+}
+
+.modern-search-input:focus::placeholder {
+  color: #666 !important;
+}
+
+.sidebar-search-modern {
+  transition: all 0.3s ease;
+}
+
+.sidebar-search-modern:hover {
+  box-shadow: 0 4px 12px rgba(255, 214, 0, 0.3) !important;
+}
+
+/* --- Sidebar Search Bar: Modern & Elegant --- */
+.sidebar-search-modern {
+  position: relative;
+  padding: 14px 16px 14px 16px;
+  background: #232323;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #0002;
+  margin-bottom: 18px;
+  border: 2px solid #FFD600;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+.modern-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #181818;
+  color: #FFD600;
+  font-size: 1rem;
+  font-weight: 500;
+  box-shadow: none;
+  outline: none;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+.modern-search-input:focus {
+  background: #232323;
+  box-shadow: 0 2px 8px #FFD60044;
+}
+.modern-search-input::placeholder {
+  color: #FFD600;
+  opacity: 0.8;
+  font-weight: 400;
+}
+.search-icon {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #FFD600;
+  font-size: 1.3rem;
+  pointer-events: none;
+  font-weight: 500;
+}
+
+/* --- Sidebar Toggle Button --- */
+.sidebar-toggle {
+  background: #232323 !important;
+  color: #FFD600 !important;
+  border: 2px solid #FFD600 !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  font-size: 1.2rem !important;
+  margin: 16px 0 !important;
+  padding: 10px 20px !important;
+  box-shadow: 0 2px 8px #FFD60022 !important;
+  transition: background 0.2s, color 0.2s;
+  outline: none;
+  cursor: pointer;
+  display: block;
+}
+.sidebar-toggle:hover {
+  background: #FFD600 !important;
+  color: #181818 !important;
+}
+
+/* --- Sidebar Scrolling Improvement --- */
+.sidebar {
+  overflow-y: auto !important;
+  padding-bottom: 40px !important;
+}
+.sidebar-menu {
+  overflow-y: auto !important;
+  max-height: calc(100vh - 120px);
+  padding-bottom: 40px !important;
+}
+
 /* Global Resets */
 * {
   margin: 0;
@@ -1288,86 +1384,5 @@ body,
 .btn-request-reject:hover {
   background: #dc2626;
   color: #fff;
-  border: 1.5px solid #fff;
-  transform: scale(1.04);
-}
-
-/* Requests: When user type is employee, show and require department dropdown */
-.requests-table select {
-  min-width: 110px;
-  background: #f8fafc;
-  color: #1e3c72;
-  border: 1.5px solid #F8C400;
-  border-radius: 10px;
-  font-size: 1rem;
-  padding: 0.5rem 1rem;
-  margin-bottom: 0.2rem;
-  transition: border 0.2s, background 0.2s;
-}
-.requests-table select:focus {
-  background: #fffbe6;
-  border: 2px solid #1e3c72;
-}
-.requests-table .department-select {
-  margin-top: 0.5rem;
-}
-
-/* Remove shadow from Add User button and make all modal fields light color */
-.btn.btn-primary.no-shadow, .settings-modal button, .settings-modal .modal-btn-row button {
-  box-shadow: none !important;
-}
-.settings-modal input[type="text"],
-.settings-modal input[type="email"],
-.settings-modal input[type="password"],
-.settings-modal select {
-  background: #f8fafc !important;
-  color: #1e3c72 !important;
-  border: 1.5px solid #F8C400 !important;
-  border-radius: 10px !important;
-  font-size: 1rem !important;
-  padding: 0.85rem 1rem !important;
-  margin-bottom: 1rem !important;
-  transition: border 0.2s, background 0.2s !important;
-}
-.settings-modal input[type="text"]:focus,
-.settings-modal input[type="email"]:focus,
-.settings-modal input[type="password"]:focus,
-.settings-modal select:focus {
-  background: #fffbe6 !important;
-  border: 2px solid #1e3c72 !important;
-}
-.settings-modal label {
-  color: #1e3c72 !important;
-  font-weight: 600 !important;
-  margin-bottom: 0.3rem !important;
-}
-
-/* Custom scrollbar for sidebar */
-.sidebar::-webkit-scrollbar,
-.sidebar-menu::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-track,
-.sidebar-menu::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-}
-
-.sidebar::-webkit-scrollbar-thumb,
-.sidebar-menu::-webkit-scrollbar-thumb {
-  background: #FFD600;
-  border-radius: 3px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover,
-.sidebar-menu::-webkit-scrollbar-thumb:hover {
-  background: #F8C400;
-}
-
-/* Firefox scrollbar */
-.sidebar,
-.sidebar-menu {
-  scrollbar-width: thin;
-  scrollbar-color: #FFD600 rgba(0, 0, 0, 0.1);
+  border: 1.5px solid #dc2626;
 }

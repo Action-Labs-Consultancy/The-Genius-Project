@@ -1,0 +1,160 @@
+/* WorkflowBuilder.css */
+
+.workflow-container {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  color: #e2e8f0;
+}
+
+.workflow-header {
+  height: 60px;
+  background: #1e293b;
+  border-bottom: 2px solid #FFD600;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  justify-content: space-between;
+}
+
+.workflow-title {
+  color: #FFD600;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.workflow-error {
+  background: #ef4444;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  margin: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workflow-error button {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+  margin-left: 12px;
+}
+
+.workflow-content {
+  display: flex;
+  flex: 1;
+}
+
+.workflow-sidebar {
+  width: 220px;
+  background: #1a1a1a;
+  border-right: 2px solid #FFD600;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  margin: 0;
+  font-size: 18px;
+  color: #FFD600;
+}
+
+.node-button {
+  background: #FFD600;
+  color: #1a1a1a;
+  border: 2px solid #FFD600;
+  border-radius: 6px;
+  padding: 10px 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #FFD60033;
+  transition: all 0.2s;
+}
+
+.node-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px #FFD60066;
+}
+
+.workflow-canvas {
+  flex: 1;
+  background: #1a1a1a;
+  position: relative;
+}
+
+.properties-panel {
+  width: 320px;
+  background: #1a1a1a;
+  border-left: 2px solid #FFD600;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.properties-title {
+  margin-top: 0;
+  color: #FFD600;
+}
+
+.property-field {
+  margin-bottom: 12px;
+}
+
+.property-label {
+  font-weight: 500;
+  color: #FFD600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.property-input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 2px solid #FFD600;
+  background: #1a1a1a;
+  color: #FFD600;
+}
+
+.node-id {
+  color: #FFD600;
+  font-size: 13px;
+}
+
+/* React Flow customizations */
+.react-flow__node {
+  border-radius: 8px;
+  border-width: 2px;
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #FFD600;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__controls {
+  box-shadow: 0 0 2px 1px rgba(255, 214, 0, 0.1);
+}
+
+.react-flow__minimap {
+  background-color: #1a1a1a;
+  border: 1px solid #FFD600;
+}

@@ -1,0 +1,759 @@
+/* N8n Clone - Complete Black & Yellow Theme */
+* {
+  box-sizing: border-box;
+}
+
+.n8n-canvas-container {
+  display: flex;
+  height: 100vh;
+  background: #1a1a1a;
+  color: #ffd600;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+/* Top Bar */
+.n8n-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: #111;
+  border-bottom: 2px solid #ffd600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(255, 214, 0, 0.2);
+}
+
+.workflow-name-input {
+  background: transparent;
+  border: none;
+  color: #ffd600;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+  min-width: 200px;
+}
+
+.workflow-name-input:focus {
+  border-color: #ffd600;
+  background: rgba(255, 214, 0, 0.05);
+}
+
+.workflow-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workflow-btn {
+  background: #1a1a1a;
+  border: 1px solid #ffd600;
+  color: #ffd600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-btn:hover:not(:disabled) {
+  background: #ffd600;
+  color: #111;
+  transform: translateY(-1px);
+}
+
+.workflow-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.workflow-btn.active {
+  background: #ffd600;
+  color: #111;
+}
+
+/* Left Panel */
+.n8n-left-panel {
+  width: 300px;
+  background: #111;
+  border-right: 2px solid #ffd600;
+  display: flex;
+  flex-direction: column;
+  margin-top: 64px;
+  height: calc(100vh - 64px);
+}
+
+.left-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #333;
+  background: #0a0a0a;
+}
+
+.left-panel-tab {
+  flex: 1;
+  padding: 12px 8px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.left-panel-tab:hover {
+  color: #ffd600;
+  background: rgba(255, 214, 0, 0.05);
+}
+
+.left-panel-tab.active {
+  color: #ffd600;
+  border-bottom-color: #ffd600;
+  background: rgba(255, 214, 0, 0.1);
+}
+
+.left-panel-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.workflows-tab, .executions-tab, .credentials-tab {
+  color: #ccc;
+}
+
+.workflows-tab p, .executions-tab p, .credentials-tab p {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  border-left: 3px solid #ffd600;
+}
+
+/* Main Canvas Area */
+.n8n-main-area {
+  flex: 1;
+  margin-top: 64px;
+  position: relative;
+}
+
+/* Right Panel - Node Library */
+.n8n-right-panel {
+  width: 350px;
+  background: #111;
+  border-left: 2px solid #ffd600;
+  margin-top: 64px;
+  height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+.node-library-header {
+  padding: 20px;
+  border-bottom: 1px solid #333;
+  background: #0a0a0a;
+}
+
+.node-library-header h3 {
+  margin: 0 0 12px 0;
+  color: #ffd600;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.node-library-tabs {
+  display: flex;
+  margin-top: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.node-tab {
+  flex: 1;
+  background: #1a1a1a;
+  border: none;
+  color: #999;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.node-tab:hover {
+  background: #333;
+  color: #ffd600;
+}
+
+.node-tab.active {
+  background: #ffd600;
+  color: #111;
+}
+
+.node-search {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ffd600;
+  padding: 10px 12px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.node-search:focus {
+  border-color: #ffd600;
+}
+
+.node-search::placeholder {
+  color: #666;
+}
+
+.category-filter {
+  padding: 12px 20px;
+  border-bottom: 1px solid #333;
+  background: #0f0f0f;
+}
+
+.category-select {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ffd600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.category-select:focus {
+  border-color: #ffd600;
+}
+
+.node-library {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.node-library-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  cursor: grab;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.node-library-item:hover {
+  border-color: #ffd600;
+  background: rgba(255, 214, 0, 0.05);
+  transform: translateX(4px);
+}
+
+.node-library-item:active {
+  cursor: grabbing;
+}
+
+.node-library-icon {
+  font-size: 20px;
+  margin-right: 12px;
+  min-width: 24px;
+}
+
+.node-library-label {
+  flex: 1;
+  color: #ffd600;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.node-library-category {
+  font-size: 11px;
+  color: #999;
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Community Node Styles */
+.community-node {
+  cursor: default !important;
+}
+
+.community-node:hover {
+  transform: none !important;
+}
+
+.community-node-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.node-library-version {
+  font-size: 10px;
+  color: #666;
+  font-weight: 400;
+}
+
+.install-btn {
+  background: #ffd600;
+  color: #111;
+  border: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.install-btn:hover:not(:disabled) {
+  background: #ffed4a;
+  transform: scale(1.05);
+}
+
+.install-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.no-nodes-message {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+/* N8n Nodes */
+.n8n-node {
+  background: #111;
+  border: 2px solid #333;
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+  position: relative;
+}
+
+.n8n-node:hover {
+  border-color: #ffd600;
+  box-shadow: 0 6px 20px rgba(255, 214, 0, 0.2);
+}
+
+.n8n-node.selected {
+  border-color: #ffd600;
+  box-shadow: 0 6px 20px rgba(255, 214, 0, 0.3);
+}
+
+.n8n-node-header {
+  background: #ffd600;
+  color: #111;
+  padding: 10px 12px;
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.n8n-node-icon {
+  font-size: 16px;
+}
+
+.n8n-node-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n8n-node-content {
+  padding: 12px;
+  color: #ccc;
+  min-height: 40px;
+}
+
+.n8n-node-description {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.n8n-node-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.status-success {
+  background: #10b981;
+  color: white;
+}
+
+.status-error {
+  background: #ef4444;
+  color: white;
+}
+
+.status-running {
+  background: #f59e0b;
+  color: white;
+}
+
+/* Conditional Node Labels */
+.n8n-conditional-labels {
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 10px;
+  color: #999;
+}
+
+.true-label {
+  color: #10b981;
+}
+
+.false-label {
+  color: #ef4444;
+}
+
+/* React Flow Handles */
+.n8n-handle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffd600;
+  background: #111;
+  border-radius: 50%;
+}
+
+.n8n-handle-target {
+  top: -6px;
+}
+
+.n8n-handle-source {
+  bottom: -6px;
+}
+
+.n8n-handle:hover {
+  background: #ffd600;
+  transform: scale(1.2);
+}
+
+/* React Flow Overrides */
+.react-flow__edge-path {
+  stroke: #ffd600;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #ffed4a;
+  stroke-width: 3;
+}
+
+.react-flow__connection-line {
+  stroke: #ffd600;
+  stroke-width: 2;
+}
+
+.n8n-controls {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.n8n-controls button {
+  background: #1a1a1a;
+  border: none;
+  color: #ffd600;
+  border-bottom: 1px solid #333;
+}
+
+.n8n-controls button:hover {
+  background: #ffd600;
+  color: #111;
+}
+
+.n8n-minimap {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.n8n-canvas-panel {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.canvas-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #999;
+}
+
+.canvas-stats span {
+  color: #ffd600;
+  font-weight: 500;
+}
+
+/* Node Configuration Panel */
+.n8n-config-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  max-height: 80vh;
+  background: #111;
+  border: 2px solid #ffd600;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #333;
+  background: #0a0a0a;
+  border-radius: 10px 10px 0 0;
+}
+
+.config-header h3 {
+  margin: 0;
+  color: #ffd600;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.config-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.config-field {
+  margin-bottom: 20px;
+}
+
+.config-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #ffd600;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.config-field input,
+.config-field select,
+.config-field textarea {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ffd600;
+  padding: 10px 12px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.config-field input:focus,
+.config-field select:focus,
+.config-field textarea:focus {
+  border-color: #ffd600;
+}
+
+.config-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.config-field input::placeholder,
+.config-field textarea::placeholder {
+  color: #666;
+}
+
+.config-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #333;
+  background: #0a0a0a;
+  border-radius: 0 0 10px 10px;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.save-btn {
+  background: #ffd600;
+  color: #111;
+}
+
+.save-btn:hover {
+  background: #ffed4a;
+  transform: translateY(-1px);
+}
+
+.cancel-btn {
+  background: transparent;
+  color: #999;
+  border: 1px solid #333;
+}
+
+.cancel-btn:hover {
+  background: #1a1a1a;
+  color: #ffd600;
+  border-color: #ffd600;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ffd600;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.n8n-config-panel {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.node-library-item {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .n8n-right-panel {
+    width: 300px;
+  }
+  
+  .n8n-left-panel {
+    width: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .n8n-left-panel,
+  .n8n-right-panel {
+    position: fixed;
+    z-index: 1500;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .n8n-left-panel.open,
+  .n8n-right-panel.open {
+    transform: translateX(0);
+  }
+  
+  .workflow-controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .workflow-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

@@ -195,7 +195,11 @@ export const api = {
   createTask: (taskData) => apiCall(API_ENDPOINTS.TASKS, {
     method: 'POST',
     body: JSON.stringify(taskData)
-  })
+  }),
+  
+  // Export API configuration object
+  BASE_URL: API_BASE_URL,
+  ENDPOINTS: API_ENDPOINTS
 };
 
 export default api;

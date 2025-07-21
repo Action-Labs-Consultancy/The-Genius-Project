@@ -16,6 +16,9 @@ import WeeklyStandUpPlanner from './WeeklyStandUpPlanner';
 import StandUpPage from './StandUpPage';
 import SocialMediaInsightsDashboard from './SocialMediaInsightsDashboard';
 import LlamaChat from './LlamaChat';
+import LlamaRAGChat from './LlamaRAGChat_fixed';
+import WorkflowBuilder from './WorkflowBuilder';
+import WorkflowCanvasAdvanced from './WorkflowCanvasAdvanced';
 import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
@@ -23,6 +26,7 @@ import TikTokAuthCallback from './pages/tiktok-auth-callback';
 import LeaveBoard from './pages/LeaveBoard';
 import EquipmentManagement from './pages/EquipmentManagement';
 import EquipmentRequest from './pages/EquipmentRequest';
+import ProjectsDashboard from './pages/ProjectsDashboard';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -308,12 +312,16 @@ export default function App() {
           <Route path="/weekly-standup" element={<WeeklyStandUpPlanner user={user} />} />
           <Route path="/standup" element={<StandUpPage user={user} />} />
           <Route path="/insights" element={<SocialMediaInsightsDashboard user={user} />} />
-          <Route path="/llama-chat" element={<LlamaChat userId={user?.id} />} />
+          <Route path="/llama-chat" element={<LlamaChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
+          <Route path="/llama-rag" element={<LlamaRAGChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
           <Route path="/ai-content" element={<AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />} />
           <Route path="/leave-board" element={<LeaveBoard user={user} />} />
           <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
           <Route path="/equipment" element={<EquipmentManagement user={user} />} />
           <Route path="/equipment-request" element={<EquipmentRequest user={user} onNavigate={handleNavigate} />} />
+          <Route path="/projects" element={<ProjectsDashboard user={user} onNavigate={handleNavigate} />} />
+          <Route path="/workflow" element={<WorkflowBuilder user={user} />} />
+          <Route path="/workflow-canvas" element={<WorkflowCanvasAdvanced user={user} />} />
           {user?.is_admin && (
             <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
           )}

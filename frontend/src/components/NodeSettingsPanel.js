@@ -1,0 +1,322 @@
+import React, { useState, useEffect } from 'react';
+import { X, Save } from 'lucide-react';
+
+const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
+  const [config, setConfig] = useState(node.data.config || {});
+  const [label, setLabel] = useState(node.data.label || '');
+
+  useEffect(() => {
+    setConfig(node.data.config || {});
+    setLabel(node.data.label || '');
+  }, [node]);
+
+  const handleConfigChange = (key, value) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = () => {
+    onUpdateNode(node.id, { 
+      label, 
+      config,
+      ...node.data
+    });
+  };
+
+  const renderConfigFields = () => {
+    switch (node.data.nodeType) {
+      case 'httpRequest':
+        return (
+          <>
+            <div className="field-group">
+              <label>URL</label>
+              <input
+                type="text"
+                value={config.url || ''}
+                onChange={(e) => handleConfigChange('url', e.target.value)}
+                placeholder="https://api.example.com/endpoint"
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>Method</label>
+              <select
+                value={config.method || 'GET'}
+                onChange={(e) => handleConfigChange('method', e.target.value)}
+              >
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+              </select>
+            </div>
+            
+            <div className="field-group">
+              <label>Headers (JSON)</label>
+              <textarea
+                value={JSON.stringify(config.headers || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    handleConfigChange('headers', JSON.parse(e.target.value));
+                  } catch (err) {
+                    // Invalid JSON, keep as string for now
+                  }
+                }}
+                placeholder='{"Content-Type": "application/json"}'
+                rows={4}
+              />
+            </div>
+            
+            {['POST', 'PUT', 'PATCH'].includes(config.method) && (
+              <div className="field-group">
+                <label>Body (JSON)</label>
+                <textarea
+                  value={JSON.stringify(config.body || {}, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      handleConfigChange('body', JSON.parse(e.target.value));
+                    } catch (err) {
+                      // Invalid JSON, keep as string for now
+                    }
+                  }}
+                  placeholder='{"key": "value"}'
+                  rows={6}
+                />
+              </div>
+            )}
+          </>
+        );
+        
+      case 'setVariable':
+        return (
+          <>
+            <div className="field-group">
+              <label>Variable Name</label>
+              <input
+                type="text"
+                value={config.name || ''}
+                onChange={(e) => handleConfigChange('name', e.target.value)}
+                placeholder="variableName"
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>Value</label>
+              <input
+                type="text"
+                value={config.value || ''}
+                onChange={(e) => handleConfigChange('value', e.target.value)}
+                placeholder="Enter value or {{variable}}"
+              />
+            </div>
+            
+            <div className="help-text">
+              Use {'{{variableName}}'} to reference other variables
+            </div>
+          </>
+        );
+        
+      case 'ifCondition':
+        return (
+          <>
+            <div className="field-group">
+              <label>Left Operand</label>
+              <input
+                type="text"
+                value={config.leftOperand || ''}
+                onChange={(e) => handleConfigChange('leftOperand', e.target.value)}
+                placeholder="value or {{variable}}"
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>Operator</label>
+              <select
+                value={config.operator || '=='}
+                onChange={(e) => handleConfigChange('operator', e.target.value)}
+              >
+                <option value="==">equals (==)</option>
+                <option value="!=">not equals (!=)</option>
+                <option value=">">{`greater than (>)`}</option>
+                <option value="<">{`less than (<)`}</option>
+                <option value=">=">{`greater or equal (>=)`}</option>
+                <option value="<=">{`less or equal (<=)`}</option>
+                <option value="contains">contains</option>
+              </select>
+            </div>
+            
+            <div className="field-group">
+              <label>Right Operand</label>
+              <input
+                type="text"
+                value={config.rightOperand || ''}
+                onChange={(e) => handleConfigChange('rightOperand', e.target.value)}
+                placeholder="value or {{variable}}"
+              />
+            </div>
+            
+            <div className="help-text">
+              Use {'{{variableName}}'} to reference variables. Connect the bottom handles to different paths.
+            </div>
+          </>
+        );
+        
+      case 'delay':
+        return (
+          <div className="field-group">
+            <label>Delay (seconds)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={config.seconds || 1}
+              onChange={(e) => handleConfigChange('seconds', parseFloat(e.target.value))}
+            />
+          </div>
+        );
+        
+      case 'log':
+        return (
+          <div className="field-group">
+            <label>Log Message</label>
+            <textarea
+              value={config.message || ''}
+              onChange={(e) => handleConfigChange('message', e.target.value)}
+              placeholder="Enter log message. Use {{variable}} for dynamic content."
+              rows={3}
+            />
+            <div className="help-text">
+              Use {'{{variableName}}'} to include variable values
+            </div>
+          </div>
+        );
+        
+      case 'customScript':
+        return (
+          <>
+            <div className="field-group">
+              <label>Language</label>
+              <select
+                value={config.language || 'javascript'}
+                onChange={(e) => handleConfigChange('language', e.target.value)}
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+              </select>
+            </div>
+            
+            <div className="field-group">
+              <label>Code</label>
+              <textarea
+                value={config.code || ''}
+                onChange={(e) => handleConfigChange('code', e.target.value)}
+                placeholder="// Enter your code here"
+                rows={8}
+                style={{ fontFamily: 'Monaco, Consolas, monospace' }}
+              />
+            </div>
+            
+            <div className="help-text">
+              Access context variables and return results. Execution is simulated in demo mode.
+            </div>
+          </>
+        );
+        
+      case 'loop':
+        return (
+          <>
+            <div className="field-group">
+              <label>Items to Loop</label>
+              <textarea
+                value={Array.isArray(config.items) ? config.items.join('\n') : config.items || ''}
+                onChange={(e) => {
+                  const items = e.target.value.split('\n').filter(item => item.trim());
+                  handleConfigChange('items', items);
+                }}
+                placeholder="Enter items (one per line) or use {{arrayVariable}}"
+                rows={5}
+              />
+            </div>
+            
+            <div className="help-text">
+              Enter items one per line, or use {'{{arrayVariable}}'} to reference an array variable
+            </div>
+          </>
+        );
+        
+      case 'webhook':
+        return (
+          <div className="field-group">
+            <label>Webhook URL Pattern</label>
+            <input
+              type="text"
+              value={config.pattern || ''}
+              onChange={(e) => handleConfigChange('pattern', e.target.value)}
+              placeholder="/webhook/trigger"
+            />
+            <div className="help-text">
+              In demo mode, webhook completion is simulated
+            </div>
+          </div>
+        );
+        
+      default:
+        return (
+          <div className="help-text">
+            No configuration options for this node type.
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="node-settings-panel">
+      <div className="panel-header">
+        <h3>Node Settings</h3>
+        <button onClick={onClose} className="close-btn">
+          <X size={16} />
+        </button>
+      </div>
+      
+      <div className="panel-content">
+        <div className="field-group">
+          <label>Node Label</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Enter node label"
+          />
+        </div>
+        
+        <div className="field-group">
+          <label>Node Type</label>
+          <div className="node-type-display">
+            {node.data.nodeType}
+          </div>
+        </div>
+        
+        <div className="field-group">
+          <label>Node ID</label>
+          <div className="node-id-display">
+            {node.id}
+          </div>
+        </div>
+        
+        <hr />
+        
+        <h4>Configuration</h4>
+        {renderConfigFields()}
+      </div>
+      
+      <div className="panel-footer">
+        <button onClick={handleSave} className="save-btn">
+          <Save size={16} />
+          Save Changes
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default NodeSettingsPanel;

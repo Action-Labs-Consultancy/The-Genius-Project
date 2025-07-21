@@ -1,0 +1,729 @@
+/* n8n Clone - Black & Yellow Theme */
+
+.workflow-canvas-n8n {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #181818;
+  color: #FFD600;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* =============================================================================
+   TOP BAR
+   ============================================================================= */
+
+.n8n-topbar {
+  height: 60px;
+  background: #0a0a0a;
+  border-bottom: 2px solid #FFD600;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 20px;
+  z-index: 1000;
+}
+
+.workflow-name-input {
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #FFD600;
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 200px;
+}
+
+.workflow-name-input:focus {
+  outline: none;
+  border-color: #FFD600;
+  box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.2);
+}
+
+.workflow-tags {
+  background: #232323;
+  border: 1px solid #FFD600;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #FFD600;
+}
+
+.topbar-button {
+  background: #232323;
+  border: 1px solid #FFD600;
+  border-radius: 6px;
+  color: #FFD600;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.topbar-button:hover {
+  background: #FFD600;
+  color: #181818;
+}
+
+.topbar-button.active {
+  background: #FFD600;
+  color: #181818;
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+/* =============================================================================
+   MAIN LAYOUT
+   ============================================================================= */
+
+.n8n-main {
+  flex: 1;
+  display: flex;
+  height: calc(100vh - 60px);
+  overflow: hidden;
+}
+
+/* =============================================================================
+   LEFT PANEL
+   ============================================================================= */
+
+.n8n-left-panel {
+  width: 280px;
+  background: #0a0a0a;
+  border-right: 2px solid #FFD600;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+}
+
+.n8n-left-panel.collapsed {
+  width: 50px;
+}
+
+.left-panel-header {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #333;
+}
+
+.left-panel-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.left-panel-tab {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.left-panel-tab:hover {
+  background: #232323;
+}
+
+.left-panel-tab.active {
+  background: #FFD600;
+  color: #181818;
+}
+
+.left-panel-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* =============================================================================
+   CANVAS AREA
+   ============================================================================= */
+
+.n8n-canvas-area {
+  flex: 1;
+  position: relative;
+  background: #181818;
+}
+
+.react-flow {
+  background: #181818;
+}
+
+.react-flow__background {
+  background-color: #181818;
+}
+
+.react-flow__background svg rect {
+  fill: #181818;
+}
+
+.react-flow__background svg circle {
+  fill: #333;
+}
+
+.react-flow__controls {
+  background: #232323;
+  border: 1px solid #FFD600;
+  border-radius: 8px;
+}
+
+.react-flow__controls button {
+  background: transparent;
+  border: none;
+  color: #FFD600;
+  padding: 8px;
+}
+
+.react-flow__controls button:hover {
+  background: #FFD600;
+  color: #181818;
+}
+
+/* =============================================================================
+   RIGHT PANEL (NODES)
+   ============================================================================= */
+
+.n8n-right-panel {
+  width: 320px;
+  background: #0a0a0a;
+  border-left: 2px solid #FFD600;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+}
+
+.n8n-right-panel.collapsed {
+  width: 50px;
+}
+
+.right-panel-header {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #333;
+  gap: 8px;
+}
+
+.node-search-input {
+  flex: 1;
+  background: #232323;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #FFD600;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.node-search-input:focus {
+  outline: none;
+  border-color: #FFD600;
+}
+
+.panel-toggle-btn {
+  background: transparent;
+  border: 1px solid #FFD600;
+  border-radius: 4px;
+  color: #FFD600;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.panel-toggle-btn:hover {
+  background: #FFD600;
+  color: #181818;
+}
+
+.node-categories {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.node-category {
+  margin-bottom: 24px;
+}
+
+.node-category-title {
+  color: #FFD600;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+}
+
+.node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-list-item {
+  background: #232323;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 12px;
+  cursor: grab;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-list-item:hover {
+  border-color: #FFD600;
+  background: #2a2a2a;
+  transform: translateY(-1px);
+}
+
+.node-list-item:active {
+  cursor: grabbing;
+}
+
+.node-list-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.node-list-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFD600;
+}
+
+.node-list-description {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* =============================================================================
+   NODES
+   ============================================================================= */
+
+.n8n-node {
+  background: #232323;
+  border: 2px solid #444;
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.n8n-node.selected {
+  border-color: #FFD600;
+  box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.3);
+}
+
+.n8n-node:hover {
+  border-color: #FFD600;
+}
+
+.node-header {
+  background: #1a1a1a;
+  padding: 12px 16px;
+  border-bottom: 1px solid #444;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFD600;
+  flex: 1;
+}
+
+.node-content {
+  padding: 12px 16px;
+}
+
+.node-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.node-field:last-child {
+  margin-bottom: 0;
+}
+
+.field-label {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+}
+
+.field-value {
+  font-size: 12px;
+  color: #FFD600;
+  font-weight: 600;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Node Type Specific Styles */
+.n8n-node.start {
+  border-color: #10b981;
+}
+
+.n8n-node.webhook {
+  border-color: #3b82f6;
+}
+
+.n8n-node.schedule {
+  border-color: #f59e0b;
+}
+
+.n8n-node.http {
+  border-color: #06b6d4;
+}
+
+.n8n-node.code {
+  border-color: #8b5cf6;
+}
+
+.n8n-node.if {
+  border-color: #ef4444;
+}
+
+/* =============================================================================
+   NODE CONFIGURATION PANEL
+   ============================================================================= */
+
+.node-config-panel {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  width: 400px;
+  height: calc(100vh - 60px);
+  background: #0a0a0a;
+  border-left: 2px solid #FFD600;
+  z-index: 1000;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.node-config-panel.open {
+  transform: translateX(0);
+}
+
+.node-config-header {
+  height: 60px;
+  padding: 0 20px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.node-config-title {
+  color: #FFD600;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.node-config-close {
+  background: transparent;
+  border: none;
+  color: #FFD600;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.node-config-tabs {
+  display: flex;
+  border-bottom: 1px solid #333;
+}
+
+.node-config-tab {
+  flex: 1;
+  padding: 12px 16px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.node-config-tab.active {
+  color: #FFD600;
+  border-bottom: 2px solid #FFD600;
+}
+
+.node-config-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* =============================================================================
+   FORM ELEMENTS
+   ============================================================================= */
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  color: #FFD600;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  background: #232323;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #FFD600;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #FFD600;
+  box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.2);
+}
+
+.form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.form-select {
+  width: 100%;
+  background: #232323;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #FFD600;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.form-button {
+  background: #FFD600;
+  border: none;
+  border-radius: 6px;
+  color: #181818;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.form-button:hover {
+  background: #e6c200;
+  transform: translateY(-1px);
+}
+
+.form-button.secondary {
+  background: transparent;
+  border: 1px solid #FFD600;
+  color: #FFD600;
+}
+
+.form-button.secondary:hover {
+  background: #FFD600;
+  color: #181818;
+}
+
+/* =============================================================================
+   EXECUTION LOG
+   ============================================================================= */
+
+.execution-log {
+  position: fixed;
+  bottom: 0;
+  left: 280px;
+  right: 320px;
+  height: 200px;
+  background: #0a0a0a;
+  border-top: 2px solid #FFD600;
+  padding: 16px;
+  overflow-y: auto;
+  z-index: 1000;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.execution-log.open {
+  transform: translateY(0);
+}
+
+.execution-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.execution-log-title {
+  color: #FFD600;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.execution-log-content {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.log-entry {
+  margin-bottom: 4px;
+  color: #999;
+}
+
+.log-entry.success {
+  color: #10b981;
+}
+
+.log-entry.error {
+  color: #ef4444;
+}
+
+.log-entry.warning {
+  color: #f59e0b;
+}
+
+/* =============================================================================
+   WORKFLOW TEMPLATES
+   ============================================================================= */
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.template-card {
+  background: #232323;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  border-color: #FFD600;
+  transform: translateY(-2px);
+}
+
+.template-title {
+  color: #FFD600;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.template-description {
+  color: #999;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 1200px) {
+  .n8n-left-panel {
+    width: 240px;
+  }
+  
+  .n8n-right-panel {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .n8n-left-panel {
+    position: fixed;
+    z-index: 1001;
+    height: 100%;
+  }
+  
+  .n8n-right-panel {
+    position: fixed;
+    z-index: 1001;
+    height: 100%;
+    right: 0;
+  }
+  
+  .n8n-canvas-area {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+@keyframes nodeAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.n8n-node {
+  animation: nodeAppear 0.3s ease-out;
+}
+
+@keyframes executeFlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 214, 0, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 214, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 214, 0, 0);
+  }
+}
+
+.n8n-node.executing {
+  animation: executeFlow 1s ease-out;
+}

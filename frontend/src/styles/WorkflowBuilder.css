@@ -1,0 +1,120 @@
+/* Workflow Builder Modern Styles */
+.workflow-builder {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f4f6;
+}
+.workflow-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px #0001;
+  z-index: 10;
+}
+.workflow-toolbar .toolbar-btn {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-right: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.workflow-toolbar .toolbar-btn:last-child { margin-right: 0; }
+.workflow-toolbar .toolbar-btn:hover { background: #2563eb; }
+.workflow-toolbar .toolbar-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+}
+.workflow-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.workflow-sidebar {
+  width: 220px;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.node-type-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f3f4f6;
+  color: #222;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: grab;
+  transition: border 0.2s, background 0.2s;
+}
+.node-type-btn:hover {
+  background: #e0e7ff;
+  border-color: #3b82f6;
+}
+.node-type-icon {
+  font-size: 20px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.workflow-canvas {
+  flex: 1;
+  background: #fff;
+  position: relative;
+}
+.node-properties-panel {
+  width: 320px;
+  background: #f9fafb;
+  border-left: 1px solid #e5e7eb;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.node-properties-panel h3 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #222;
+}
+.property-group label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+  display: block;
+}
+.property-group input,
+.property-group select,
+.property-group textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 15px;
+  margin-top: 4px;
+  background: #fff;
+}
+.property-group textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+.property-group {
+  margin-bottom: 16px;
+}

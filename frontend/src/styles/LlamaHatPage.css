@@ -1,0 +1,413 @@
+/* LlamaHatPage.css - Dedicated page for Llama Hat AI */
+
+.llama-hat-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Hero Section */
+.hero-section {
+  padding: 60px 20px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.llama-hat-logo {
+  font-size: 80px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.llama-hat-logo .llama {
+  animation: float 3s ease-in-out infinite;
+}
+
+.llama-hat-logo .hat {
+  animation: tip 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes tip {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+.hero-content h1 {
+  font-size: 48px;
+  margin: 0 0 16px 0;
+  font-weight: 700;
+  background: linear-gradient(45deg, #fff, #f0f8ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 20px;
+  margin: 0 0 40px 0;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.hero-features {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 12px 20px;
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.feature-icon {
+  font-size: 20px;
+}
+
+/* Main Content */
+.main-content {
+  padding: 40px 20px;
+}
+
+.content-grid {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 30px;
+}
+
+/* Chat Section */
+.chat-section {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 20px;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.chat-section.minimized {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.minimize-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.chat-container {
+  height: 600px;
+}
+
+.hat-page-chat {
+  height: 100% !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Info Panel */
+.info-panel {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 20px;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  height: fit-content;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tab.active {
+  background: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+}
+
+.panel-content {
+  color: white;
+}
+
+/* System Stats */
+.system-stats h3 {
+  margin: 0 0 20px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.stat-item {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stat-value.ready {
+  color: #4ade80;
+}
+
+.stat-value.loading {
+  color: #fbbf24;
+}
+
+.performance-tips {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.performance-tips h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.performance-tips ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.performance-tips li {
+  margin: 4px 0;
+  opacity: 0.9;
+}
+
+/* Document List */
+.document-list h3 {
+  margin: 0 0 20px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.doc-items {
+  margin-bottom: 30px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.doc-icon {
+  font-size: 24px;
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.doc-type {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.add-docs-info {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.add-docs-info h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.add-docs-info p {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.add-docs-info ol {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.add-docs-info code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+}
+
+/* Footer */
+.page-footer {
+  text-align: center;
+  padding: 40px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.page-footer p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.page-footer strong {
+  color: #fbbf24;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .info-panel {
+    order: -1;
+  }
+  
+  .panel-tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-content h1 {
+    font-size: 36px;
+  }
+  
+  .hero-subtitle {
+    font-size: 18px;
+  }
+  
+  .llama-hat-logo {
+    font-size: 60px;
+  }
+  
+  .hero-features {
+    gap: 20px;
+  }
+  
+  .feature {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  
+  .main-content {
+    padding: 20px 16px;
+  }
+  
+  .chat-container {
+    height: 500px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

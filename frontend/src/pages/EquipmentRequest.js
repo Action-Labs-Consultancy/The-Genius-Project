@@ -339,7 +339,7 @@ const EquipmentRequest = ({ user, onNavigate }) => {
                       >
                         <option value="">Select Project</option>
                         {projects.map(project => (
-                          <option key={project.id} value={project.id}>
+                          <option key={project._id} value={project._id}>
                             {project.project_name} - {project.client_name}
                           </option>
                         ))}
@@ -422,9 +422,9 @@ const EquipmentRequest = ({ user, onNavigate }) => {
           ) : (
             <div className="requests-list">
               {myRequests.map(request => (
-                <div key={request.id} className="request-card">
+                <div key={request._id} className="request-card">
                   <div className="request-header">
-                    <h4>Request #{request.id?.slice(-6) || 'N/A'}</h4>
+                    <h4>Request #{request._id?.slice(-6) || 'N/A'}</h4>
                     {getStatusBadge(request.status)}
                   </div>
                   <div className="request-details">
@@ -433,8 +433,8 @@ const EquipmentRequest = ({ user, onNavigate }) => {
                     <p><strong>Return:</strong> {new Date(request.expected_return_time).toLocaleDateString()}</p>
                     <p><strong>Equipment:</strong></p>
                     <ul>
-                      {request.equipment_items?.map((item, index) => (
-                        <li key={index}>
+                      {request.equipment_items?.map((item) => (
+                        <li key={item.equipment_id}>
                           {item.equipment_name} (Qty: {item.quantity_requested})
                         </li>
                       ))}

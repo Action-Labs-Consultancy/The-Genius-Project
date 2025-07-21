@@ -4,8 +4,10 @@ import MeetingsCalendar from './MeetingsCalendar';
 
 const getModules = (user) => {
   const baseModules = [
+    { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
     { id: 'chat', title: 'Chat', icon: '💬' },
-    { id: 'llama-chat', title: 'Llama Chat', icon: '🦙' },
+    { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
+    { id: 'n8n-canvas', title: 'N8n Canvas', icon: '⚡' },
     { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
     { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
     { id: 'clients', title: 'Clients', icon: '👥' },
@@ -14,6 +16,7 @@ const getModules = (user) => {
     { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
     { id: 'calendar', title: 'Calendar', icon: '📆' },
     { id: 'leaveboard', title: 'LeaveBoard', icon: '🏖️' },
+    { id: 'projects', title: 'Projects', icon: '📁' },
   ];
 
   // Add equipment options based on user role
@@ -53,9 +56,12 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   };
 
   const handleModuleClick = (id) => {
-    if (id === 'llama-chat') {
-      // Navigate to the Llama Chat page
-      if (typeof onNavigate === 'function') onNavigate('/llama-chat');
+    if (id === 'llama-rag') {
+      // Navigate to the RAG Chat page
+      if (typeof onNavigate === 'function') onNavigate('/llama-rag');
+    } else if (id === 'workflow-canvas') {
+      // Navigate to the Workflow Canvas page
+      if (typeof onNavigate === 'function') onNavigate('/workflow-canvas');
     } else if (id === 'calendar') {
       // Switch to the calendar view in App.js
       if (typeof onNavigate === 'function') onNavigate('/calendar');
@@ -83,37 +89,29 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       <main className="dashboard-main" style={{ height: '100vh' }}>
         <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`} style={{ minHeight: '92vh', background: '#181818', borderRight: '2px solid #FFD600', boxShadow: sidebarOpen ? '4px 0 24px #FFD60022' : 'none', transition: 'all 0.22s cubic-bezier(.4,1.4,.6,1)' }}>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)}
-            style={{
-              background: 'transparent',
-              color: '#FFD600',
-              border: 'none',
-              borderRadius: 8,
-              fontWeight: 700,
-              fontSize: 18,
-              margin: '18px 0',
-              padding: '8px 18px',
-              boxShadow: 'none',
-              transition: 'background 0.2s, color 0.2s',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
-            onMouseOver={e => e.currentTarget.style.background = '#232323'}
-            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {sidebarOpen ? '←' : '☰'}
+            {sidebarOpen ? '←' : (
+              <span className="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            )}
           </button>
           {sidebarOpen && (
             <>
-              <div className="sidebar-search-modern" style={{ background: 'transparent', borderRadius: 12, padding: '10px 16px', margin: '0 0 18px 0', display: 'flex', alignItems: 'center', boxShadow: 'none' }}>
+              <div className="sidebar-search-modern" style={{ background: '#232323', borderRadius: 12, padding: '12px 16px', margin: '0 0 20px 0', display: 'flex', alignItems: 'center', boxShadow: '0 2px 8px rgba(255, 214, 0, 0.2)', border: '2px solid #FFD600' }}>
+                <span className="search-icon" style={{ color: '#FFD600', fontSize: 18, marginRight: 10 }}>🔍</span>
                 <input
                   type="text"
                   placeholder="Search modules..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="modern-search-input"
-                  style={{ background: '#181818', color: '#FFD600', border: '1.5px solid #FFD600', borderRadius: 8, fontWeight: 500, fontSize: 15, padding: '8px 12px', flex: 1 }}
+                  style={{ background: 'transparent', color: '#FFD600', border: 'none', outline: 'none', fontWeight: 500, fontSize: 15, flex: 1, placeholder: '#999' }}
                 />
-                <span className="search-icon" style={{ color: '#FFD600', fontSize: 20, marginLeft: 8 }}>🔍</span>
               </div>
               <div className="sidebar-menu" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 {MODULES.filter((m) => m.title.toLowerCase().includes(search.toLowerCase())).map((m) => (
@@ -141,15 +139,6 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                     Settings
                   </button>
                 )}
-                <button
-                  className="menu-item"
-                  onClick={() => handleModuleClick('chat')}
-                  draggable={false}
-                  style={{ background: '#232428', color: '#FFD600', border: '2px solid #FFD600', borderRadius: 10, fontWeight: 700, fontSize: 16, marginBottom: 12, padding: '12px 18px', boxShadow: '0 2px 8px #FFD60022', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.18s, color 0.18s, transform 0.18s', justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
-                >
-                  <span className="menu-icon" style={{ fontSize: 22 }}>💬</span>
-                  Chat
-                </button>
               </div>
               {/* Remove Weekly Meetings Calendar from sidebar */}
               {/* <div style={{ marginTop: 24, width: '100%', maxWidth: 260 }}>
