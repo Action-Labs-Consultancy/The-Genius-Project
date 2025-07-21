@@ -26,13 +26,12 @@ const EquipmentManagement = ({ user }) => {
   const [activeTab, setActiveTab] = useState('equipment');
   const [showCheckout, setShowCheckout] = useState(false);
   const [equipment, setEquipment] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [checkouts, setCheckouts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState(''); // 'equipment', 'project', 'checkout'
+  const [modalType, setModalType] = useState(''); // 'equipment', 'checkout'
   const [editingItem, setEditingItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -56,16 +55,9 @@ const EquipmentManagement = ({ user }) => {
     item_image: null  // File object
   });
 
-  const [projectForm, setProjectForm] = useState({
-    project_name: '',
-    client_name: '',
-    description: '',
-    status: 'Active'
-  });
-
   const [checkoutForm, setCheckoutForm] = useState({
     requester_name: '',
-    project_id: '',
+    purpose: '',
     pickup_time: '',
     expected_return_time: '',
     equipment_items: [],
@@ -87,7 +79,6 @@ const EquipmentManagement = ({ user }) => {
     try {
       await Promise.all([
         loadEquipment(),
-        loadProjects(),
         loadCheckouts(),
         loadCategories(),
         loadStatusOptions()
@@ -108,18 +99,6 @@ const EquipmentManagement = ({ user }) => {
       }
     } catch (error) {
       console.error('Error loading equipment:', error);
-    }
-  };
-
-  const loadProjects = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/equipment/projects`);
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      }
-    } catch (error) {
-      console.error('Error loading projects:', error);
     }
   };
 
@@ -240,32 +219,6 @@ const EquipmentManagement = ({ user }) => {
     }
   };
 
-  // Project operations
-  const handleCreateProject = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/equipment/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(projectForm),
-      });
-
-      if (response.ok) {
-        await loadProjects();
-        setShowModal(false);
-        resetProjectForm();
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
-      }
-    } catch (error) {
-      console.error('Error creating project:', error);
-      alert('Error creating project');
-    }
-  };
-
   // Equipment Request Approval/Rejection
   const handleApproveRequest = async (requestId) => {
     if (!requestId) {
@@ -331,15 +284,6 @@ const EquipmentManagement = ({ user }) => {
     });
   };
 
-  const resetProjectForm = () => {
-    setProjectForm({
-      project_name: '',
-      client_name: '',
-      description: '',
-      status: 'Active'
-    });
-  };
-
   // Modal handlers
   const openEquipmentModal = (item = null) => {
     setModalType('equipment');
@@ -349,12 +293,6 @@ const EquipmentManagement = ({ user }) => {
     } else {
       resetEquipmentForm();
     }
-    setShowModal(true);
-  };
-
-  const openProjectModal = () => {
-    setModalType('project');
-    resetProjectForm();
     setShowModal(true);
   };
 
@@ -456,12 +394,6 @@ const EquipmentManagement = ({ user }) => {
           >
             <Icons.Plus /> Add Equipment
           </button>
-          <button 
-            className="btn-secondary"
-            onClick={openProjectModal}
-          >
-            <Icons.Plus /> Add Project
-          </button>
         </div>
       </div>
 
@@ -472,12 +404,6 @@ const EquipmentManagement = ({ user }) => {
           onClick={() => setActiveTab('equipment')}
         >
           <Icons.Package /> Equipment
-        </button>
-        <button 
-          className={`tab ${activeTab === 'projects' ? 'active' : ''}`}
-          onClick={() => setActiveTab('projects')}
-        >
-          <Icons.Clipboard /> Projects
         </button>
         <button 
           className={`tab ${activeTab === 'checkouts' ? 'active' : ''}`}
@@ -578,25 +504,6 @@ const EquipmentManagement = ({ user }) => {
         </div>
       )}
 
-      {/* Projects Tab */}
-      {activeTab === 'projects' && (
-        <div className="projects-content">
-          <div className="projects-grid">
-            {projects.map(project => (
-              <div key={project.id} className="project-card">
-                <h3>{project.project_name}</h3>
-                <p><strong>Client:</strong> {project.client_name}</p>
-                <p>{project.description}</p>
-                <div className="project-status">{project.status}</div>
-                <div className="project-date">
-                  Created: {new Date(project.created_at).toLocaleDateString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Checkouts Tab */}
       {activeTab === 'checkouts' && (
         <div className="checkouts-content">
@@ -611,7 +518,7 @@ const EquipmentManagement = ({ user }) => {
                 </div>
                 <div className="checkout-info">
                   <p><strong>Requester:</strong> {checkout.requester_name}</p>
-                  <p><strong>Project:</strong> {checkout.project_id}</p>
+                  <p><strong>Purpose:</strong> {checkout.purpose || checkout.project_id || 'Not specified'}</p>
                   <p><strong>Pickup:</strong> {new Date(checkout.pickup_time).toLocaleString()}</p>
                   <p><strong>Return:</strong> {new Date(checkout.expected_return_time).toLocaleString()}</p>
                   <p><strong>Items:</strong> {checkout.equipment_items.length} item(s)</p>
@@ -705,7 +612,6 @@ const EquipmentManagement = ({ user }) => {
             <div className="modal-header">
               <h2>
                 {modalType === 'equipment' && (editingItem ? 'Edit Equipment' : 'Add Equipment')}
-                {modalType === 'project' && 'Add Project'}
               </h2>
               <button onClick={() => setShowModal(false)}>
                 <Icons.X />
@@ -791,41 +697,6 @@ const EquipmentManagement = ({ user }) => {
                   <button type="submit" className="btn-primary">
                     {editingItem ? 'Update' : 'Create'} Equipment
                   </button>
-                </div>
-              </form>
-            )}
-
-            {modalType === 'project' && (
-              <form onSubmit={handleCreateProject}>
-                <div className="form-group">
-                  <label>Project Name *</label>
-                  <input
-                    type="text"
-                    value={projectForm.project_name}
-                    onChange={(e) => setProjectForm({...projectForm, project_name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Client Name *</label>
-                  <input
-                    type="text"
-                    value={projectForm.client_name}
-                    onChange={(e) => setProjectForm({...projectForm, client_name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Description</label>
-                  <textarea
-                    value={projectForm.description}
-                    onChange={(e) => setProjectForm({...projectForm, description: e.target.value})}
-                    rows="3"
-                  />
-                </div>
-                <div className="form-actions">
-                  <button type="button" onClick={() => setShowModal(false)}>Cancel</button>
-                  <button type="submit" className="btn-primary">Create Project</button>
                 </div>
               </form>
             )}

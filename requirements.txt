@@ -15,4 +15,3 @@ gunicorn==21.2.0
 dnspython==2.3.0
 requests==2.31.0
 slack-sdk==3.23.0
-smtplib-ssl==1.0.4

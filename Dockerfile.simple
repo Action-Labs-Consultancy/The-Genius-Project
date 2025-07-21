@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only essential files
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy only backend files
+COPY backend/ ./backend/
+COPY app.py ./
+
+# Expose port
+EXPOSE 5002
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV FLASK_APP=app.py
+
+CMD ["python", "app.py"]

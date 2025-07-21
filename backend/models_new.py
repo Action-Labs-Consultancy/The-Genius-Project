@@ -49,15 +49,54 @@ class Client(Base):
     company = Column(String(255))
     email = Column(String(255))
     phone = Column(String(50))
-    address = Column(Text)
     website = Column(String(255))
-    logo_url = Column(String(500))
-    status = Column(String(50), default='active')
+    address = Column(Text)
+    industry = Column(String(100))
+    contact_person = Column(String(255))
+    project_type = Column(String(100))  # Marketing, Development, etc.
+    contract_type = Column(String(100))  # Retainer, Campaign, etc.
+    contract_specify = Column(String(255))  # For "Others" option
+    status = Column(String(50), default='active')  # active, onboarding, inactive
+    created_by = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     projects = relationship("Project", back_populates="client")
+    knowledge_base = relationship("ClientKnowledgeBase", back_populates="client")
+    documents = relationship("ClientDocument", back_populates="client")
+
+class ClientKnowledgeBase(Base):
+    __tablename__ = 'client_knowledge_base'
+    
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey('clients.id'), nullable=False)
+    entry_type = Column(String(100), nullable=False)  # scope_analysis, brandbook_analysis, etc.
+    content = Column(Text)  # JSON content
+    metadata = Column(Text)  # Additional metadata as JSON
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    
+    # Relationships
+    client = relationship("Client", back_populates="knowledge_base")
+
+class ClientDocument(Base):
+    __tablename__ = 'client_documents'
+    
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey('clients.id'), nullable=False)
+    document_type = Column(String(100), nullable=False)  # scope, brandbook, competitor, swot
+    filename = Column(String(255), nullable=False)
+    filepath = Column(String(500), nullable=False)
+    file_size = Column(Integer)
+    mime_type = Column(String(100))
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by = Column(Integer, ForeignKey('users.id'))
+    processed = Column(Boolean, default=False)
+    ai_extracted_content = Column(Text)  # AI-extracted text content
+    
+    # Relationships
+    client = relationship("Client", back_populates="documents")
 
 class Project(Base):
     __tablename__ = 'projects'

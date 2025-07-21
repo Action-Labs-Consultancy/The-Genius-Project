@@ -128,6 +128,10 @@ app.register_blueprint(project_routes)
 from workflow_api import workflow_api
 app.register_blueprint(workflow_api)
 
+# Register enhanced client AI routes
+from client_ai_routes import client_ai_bp
+app.register_blueprint(client_ai_bp)
+
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
 # try:
 #     pinecone_index = initialize_pinecone()

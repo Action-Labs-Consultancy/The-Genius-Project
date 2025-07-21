@@ -5,18 +5,17 @@ import MeetingsCalendar from './MeetingsCalendar';
 const getModules = (user) => {
   const baseModules = [
     { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
-    { id: 'chat', title: 'Chat', icon: '💬' },
     { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
-    { id: 'n8n-canvas', title: 'N8n Canvas', icon: '⚡' },
     { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
     { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
     { id: 'clients', title: 'Clients', icon: '👥' },
+    { id: 'enhanced-clients', title: 'AI Client Workflow', icon: '🤖' },
     { id: 'newsFeed', title: 'News Feed', icon: '📰' },
     { id: 'notes', title: 'Notes', icon: '📝' },
     { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
     { id: 'calendar', title: 'Calendar', icon: '📆' },
     { id: 'leaveboard', title: 'LeaveBoard', icon: '🏖️' },
-    { id: 'projects', title: 'Projects', icon: '📁' },
+    // Removed projects tab
   ];
 
   // Add equipment options based on user role
@@ -89,16 +88,24 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       <main className="dashboard-main" style={{ height: '100vh' }}>
         <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`} style={{ minHeight: '92vh', background: '#181818', borderRight: '2px solid #FFD600', boxShadow: sidebarOpen ? '4px 0 24px #FFD60022' : 'none', transition: 'all 0.22s cubic-bezier(.4,1.4,.6,1)' }}>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)}
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            style={{
+              background: 'transparent',
+              color: '#FFD600',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 700,
+              fontSize: 18,
+              margin: '18px 0',
+              padding: '8px 18px',
+              boxShadow: 'none',
+              transition: 'background 0.2s, color 0.2s',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#232323'}
+            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
           >
-            {sidebarOpen ? '←' : (
-              <span className="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-              </span>
-            )}
+            {sidebarOpen ? '←' : '☰'}
           </button>
           {sidebarOpen && (
             <>

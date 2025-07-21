@@ -27,6 +27,7 @@ import LeaveBoard from './pages/LeaveBoard';
 import EquipmentManagement from './pages/EquipmentManagement';
 import EquipmentRequest from './pages/EquipmentRequest';
 import ProjectsDashboard from './pages/ProjectsDashboard';
+import EnhancedClientTab from './components/EnhancedClientTab';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -319,6 +320,7 @@ export default function App() {
           <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
           <Route path="/equipment" element={<EquipmentManagement user={user} />} />
           <Route path="/equipment-request" element={<EquipmentRequest user={user} onNavigate={handleNavigate} />} />
+          <Route path="/enhanced-clients" element={<EnhancedClientTab user={user} onNavigate={handleNavigate} />} />
           <Route path="/projects" element={<ProjectsDashboard user={user} onNavigate={handleNavigate} />} />
           <Route path="/workflow" element={<WorkflowBuilder user={user} />} />
           <Route path="/workflow-canvas" element={<WorkflowCanvasAdvanced user={user} />} />
