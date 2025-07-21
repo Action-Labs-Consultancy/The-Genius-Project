@@ -4,6 +4,7 @@ import MeetingsCalendar from './MeetingsCalendar';
 
 const getModules = (user) => {
   const baseModules = [
+    { id: 'chat', title: 'Chat', icon: '💬' },
     { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
     { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
     { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
