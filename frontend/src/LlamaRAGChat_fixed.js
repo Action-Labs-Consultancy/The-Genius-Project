@@ -13,7 +13,7 @@ const LlamaRAGChat = ({ userId, className = '', onClose = null, isModal = false,
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef(null);
-  const API_URL = process.env.REACT_APP_LLAMA_API_URL || 'http://localhost:8000';
+  const API_URL = process.env.REACT_APP_LLAMA_API_URL || 'http://localhost:8080';
 
   // Initialize chat history and current chat on mount
   useEffect(() => {
