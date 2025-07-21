@@ -1,0 +1,8 @@
+# Backend Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY backend ./backend
+WORKDIR /app/backend
+RUN npm install --production
+EXPOSE 5678
+CMD ["npm", "start"]

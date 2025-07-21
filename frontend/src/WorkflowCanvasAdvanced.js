@@ -16,343 +16,103 @@ import 'reactflow/dist/style.css';
 import './WorkflowCanvas.css';
 
 // Custom Node Components
-const StartNode = ({ data, selected }) => (
-  <div className={`custom-node start-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">▶️</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
+// --- Modernized Node Icons (less emojis) ---
+const nodeIconMap = {
+  start: '▶',
+  httpRequest: '🌐',
+  setVariable: '📝',
+  condition: '?',
+  delay: '⏱',
+  loop: '🔄',
+  log: '🗒',
+  webhook: '🔗',
+  end: '🏁',
+  code: '<>',
+  switch: '⇄',
+  merge: '⎇',
+  set: '📝',
+  email: '✉',
+  slack: '💬',
+  database: 'DB',
+  ai: '🤖',
+  math: '∑',
+  file: '📁',
+  timer: '⏲',
+  notification: '🔔',
+};
 
-const HttpRequestNode = ({ data, selected }) => (
-  <div className={`custom-node http-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🌐</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Method:</span>
-        <span className="field-value">{data.method || 'GET'}</span>
+function CustomNode({ data, selected, type }) {
+  return (
+    <div className={`custom-node ${type}-node ${selected ? 'selected' : ''}`}>
+      <div className="node-header">
+        <span className="node-icon">{nodeIconMap[type] || '?'}</span>
+        <span className="node-title">{data.label}</span>
       </div>
-      <div className="node-field">
-        <span className="field-label">URL:</span>
-        <span className="field-value">{data.url || 'Not set'}</span>
+      {type !== 'start' && <Handle type="target" position={Position.Top} />}
+      <div className="node-content">
+        {/* Render node-specific fields here, simplified for brevity */}
+        {Object.entries(data).map(([key, value]) =>
+          key !== 'label' ? (
+            <div className="node-field" key={key}>
+              <span className="field-label">{key}:</span>
+              <span className="field-value">{value}</span>
+            </div>
+          ) : null
+        )}
       </div>
+      {type !== 'end' && <Handle type="source" position={Position.Bottom} />}
     </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const ConditionNode = ({ data, selected }) => (
-  <div className={`custom-node condition-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">❓</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Condition:</span>
-        <span className="field-value">{data.condition || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} id="true" style={{ left: '25%' }} />
-    <Handle type="source" position={Position.Bottom} id="false" style={{ left: '75%' }} />
-    <div className="condition-labels">
-      <span className="true-label">True</span>
-      <span className="false-label">False</span>
-    </div>
-  </div>
-);
-
-const DelayNode = ({ data, selected }) => (
-  <div className={`custom-node delay-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">⏱️</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Duration:</span>
-        <span className="field-value">{data.duration || '5s'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const SetVariableNode = ({ data, selected }) => (
-  <div className={`custom-node variable-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">📝</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Variable:</span>
-        <span className="field-value">{data.variable || 'Not set'}</span>
-      </div>
-      <div className="node-field">
-        <span className="field-label">Value:</span>
-        <span className="field-value">{data.value || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const LogNode = ({ data, selected }) => (
-  <div className={`custom-node log-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">📋</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Message:</span>
-        <span className="field-value">{data.message || 'Log message'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const LoopNode = ({ data, selected }) => (
-  <div className={`custom-node loop-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🔄</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Items:</span>
-        <span className="field-value">{data.items || 'array'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const WebhookNode = ({ data, selected }) => (
-  <div className={`custom-node webhook-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🔗</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">URL:</span>
-        <span className="field-value">{data.webhookUrl || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const EndNode = ({ data, selected }) => (
-  <div className={`custom-node end-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🏁</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-  </div>
-);
-
-// --- Additional Node Components ---
-const CodeNode = ({ data, selected }) => (
-  <div className={`custom-node code-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">💻</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Code:</span>
-        <span className="field-value">{data.code ? data.code.slice(0, 30) + (data.code.length > 30 ? '...' : '') : 'No code'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const SwitchNode = ({ data, selected }) => (
-  <div className={`custom-node switch-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🔀</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Switch Field:</span>
-        <span className="field-value">{data.switchField || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const MergeNode = ({ data, selected }) => (
-  <div className={`custom-node merge-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🔗</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Merge Type:</span>
-        <span className="field-value">{data.mergeType || 'Simple'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const SetNode = ({ data, selected }) => (
-  <div className={`custom-node set-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">📝</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Fields:</span>
-        <span className="field-value">{data.fields || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const EmailNode = ({ data, selected }) => (
-  <div className={`custom-node email-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">📧</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">To:</span>
-        <span className="field-value">{data.to || 'Not set'}</span>
-      </div>
-      <div className="node-field">
-        <span className="field-label">Subject:</span>
-        <span className="field-value">{data.subject || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const SlackNode = ({ data, selected }) => (
-  <div className={`custom-node slack-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">💬</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Channel:</span>
-        <span className="field-value">{data.channel || 'Not set'}</span>
-      </div>
-      <div className="node-field">
-        <span className="field-label">Message:</span>
-        <span className="field-value">{data.message || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const DatabaseNode = ({ data, selected }) => (
-  <div className={`custom-node db-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🗄️</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Query:</span>
-        <span className="field-value">{data.query || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
-
-const AiNode = ({ data, selected }) => (
-  <div className={`custom-node ai-node ${selected ? 'selected' : ''}`}>
-    <div className="node-header">
-      <span className="node-icon">🤖</span>
-      <span className="node-title">{data.label}</span>
-    </div>
-    <Handle type="target" position={Position.Top} />
-    <div className="node-content">
-      <div className="node-field">
-        <span className="field-label">Prompt:</span>
-        <span className="field-value">{data.prompt || 'Not set'}</span>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} />
-  </div>
-);
+  );
+}
 
 // Node types mapping
 const nodeTypes = {
-  start: StartNode,
-  httpRequest: HttpRequestNode,
-  condition: ConditionNode,
-  delay: DelayNode,
-  setVariable: SetVariableNode,
-  log: LogNode,
-  loop: LoopNode,
-  webhook: WebhookNode,
-  end: EndNode,
-  code: CodeNode,
-  switch: SwitchNode,
-  merge: MergeNode,
-  set: SetNode,
-  email: EmailNode,
-  slack: SlackNode,
-  database: DatabaseNode,
-  ai: AiNode,
+  start: (props) => <CustomNode {...props} type="start" />, // ...repeat for all types
+  httpRequest: (props) => <CustomNode {...props} type="httpRequest" />, // ...etc
+  setVariable: (props) => <CustomNode {...props} type="setVariable" />, // ...etc
+  condition: (props) => <CustomNode {...props} type="condition" />, // ...etc
+  delay: (props) => <CustomNode {...props} type="delay" />, // ...etc
+  loop: (props) => <CustomNode {...props} type="loop" />, // ...etc
+  log: (props) => <CustomNode {...props} type="log" />, // ...etc
+  webhook: (props) => <CustomNode {...props} type="webhook" />, // ...etc
+  end: (props) => <CustomNode {...props} type="end" />, // ...etc
+  code: (props) => <CustomNode {...props} type="code" />, // ...etc
+  switch: (props) => <CustomNode {...props} type="switch" />, // ...etc
+  merge: (props) => <CustomNode {...props} type="merge" />, // ...etc
+  set: (props) => <CustomNode {...props} type="set" />, // ...etc
+  email: (props) => <CustomNode {...props} type="email" />, // ...etc
+  slack: (props) => <CustomNode {...props} type="slack" />, // ...etc
+  database: (props) => <CustomNode {...props} type="database" />, // ...etc
+  ai: (props) => <CustomNode {...props} type="ai" />, // ...etc
+  math: (props) => <CustomNode {...props} type="math" />, // ...etc
+  file: (props) => <CustomNode {...props} type="file" />, // ...etc
+  timer: (props) => <CustomNode {...props} type="timer" />, // ...etc
+  notification: (props) => <CustomNode {...props} type="notification" />, // ...etc
 };
 
 // Available node types for the sidebar
 const nodeTypesList = [
-  { type: 'start', label: 'Start/Trigger', icon: '▶️', color: '#10b981' },
-  { type: 'httpRequest', label: 'HTTP Request', icon: '🌐', color: '#3b82f6' },
-  { type: 'setVariable', label: 'Set Variable', icon: '📝', color: '#8b5cf6' },
-  { type: 'condition', label: 'If Condition', icon: '❓', color: '#f59e0b' },
-  { type: 'delay', label: 'Delay/Wait', icon: '⏱️', color: '#ef4444' },
-  { type: 'loop', label: 'Loop/For Each', icon: '🔄', color: '#06b6d4' },
-  { type: 'log', label: 'Log/Debug', icon: '📋', color: '#84cc16' },
-  { type: 'webhook', label: 'Webhook', icon: '🔗', color: '#f97316' },
-  { type: 'end', label: 'End', icon: '🏁', color: '#6b7280' },
-  { type: 'code', label: 'Code', icon: '💻', color: '#ef4444' },
-  { type: 'switch', label: 'Switch', icon: '🔀', color: '#8b5cf6' },
-  { type: 'merge', label: 'Merge', icon: '🔗', color: '#06b6d4' },
-  { type: 'set', label: 'Set', icon: '📝', color: '#facc15' },
-  { type: 'email', label: 'Email', icon: '📧', color: '#ea4335' },
-  { type: 'slack', label: 'Slack', icon: '💬', color: '#4a154b' },
-  { type: 'database', label: 'Database', icon: '🗄️', color: '#6366f1' },
-  { type: 'ai', label: 'AI', icon: '🤖', color: '#10a37f' }
+  { type: 'start', label: 'Start/Trigger', icon: '▶', color: '#FFD600' },
+  { type: 'httpRequest', label: 'HTTP Request', icon: '🌐', color: '#FFD600' },
+  { type: 'setVariable', label: 'Set Variable', icon: '📝', color: '#FFD600' },
+  { type: 'condition', label: 'If Condition', icon: '?', color: '#FFD600' },
+  { type: 'delay', label: 'Delay/Wait', icon: '⏱', color: '#FFD600' },
+  { type: 'loop', label: 'Loop/For Each', icon: '🔄', color: '#FFD600' },
+  { type: 'log', label: 'Log/Debug', icon: '🗒', color: '#FFD600' },
+  { type: 'webhook', label: 'Webhook', icon: '🔗', color: '#FFD600' },
+  { type: 'end', label: 'End', icon: '🛑', color: '#FFD600' },
+  { type: 'code', label: 'Code', icon: '<>', color: '#FFD600' },
+  { type: 'switch', label: 'Switch', icon: '⇄', color: '#FFD600' },
+  { type: 'merge', label: 'Merge', icon: '⎇', color: '#FFD600' },
+  { type: 'set', label: 'Set', icon: '📝', color: '#FFD600' },
+  { type: 'email', label: 'Email', icon: '✉', color: '#FFD600' },
+  { type: 'slack', label: 'Slack', icon: '💬', color: '#FFD600' },
+  { type: 'database', label: 'Database', icon: '🗄', color: '#FFD600' },
+  { type: 'ai', label: 'AI', icon: '🤖', color: '#FFD600' },
+  { type: 'math', label: 'Math', icon: '∑', color: '#FFD600' },
+  { type: 'file', label: 'File', icon: '📁', color: '#FFD600' },
+  { type: 'timer', label: 'Timer', icon: '⏲', color: '#FFD600' },
+  { type: 'notification', label: 'Notification', icon: '🔔', color: '#FFD600' },
 ];
 
 // Workflow templates
@@ -408,13 +168,30 @@ const WorkflowCanvas = () => {
   const { project } = useReactFlow();
   const reactFlowWrapper = useRef(null);
 
-  // Load saved workflows from localStorage
+  // API Base URL
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5002';
+
+  // Load saved workflows from backend
   useEffect(() => {
-    const saved = localStorage.getItem('savedWorkflows');
-    if (saved) {
-      setSavedWorkflows(JSON.parse(saved));
-    }
-  }, []);
+    const fetchWorkflows = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/workflows`);
+        if (response.ok) {
+          const workflows = await response.json();
+          setSavedWorkflows(workflows);
+        }
+      } catch (error) {
+        console.error('Failed to fetch workflows:', error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem('savedWorkflows');
+        if (saved) {
+          setSavedWorkflows(JSON.parse(saved));
+        }
+      }
+    };
+    
+    fetchWorkflows();
+  }, [API_BASE_URL]);
 
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -550,86 +327,91 @@ const WorkflowCanvas = () => {
       return;
     }
     
-    // Simple execution simulation
-    const log = [`▶️ Starting workflow execution from node: ${startNode.data.label}`];
-    
-    // Simulate processing each node
-    for (const node of nodes) {
-      if (node.type === 'start') continue;
+    try {
+      // Create workflow object
+      const workflow = {
+        id: `temp-${Date.now()}`,
+        name: workflowName,
+        nodes,
+        edges
+      };
       
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+      // Execute on backend
+      const response = await fetch(`${API_BASE_URL}/api/workflows/${workflow.id}/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          workflow,
+          input_data: {}
+        })
+      });
       
-      switch (node.type) {
-        case 'httpRequest':
-          log.push(`🌐 Executing HTTP ${node.data.method || 'GET'} request to: ${node.data.url || 'N/A'}`);
-          break;
-        case 'condition':
-          log.push(`❓ Evaluating condition: ${node.data.condition || 'N/A'}`);
-          break;
-        case 'delay':
-          log.push(`⏱️ Waiting for: ${node.data.duration || '5s'}`);
-          break;
-        case 'setVariable':
-          log.push(`📝 Setting variable "${node.data.variable}" to "${node.data.value}"`);
-          break;
-        case 'log':
-          log.push(`📋 Logging: ${node.data.message || 'Log message'}`);
-          break;
-        case 'loop':
-          log.push(`🔄 Starting loop over: ${node.data.items || 'array'}`);
-          break;
-        case 'webhook':
-          log.push(`🔗 Calling webhook: ${node.data.webhookUrl || 'N/A'}`);
-          break;
-        case 'end':
-          log.push(`🏁 Workflow execution completed`);
-          break;
-        case 'code':
-          log.push(`💻 Executing code: ${node.data.code || 'No code'}`);
-          break;
-        case 'switch':
-          log.push(`🔀 Switching on field: ${node.data.switchField || 'N/A'}`);
-          break;
-        case 'merge':
-          log.push(`🔗 Merging data with type: ${node.data.mergeType || 'N/A'}`);
-          break;
-        case 'set':
-          log.push(`📝 Setting fields: ${node.data.fields || 'N/A'}`);
-          break;
-        case 'email':
-          log.push(`📧 Sending email to: ${node.data.to || 'N/A'}`);
-          break;
-        case 'slack':
-          log.push(`💬 Sending Slack message to: ${node.data.channel || 'N/A'}`);
-          break;
-        case 'database':
-          log.push(`🗄️ Executing database query: ${node.data.query || 'N/A'}`);
-          break;
-        case 'ai':
-          log.push(`🤖 Running AI prompt: ${node.data.prompt || 'N/A'}`);
-          break;
+      if (response.ok) {
+        const result = await response.json();
+        const log = [`▶️ Workflow execution started`];
+        
+        if (result.execution_log) {
+          result.execution_log.forEach(entry => {
+            log.push(`${entry.node_type}: ${entry.output?.message || JSON.stringify(entry.output)}`);
+          });
+        }
+        
+        log.push(`✅ Workflow execution ${result.status}`);
+        setExecutionLog(log);
+      } else {
+        setExecutionLog(['❌ Failed to execute workflow on backend']);
       }
-      
-      setExecutionLog([...log]);
+    } catch (error) {
+      console.error('Workflow execution error:', error);
+      setExecutionLog(['❌ Workflow execution failed: ' + error.message]);
     }
     
     setIsExecuting(false);
-  }, [nodes]);
+  }, [nodes, edges, workflowName, API_BASE_URL]);
 
   // Save workflow
-  const saveWorkflow = useCallback(() => {
+  const saveWorkflow = useCallback(async () => {
     const workflow = {
-      id: Date.now(),
       name: workflowName,
       nodes,
       edges,
       created: new Date().toISOString()
     };
     
-    const updated = [...savedWorkflows, workflow];
-    setSavedWorkflows(updated);
-    localStorage.setItem('savedWorkflows', JSON.stringify(updated));
-  }, [workflowName, nodes, edges, savedWorkflows]);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/workflows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(workflow)
+      });
+      
+      if (response.ok) {
+        const savedWorkflow = await response.json();
+        const updated = [...savedWorkflows, savedWorkflow];
+        setSavedWorkflows(updated);
+        // Also save to localStorage as backup
+        localStorage.setItem('savedWorkflows', JSON.stringify(updated));
+        alert('Workflow saved successfully!');
+      } else {
+        throw new Error('Failed to save workflow');
+      }
+    } catch (error) {
+      console.error('Save workflow error:', error);
+      // Fallback to localStorage
+      const workflow_with_id = {
+        ...workflow,
+        id: Date.now()
+      };
+      const updated = [...savedWorkflows, workflow_with_id];
+      setSavedWorkflows(updated);
+      localStorage.setItem('savedWorkflows', JSON.stringify(updated));
+      alert('Workflow saved locally (backend unavailable)');
+    }
+  }, [workflowName, nodes, edges, savedWorkflows, API_BASE_URL]);
 
   // Load workflow
   const loadWorkflow = useCallback((workflow) => {
@@ -1091,27 +873,195 @@ const WorkflowCanvas = () => {
                 )}
 
                 {selectedNode.type === 'database' && (
-                  <div className="property-group">
-                    <label>Query:</label>
-                    <textarea
-                      value={selectedNode.data?.query || ''}
-                      onChange={(e) => updateNodeData(selectedNode.id, { query: e.target.value })}
-                      placeholder="SELECT * FROM table WHERE condition"
-                      rows="3"
-                    />
-                  </div>
+                  <>
+                    <div className="property-group">
+                      <label>Database Type:</label>
+                      <select
+                        value={selectedNode.data?.db_type || 'mongodb'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { db_type: e.target.value })}
+                      >
+                        <option value="mongodb">MongoDB</option>
+                        <option value="mysql">MySQL</option>
+                        <option value="postgresql">PostgreSQL</option>
+                        <option value="sqlite">SQLite</option>
+                      </select>
+                    </div>
+                    <div className="property-group">
+                      <label>Query:</label>
+                      <textarea
+                        value={selectedNode.data?.query || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { query: e.target.value })}
+                        placeholder="SELECT * FROM table WHERE condition"
+                        rows="3"
+                      />
+                    </div>
+                    {selectedNode.data?.db_type === 'mongodb' && (
+                      <div className="property-group">
+                        <label>Collection:</label>
+                        <input
+                          type="text"
+                          value={selectedNode.data?.collection || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { collection: e.target.value })}
+                          placeholder="collection_name"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {selectedNode.type === 'ai' && (
-                  <div className="property-group">
-                    <label>Prompt:</label>
-                    <textarea
-                      value={selectedNode.data?.prompt || ''}
-                      onChange={(e) => updateNodeData(selectedNode.id, { prompt: e.target.value })}
-                      placeholder="Describe the AI task"
-                      rows="3"
-                    />
-                  </div>
+                  <>
+                    <div className="property-group">
+                      <label>Prompt:</label>
+                      <textarea
+                        value={selectedNode.data?.prompt || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { prompt: e.target.value })}
+                        placeholder="Describe the AI task"
+                        rows="3"
+                      />
+                    </div>
+                    <div className="property-group">
+                      <label>Model:</label>
+                      <select
+                        value={selectedNode.data?.model || 'gpt-3.5-turbo'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { model: e.target.value })}
+                      >
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                      </select>
+                    </div>
+                    <div className="property-group">
+                      <label>Max Tokens:</label>
+                      <input
+                        type="number"
+                        value={selectedNode.data?.max_tokens || 150}
+                        onChange={(e) => updateNodeData(selectedNode.id, { max_tokens: parseInt(e.target.value) })}
+                        min="1"
+                        max="4000"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === 'math' && (
+                  <>
+                    <div className="property-group">
+                      <label>Expression:</label>
+                      <input
+                        type="text"
+                        value={selectedNode.data?.expression || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { expression: e.target.value })}
+                        placeholder="1 + 1, sqrt(16), {{variable}} * 2"
+                      />
+                    </div>
+                    <div className="property-group">
+                      <label>Operation:</label>
+                      <select
+                        value={selectedNode.data?.operation || 'eval'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { operation: e.target.value })}
+                      >
+                        <option value="eval">Evaluate Expression</option>
+                        <option value="sum">Sum Array</option>
+                        <option value="average">Average</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === 'file' && (
+                  <>
+                    <div className="property-group">
+                      <label>Operation:</label>
+                      <select
+                        value={selectedNode.data?.operation || 'read'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { operation: e.target.value })}
+                      >
+                        <option value="read">Read File</option>
+                        <option value="write">Write File</option>
+                        <option value="append">Append to File</option>
+                      </select>
+                    </div>
+                    <div className="property-group">
+                      <label>File Path:</label>
+                      <input
+                        type="text"
+                        value={selectedNode.data?.path || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { path: e.target.value })}
+                        placeholder="/path/to/file.txt"
+                      />
+                    </div>
+                    {(selectedNode.data?.operation === 'write' || selectedNode.data?.operation === 'append') && (
+                      <div className="property-group">
+                        <label>Content:</label>
+                        <textarea
+                          value={selectedNode.data?.content || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { content: e.target.value })}
+                          placeholder="Content to write to file"
+                          rows="4"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {selectedNode.type === 'timer' && (
+                  <>
+                    <div className="property-group">
+                      <label>Action:</label>
+                      <select
+                        value={selectedNode.data?.action || 'wait'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { action: e.target.value })}
+                      >
+                        <option value="wait">Wait/Delay</option>
+                        <option value="schedule">Schedule Task</option>
+                      </select>
+                    </div>
+                    <div className="property-group">
+                      <label>Duration:</label>
+                      <input
+                        type="text"
+                        value={selectedNode.data?.duration || '5s'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { duration: e.target.value })}
+                        placeholder="5s, 2m, 1h"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === 'notification' && (
+                  <>
+                    <div className="property-group">
+                      <label>Title:</label>
+                      <input
+                        type="text"
+                        value={selectedNode.data?.title || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { title: e.target.value })}
+                        placeholder="Notification Title"
+                      />
+                    </div>
+                    <div className="property-group">
+                      <label>Message:</label>
+                      <textarea
+                        value={selectedNode.data?.message || ''}
+                        onChange={(e) => updateNodeData(selectedNode.id, { message: e.target.value })}
+                        placeholder="Notification message"
+                        rows="3"
+                      />
+                    </div>
+                    <div className="property-group">
+                      <label>Type:</label>
+                      <select
+                        value={selectedNode.data?.type || 'info'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value })}
+                      >
+                        <option value="info">Info</option>
+                        <option value="success">Success</option>
+                        <option value="warning">Warning</option>
+                        <option value="error">Error</option>
+                      </select>
+                    </div>
+                  </>
                 )}
 
                 <div className="node-actions">

@@ -1,0 +1,6 @@
+# Uploads Dockerfile
+FROM nginx:alpine
+WORKDIR /uploads
+COPY uploads /uploads
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

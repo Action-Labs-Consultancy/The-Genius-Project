@@ -87,7 +87,7 @@ export const useLeaveData = (user, isHR) => {
       }
       abortControllerRef.current = new AbortController();
 
-      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5002';
       
       // Prepare all fetch promises
       const promises = [
@@ -169,7 +169,7 @@ export const useLeaveData = (user, isHR) => {
     if (!user?.id) return;
 
     try {
-      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5002';
       
       switch (dataType) {
         case 'requests':

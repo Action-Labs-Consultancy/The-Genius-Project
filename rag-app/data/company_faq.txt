@@ -1,0 +1,10 @@
+
+    Q: What are your customer service hours?
+    A: We are available from 9 AM to 6 PM, Sunday to Thursday.
+
+    Q: How can I reset my password?
+    A: Go to the login page, click "Forgot Password," and follow the instructions.
+
+    Q: Where are you located?
+    A: We are based in Manama, Bahrain.
+    

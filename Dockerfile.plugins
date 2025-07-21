@@ -1,0 +1,8 @@
+# Plugins Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY plugins ./plugins
+WORKDIR /app/plugins
+RUN npm install --production || true
+EXPOSE 4100
+CMD ["npm", "start"]

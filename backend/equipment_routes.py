@@ -218,13 +218,27 @@ def register_equipment_routes(app, mongo):
                 response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
                 return response, 200
 
-            data = request.get_json()
+            data = request.get_json() or {}
             approver_name = data.get('approver_name', 'Unknown')
 
             checkout_collection = mongo.get_collection('equipment_checkouts')
             checkout = checkout_collection.find_one({'_id': ObjectId(checkout_id)})
             if not checkout:
                 return jsonify({'error': 'Checkout request not found'}), 404
+
+            # Decrease quantity_available for each equipment item in the approved request
+            equipment_collection = mongo.get_collection('equipment')
+            for item in checkout.get('equipment_items', []):
+                equipment_id = item.get('equipment_id')
+                qty_requested = int(item.get('quantity_requested', 1))
+                if equipment_id:
+                    equipment = equipment_collection.find_one({'_id': ObjectId(equipment_id)})
+                    if equipment:
+                        new_qty = max(0, int(equipment.get('quantity_available', 0)) - qty_requested)
+                        equipment_collection.update_one(
+                            {'_id': ObjectId(equipment_id)},
+                            {'$set': {'quantity_available': new_qty, 'updated_at': datetime.utcnow()}}
+                        )
 
             checkout_collection.update_one(
                 {'_id': ObjectId(checkout_id)},
@@ -256,7 +270,7 @@ def register_equipment_routes(app, mongo):
                 response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
                 return response, 200
 
-            data = request.get_json()
+            data = request.get_json() or {}
             rejection_reason = data.get('rejection_reason', 'No reason provided')
             approver_name = data.get('approver_name', 'Unknown')
 
@@ -414,3 +428,117 @@ def register_equipment_routes(app, mongo):
             return jsonify({'error': 'Internal server error'}), 500
 
     print("Equipment routes registered successfully!")
+
+    # PUT endpoint for updating equipment
+    @app.route('/api/equipment/<equipment_id>', methods=['PUT', 'OPTIONS'])
+    @cross_origin()
+    def update_equipment(equipment_id):
+        """Update equipment item"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'PUT, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            equipment_collection = mongo.get_collection('equipment')
+            
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+
+            # Convert string ID to ObjectId
+            from bson import ObjectId
+            try:
+                obj_id = ObjectId(equipment_id)
+            except:
+                return jsonify({'error': 'Invalid equipment ID'}), 400
+
+            # Update the equipment
+            update_data = {
+                'updated_at': datetime.utcnow()
+            }
+            
+            # Only update fields that are provided
+            allowed_fields = [
+                'item_name', 'category', 'quantity_total', 'quantity_available',
+                'item_status', 'location', 'condition', 'purchase_date',
+                'purchase_price', 'serial_number', 'manufacturer', 'model',
+                'special_instructions'
+            ]
+            
+            for field in allowed_fields:
+                if field in data:
+                    update_data[field] = data[field]
+
+            result = equipment_collection.update_one(
+                {'_id': obj_id},
+                {'$set': update_data}
+            )
+
+            if result.matched_count == 0:
+                return jsonify({'error': 'Equipment not found'}), 404
+
+            # Return the updated equipment
+            updated_equipment = equipment_collection.find_one({'_id': obj_id})
+            if updated_equipment:
+                updated_equipment['_id'] = str(updated_equipment['_id'])
+                # Add image URL if image exists
+                if updated_equipment.get('item_image'):
+                    updated_equipment['image_url'] = f"/api/equipment/images/{updated_equipment['item_image']}"
+            
+            return jsonify(updated_equipment), 200
+
+        except Exception as e:
+            print(f"Error updating equipment: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
+    # DELETE endpoint for deleting equipment
+    @app.route('/api/equipment/<equipment_id>', methods=['DELETE', 'OPTIONS'])
+    @cross_origin()
+    def delete_equipment(equipment_id):
+        """Delete equipment item"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'DELETE, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            equipment_collection = mongo.get_collection('equipment')
+            
+            # Convert string ID to ObjectId
+            from bson import ObjectId
+            try:
+                obj_id = ObjectId(equipment_id)
+            except:
+                return jsonify({'error': 'Invalid equipment ID'}), 400
+
+            # Check if equipment exists and get image filename
+            equipment = equipment_collection.find_one({'_id': obj_id})
+            if not equipment:
+                return jsonify({'error': 'Equipment not found'}), 404
+
+            # Delete the equipment
+            result = equipment_collection.delete_one({'_id': obj_id})
+            
+            if result.deleted_count == 1:
+                # Optionally delete associated image file
+                if equipment.get('item_image'):
+                    import os
+                    image_path = os.path.join(UPLOAD_FOLDER, equipment['item_image'])
+                    try:
+                        if os.path.exists(image_path):
+                            os.remove(image_path)
+                    except:
+                        pass  # Don't fail if image deletion fails
+                
+                return jsonify({'message': 'Equipment deleted successfully'}), 200
+            else:
+                return jsonify({'error': 'Failed to delete equipment'}), 500
+
+        except Exception as e:
+            print(f"Error deleting equipment: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500

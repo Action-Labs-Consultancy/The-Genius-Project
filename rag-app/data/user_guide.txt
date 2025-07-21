@@ -1,0 +1,58 @@
+Local RAG Chatbot System - User Guide
+
+INTRODUCTION
+============
+
+Welcome to the Local RAG (Retrieval-Augmented Generation) Chatbot System! This guide will help you understand how to use and customize your personal AI assistant that runs entirely on your local machine.
+
+WHAT IS RAG?
+============
+
+RAG combines the power of large language models with your personal documents. Instead of relying on the model's training data alone, RAG retrieves relevant information from your documents and uses it to provide accurate, contextual answers.
+
+KEY BENEFITS
+============
+
+1. Privacy: All your data stays on your machine
+2. Accuracy: Answers are based on YOUR documents
+3. Speed: Fast local processing with no internet required
+4. Customization: Train on your specific domain knowledge
+
+GETTING STARTED
+===============
+
+1. Install the required dependencies
+2. Set up Ollama with the Mistral model
+3. Add your documents to the data/ folder
+4. Run the ingestion script to process documents
+5. Start chatting with your AI assistant!
+
+SUPPORTED DOCUMENT TYPES
+========================
+
+- Plain text files (.txt)
+- PDF documents (.pdf)
+- Word documents (.docx) - coming soon
+- Markdown files (.md) - coming soon
+
+BEST PRACTICES
+==============
+
+1. Use clear, descriptive filenames for your documents
+2. Organize documents by topic or domain
+3. Keep document sizes reasonable (under 10MB each)
+4. Use well-formatted text for better processing
+5. Regularly update your knowledge base
+
+TROUBLESHOOTING
+===============
+
+If you encounter issues:
+
+1. Check that Ollama is running: `ollama serve`
+2. Verify your model is installed: `ollama list`
+3. Ensure documents are in the correct format
+4. Review the ingestion logs for errors
+5. Restart the system if needed
+
+For more help, check the README.md file or open an issue on GitHub.

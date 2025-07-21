@@ -1,0 +1,42 @@
+# Core RAG Dependencies
+langchain>=0.1.0
+langchain-community
+langchain-chroma
+langchain-huggingface
+llama-index
+chromadb>=0.4.0
+sentence-transformers
+
+# Ollama integration
+ollama
+
+# Document Processing
+unstructured
+PyPDF2
+pypdf
+python-docx
+
+# Environment Management
+python-dotenv
+
+# HTTP Client for Ollama
+requests
+httpx
+
+# CLI Enhancement
+rich
+click
+
+# Additional Utilities
+numpy
+pandas
+tiktoken
+
+# Web Interface Dependencies
+fastapi>=0.100.0
+uvicorn[standard]
+websockets
+jinja2
+
+# Optional: For future web UI
+# streamlit

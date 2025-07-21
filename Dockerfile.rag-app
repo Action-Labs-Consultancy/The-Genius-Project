@@ -1,0 +1,8 @@
+# RAG App Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY rag-app ./rag-app
+WORKDIR /app/rag-app
+RUN npm install --production || true
+EXPOSE 4200
+CMD ["npm", "start"]

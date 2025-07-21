@@ -1,0 +1,7 @@
+
+    Welcome to the SmartX 3000 User Manual.
+
+    1. To power on the device, press the red button for 3 seconds.
+    2. Use the touchscreen interface to navigate between settings.
+    3. To reset to factory settings, go to Settings > System > Reset.
+    

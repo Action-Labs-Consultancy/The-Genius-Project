@@ -119,8 +119,14 @@ register_dashboard_routes(app)
 # Register leave management routes
 from leave_routes import register_leave_routes
 from equipment_routes import register_equipment_routes
+from project_routes import project_routes
 register_leave_routes(app)
 register_equipment_routes(app, mongo)
+
+# Register project routes
+app.register_blueprint(project_routes)
+from workflow_api import workflow_api
+app.register_blueprint(workflow_api)
 
 # ─── Pinecone setup ────────────────────────────────────────────────────────────
 # try:
@@ -1002,9 +1008,8 @@ def add_client_access(client_id):
         access_collection = mongo.get_collection('client_access')
         existing = access_collection.find_one({'client_id': client_id, 'viewer_user_id': user_id})
         if existing:
-            return jsonify({'error': 'Access permission already exists'}), 400
-            
-        # Create new access permission
+            return jsonify({'error': 'Access already exists for this user and client'}), 400
+
         access_doc = {
             'client_id': client_id,
             'viewer_user_id': user_id,
@@ -1014,7 +1019,7 @@ def add_client_access(client_id):
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }
-        
+
         result = access_collection.insert_one(access_doc)
         access_doc['_id'] = result.inserted_id
         
@@ -1860,19 +1865,35 @@ def test_endpoint():
         'has_mongodb_uri': bool(os.getenv('MONGODB_URI'))
     })
 
+# ─── Chat Endpoints ────────────────────────────────────────────────────────
+
+@app.route('/chat/fast', methods=['POST'])
+def chat_fast():
+    """Fast chat endpoint for simple conversations"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '')
+        
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+        
+        # Simple echo response for now - replace with actual AI/LLM integration
+        response = {
+            'response': f"Echo: {message}",
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        return jsonify(response)
+    except Exception as e:
+        print(f"Chat fast error: {e}")
+        return jsonify({'error': 'Failed to process chat message'}), 500
+
 # Add a simple health check that doesn't require any database
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     return jsonify({'status': 'healthy', 'service': 'genius-project-api'})
 
-if __name__ == '__main__':
-    # Initialize database
-    # ensure_sample_data() # Removed for production
-    try:
-        port = 5002
-        print(f"[SERVER] Starting on http://0.0.0.0:{port}")
-        socketio.run(app, host='0.0.0.0', port=port, debug=True)
-    except Exception as e:
-        print(f"[SERVER] Failed to start: {e}")
-        exit(1)
+if __name__ == "__main__":
+    # Run Flask app without reloader to avoid duplicate blueprint registration
+    socketio.run(app, host="0.0.0.0", port=5002, use_reloader=False)
