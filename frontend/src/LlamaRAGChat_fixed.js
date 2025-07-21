@@ -195,18 +195,17 @@ const LlamaRAGChat = ({ userId, className = '', onClose = null, isModal = false,
 
     try {
       const startTime = Date.now();
-      console.log('Sending message to:', `${API_URL}/chat/fast`);
-      const response = await fetch(`${API_URL}/chat/fast`, {
+      // Use /completion endpoint for Llama chat
+      const response = await fetch(`${API_URL}/completion`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: userMessage.content
+          prompt: userMessage.content
         }),
       });
 
-      console.log('Chat response status:', response.status);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -214,9 +213,10 @@ const LlamaRAGChat = ({ userId, className = '', onClose = null, isModal = false,
       const data = await response.json();
       const responseTime = Date.now() - startTime;
 
+      // Use data.completion for Llama response
       const botMessage = {
         id: Date.now() + 1,
-        content: data.response,
+        content: data.completion || data.response || 'No response',
         sender: 'bot',
         timestamp: new Date().toISOString(),
         processingTime: data.processing_time,
