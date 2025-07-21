@@ -9,7 +9,6 @@ const getModules = (user) => {
     { id: 'spend-tracker', title: 'Spend Tracker', icon: '💸' },
     { id: 'weeklyStandup', title: 'Weekly Standup', icon: '📅' },
     { id: 'clients', title: 'Clients', icon: '👥' },
-    { id: 'enhanced-clients', title: 'AI Client Workflow', icon: '🤖' },
     { id: 'newsFeed', title: 'News Feed', icon: '📰' },
     { id: 'notes', title: 'Notes', icon: '📝' },
     { id: 'bookmarks', title: 'Bookmarks', icon: '🔖' },
