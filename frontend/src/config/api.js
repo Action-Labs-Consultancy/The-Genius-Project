@@ -14,7 +14,7 @@ const getApiBaseUrl = () => {
   }
   
   // Default to the local MongoDB backend for development
-  return 'http://localhost:5002';
+  return 'http://localhost:10000';
 };
 
 // Export the base API URL

@@ -21,7 +21,7 @@ function getDaysMatrix(year, month) {
 }
 
 // Helper to get file URL (force backend port)
-const BACKEND_URL = 'http://localhost:5002';
+const BACKEND_URL = 'http://localhost:10000';
 function getFileUrl(file) {
   if (!file) return '';
   if (file.url && file.url.startsWith('http')) return file.url;

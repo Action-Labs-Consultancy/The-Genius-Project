@@ -3,7 +3,7 @@ import AdserverPlugin from '../interfaces/Adserver';
 
 export default class RevivePlugin extends AdserverPlugin {
   async fetchStats() {
-    const res = await fetch('https://localhost:5001/api/revive/stats', {
+    const res = await fetch('http://localhost:10000/api/revive/stats', {
       credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to fetch Revive stats');
@@ -11,7 +11,7 @@ export default class RevivePlugin extends AdserverPlugin {
   }
 
   async createCampaign({ name, clientid, start_date, end_date }) {
-    const res = await fetch('https://localhost:5001/api/revive/campaigns', {
+    const res = await fetch('http://localhost:10000/api/revive/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, clientid, start_date, end_date }),
@@ -22,7 +22,7 @@ export default class RevivePlugin extends AdserverPlugin {
   }
 
   async createBanner({ campaignid, image_url, width, height, alt_text }) {
-    const res = await fetch('https://localhost:5001/api/revive/banners', {
+    const res = await fetch('http://localhost:10000/api/revive/banners', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ campaignid, image_url, width, height, alt_text }),

@@ -4,6 +4,7 @@ import MeetingsCalendar from './MeetingsCalendar';
 
 const getModules = (user) => {
   const baseModules = [
+    { id: 'brain', title: 'Brain System', icon: '🧠' },
     { id: 'chat', title: 'Chat', icon: '💬' },
     { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
     { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
@@ -55,7 +56,10 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   };
 
   const handleModuleClick = (id) => {
-    if (id === 'llama-rag') {
+    if (id === 'brain') {
+      // Navigate to the Brain System page
+      if (typeof onNavigate === 'function') onNavigate('/enhanced-brain');
+    } else if (id === 'llama-rag') {
       // Navigate to the RAG Chat page
       if (typeof onNavigate === 'function') onNavigate('/llama-rag');
     } else if (id === 'workflow-canvas') {

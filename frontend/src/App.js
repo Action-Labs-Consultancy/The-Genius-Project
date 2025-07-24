@@ -19,6 +19,8 @@ import LlamaChat from './LlamaChat';
 import LlamaRAGChat from './LlamaRAGChat_fixed';
 import WorkflowBuilder from './WorkflowBuilder';
 import WorkflowCanvasAdvanced from './WorkflowCanvasAdvanced';
+import AIBrainsPage from './components/AIBrainsPage';
+import LoggingPage from './components/LoggingPage';
 import './styles.css';
 import { sendAutomatedDM } from './utils/sendAutomatedDM';
 import SpendTracker from './pages/SpendTracker';
@@ -324,8 +326,10 @@ export default function App() {
           <Route path="/projects" element={<ProjectsDashboard user={user} onNavigate={handleNavigate} />} />
           <Route path="/workflow" element={<WorkflowBuilder user={user} />} />
           <Route path="/workflow-canvas" element={<WorkflowCanvasAdvanced user={user} />} />
-          {user?.is_admin && (
-            <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
+          <Route path="/ai-brains" element={<AIBrainsPage user={user} />} />
+          <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
+          {(user?.is_admin || user?.role === 'admin' || user?.role === 'hr') && (
+            <Route path="/activity-logs" element={<LoggingPage user={user} />} />
           )}
         </Routes>
       </div>

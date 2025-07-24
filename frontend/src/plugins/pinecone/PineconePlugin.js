@@ -3,7 +3,7 @@ import VectorDBPlugin from '../interfaces/VectorDB';
 
 export default class PineconePlugin extends VectorDBPlugin {
   async upsert(texts = [], metadata = []) {
-    const res = await fetch('http://localhost:5001/store_data', {
+    const res = await fetch('http://localhost:10000/store_data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ texts, metadata }),
@@ -13,7 +13,7 @@ export default class PineconePlugin extends VectorDBPlugin {
   }
 
   async query(question = '') {
-    const res = await fetch('http://localhost:5001/query', {
+    const res = await fetch('http://localhost:10000/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question }),

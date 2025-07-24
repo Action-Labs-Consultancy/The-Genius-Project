@@ -1852,6 +1852,323 @@ def tiktok_analyze():
 
         return jsonify({'error': 'Failed to analyze TikTok data'}), 500
 
+# AI Brains System Endpoints
+@app.route('/api/brains', methods=['GET'])
+@require_auth
+def get_brains():
+    try:
+        if use_mongodb and mongo.db:
+            brains = mongo.db.brains.find({})
+            brain_list = list(brains)
+            
+            # Convert ObjectId to string for JSON serialization
+            for brain in brain_list:
+                brain['_id'] = str(brain['_id'])
+            
+            return jsonify(brain_list)
+        else:
+            # Return sample data if MongoDB is not available
+            sample_brains = [
+                {
+                    "_id": "1",
+                    "name": "General Assistant",
+                    "description": "A helpful AI assistant for general tasks and questions",
+                    "personality": "assistant",
+                    "prompt": "You are a helpful assistant...",
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
+                },
+                {
+                    "_id": "2",
+                    "name": "Code Expert",
+                    "description": "AI assistant specialized in programming and code review",
+                    "personality": "expert",
+                    "prompt": "You are an expert programmer...",
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
+                },
+                {
+                    "_id": "3",
+                    "name": "Creative Writer",
+                    "description": "AI brain focused on creative writing and content generation",
+                    "personality": "creative",
+                    "prompt": "You are a creative writer...",
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
+                }
+            ]
+            return jsonify(sample_brains)
+
+    except Exception as e:
+        print(f"Error fetching brains: {str(e)}")
+        return jsonify({"error": "Failed to fetch brains"}), 500
+
+@app.route('/api/brains', methods=['POST'])
+def create_brain():
+    """Create a new AI brain."""
+    try:
+        data = request.get_json()
+        if not data or 'name' not in data:
+            return jsonify({'error': 'Brain name is required'}), 400
+        
+        brain = {
+            'name': data['name'],
+            'description': data.get('description', ''),
+            'personality': data.get('personality', 'assistant'),
+            'prompt': data.get('prompt', ''),
+            'knowledge_base': data.get('knowledge_base', []),
+            'created_at': datetime.now(),
+            'updated_at': datetime.now(),
+            'usage_stats': {
+                'total_conversations': 0,
+                'total_messages': 0,
+                'last_used': None
+            }
+        }
+        
+        if mongo and mongo.db:
+            result = mongo.db.ai_brains.insert_one(brain)
+            brain['_id'] = str(result.inserted_id)
+            brain['created_at'] = brain['created_at'].isoformat()
+            brain['updated_at'] = brain['updated_at'].isoformat()
+            
+        return jsonify(brain), 201
+    except Exception as e:
+        print(f"Error creating brain: {e}")
+        return jsonify({'error': 'Failed to create brain'}), 500
+
+@app.route('/api/brains/<brain_id>', methods=['PUT'])
+def update_brain(brain_id):
+    """Update an AI brain."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        if mongo and mongo.db:
+            from bson import ObjectId
+            update_data = {
+                'name': data.get('name'),
+                'description': data.get('description', ''),
+                'personality': data.get('personality', 'assistant'),
+                'prompt': data.get('prompt', ''),
+                'updated_at': datetime.now()
+            }
+            
+            result = mongo.db.ai_brains.update_one(
+                {'_id': ObjectId(brain_id)},
+                {'$set': update_data}
+            )
+            
+            if result.matched_count == 0:
+                return jsonify({'error': 'Brain not found'}), 404
+                
+        return jsonify({'message': 'Brain updated successfully'})
+    except Exception as e:
+        print(f"Error updating brain: {e}")
+        return jsonify({'error': 'Failed to update brain'}), 500
+
+@app.route('/api/brains/<brain_id>', methods=['DELETE'])
+def delete_brain(brain_id):
+    """Delete an AI brain."""
+    try:
+        if mongo and mongo.db:
+            from bson import ObjectId
+            result = mongo.db.ai_brains.delete_one({'_id': ObjectId(brain_id)})
+            
+            if result.deleted_count == 0:
+                return jsonify({'error': 'Brain not found'}), 404
+                
+        return jsonify({'message': 'Brain deleted successfully'})
+    except Exception as e:
+        print(f"Error deleting brain: {e}")
+        return jsonify({'error': 'Failed to delete brain'}), 500
+
+@app.route('/api/brains/<brain_id>/chat', methods=['POST'])
+def chat_with_brain(brain_id):
+    """Chat with an AI brain."""
+    try:
+        data = request.get_json()
+        message = data.get('message', '')
+        
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+        
+        # For now, return a mock response
+        # In a real implementation, you would integrate with your AI service
+        response = {
+            'response': f"This is a mock response to: {message}",
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Update usage stats if database is available
+        if mongo and mongo.db:
+            from bson import ObjectId
+            mongo.db.ai_brains.update_one(
+                {'_id': ObjectId(brain_id)},
+                {
+                    '$inc': {'usage_stats.total_messages': 1},
+                    '$set': {'usage_stats.last_used': datetime.now()}
+                }
+            )
+        
+        return jsonify(response)
+    except Exception as e:
+        print(f"Error in brain chat: {e}")
+        return jsonify({'error': 'Failed to process chat message'}), 500
+
+@app.route('/api/brains/<brain_id>/upload', methods=['POST'])
+def upload_brain_document(brain_id):
+    """Upload a document to an AI brain's knowledge base."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+            
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # For now, just return success
+        # In a real implementation, you would process the file and add to knowledge base
+        response = {
+            'message': 'File uploaded successfully',
+            'filename': file.filename,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        return jsonify(response)
+    except Exception as e:
+        print(f"Error uploading document: {e}")
+        return jsonify({'error': 'Failed to upload document'}), 500
+
+# Activity Logs Endpoints
+@app.route('/api/logs', methods=['GET'])
+def get_activity_logs():
+    """Get activity logs."""
+    try:
+        try:
+            if mongo and hasattr(mongo, 'db') and mongo.db is not None:
+                logs = list(mongo.db.activity_logs.find().sort('timestamp', -1).limit(1000))
+                for log in logs:
+                    log['_id'] = str(log['_id'])
+                    if 'timestamp' in log:
+                        log['timestamp'] = log['timestamp'].isoformat() if hasattr(log['timestamp'], 'isoformat') else str(log['timestamp'])
+                return jsonify(logs)
+        except Exception as db_error:
+            print(f"Database error in logs: {db_error}")
+            
+        # Return sample logs if no database
+        sample_logs = [
+            {
+                "_id": "log1",
+                "user": "Admin",
+                "action": "User Login",
+                "type": "auth",
+                "details": "Successful login from IP 192.168.1.1",
+                "timestamp": "2025-07-24T09:30:00.000000"
+            },
+            {
+                "_id": "log2",
+                "user": "John Doe",
+                "action": "Created AI Brain",
+                "type": "user_action",
+                "details": "Created new AI brain 'Customer Support Assistant'",
+                "timestamp": "2025-07-24T09:25:00.000000"
+            },
+            {
+                "_id": "log3",
+                "user": "System",
+                "action": "API Call",
+                "type": "api",
+                "details": "GET /api/brains - 200 OK",
+                "timestamp": "2025-07-24T09:20:00.000000"
+            },
+            {
+                "_id": "log4",
+                "user": "Jane Smith",
+                "action": "Document Upload",
+                "type": "user_action",
+                "details": "Uploaded document 'product_specs.pdf' to Marketing Assistant brain",
+                "timestamp": "2025-07-24T09:15:00.000000"
+            },
+            {
+                "_id": "log5",
+                "user": "System",
+                "action": "Database Backup",
+                "type": "system",
+                "details": "Automated database backup completed successfully",
+                "timestamp": "2025-07-24T09:00:00.000000"
+            }
+        ]
+        return jsonify(sample_logs)
+    except Exception as e:
+        print(f"Error getting logs: {e}")
+        return jsonify({'error': 'Failed to get logs'}), 500
+
+# Add logs endpoint
+@app.route('/api/logs', methods=['GET'])
+@require_auth
+def get_logs():
+    try:
+        if use_mongodb and mongo.db:
+            logs = mongo.db.logs.find({}).sort('timestamp', -1)
+            log_list = list(logs)
+            
+            # Convert ObjectId to string for JSON serialization
+            for log in log_list:
+                log['_id'] = str(log['_id'])
+            
+            return jsonify(log_list)
+        else:
+            # Return sample data if MongoDB is not available
+            sample_logs = [
+                {
+                    "_id": "1",
+                    "type": "auth",
+                    "user": "admin@example.com",
+                    "action": "User Login",
+                    "details": "Successful login from IP 192.168.1.1",
+                    "timestamp": datetime.now().isoformat()
+                },
+                {
+                    "_id": "2",
+                    "type": "api",
+                    "user": "admin@example.com",
+                    "action": "API Request",
+                    "details": "GET /api/brains - 200 OK",
+                    "timestamp": datetime.now().isoformat()
+                },
+                {
+                    "_id": "3",
+                    "type": "user_action",
+                    "user": "user@example.com",
+                    "action": "Brain Created",
+                    "details": "Created new AI brain: General Assistant",
+                    "timestamp": datetime.now().isoformat()
+                },
+                {
+                    "_id": "4",
+                    "type": "system",
+                    "user": "system",
+                    "action": "System Update",
+                    "details": "Database backup completed successfully",
+                    "timestamp": datetime.now().isoformat()
+                },
+                {
+                    "_id": "5",
+                    "type": "error",
+                    "user": "system",
+                    "action": "Error",
+                    "details": "Failed to connect to external service",
+                    "timestamp": datetime.now().isoformat()
+                }
+            ]
+            return jsonify(sample_logs)
+            
+    except Exception as e:
+        print(f"Error getting logs: {e}")
+        return jsonify({'error': 'Failed to get logs'}), 500
+
 # Add a simple test endpoint for debugging
 @app.route('/test', methods=['GET'])
 def test_endpoint():
@@ -1900,4 +2217,4 @@ def health_check():
 
 if __name__ == "__main__":
     # Run Flask app without reloader to avoid duplicate blueprint registration
-    socketio.run(app, host="0.0.0.0", port=5002, use_reloader=False)
+    socketio.run(app, host="0.0.0.0", port=10000, use_reloader=False)
