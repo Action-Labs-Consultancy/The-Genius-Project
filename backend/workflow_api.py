@@ -17,9 +17,32 @@ import openai
 import math
 import base64
 
+try:
+    from mongo_db import mongo, MongoWorkflow, MongoWorkflowExecution
+    MONGODB_AVAILABLE = True
+except ImportError:
+    MONGODB_AVAILABLE = False
+    print("[WARNING] MongoDB not available, falling back to file storage")
+
+try:
+    from workflow_vector_store import get_vector_store, initialize_vector_store
+    VECTOR_STORE_AVAILABLE = True
+except ImportError:
+    VECTOR_STORE_AVAILABLE = False
+    print("[WARNING] Vector store not available")
+
 workflow_api = Blueprint('workflow_api', __name__)
 WORKFLOW_FILE = os.path.join(os.path.dirname(__file__), 'workflows.json')
 EXECUTION_LOG_FILE = os.path.join(os.path.dirname(__file__), 'execution_logs.json')
+
+# Initialize vector store
+if VECTOR_STORE_AVAILABLE:
+    vector_store_initialized = initialize_vector_store()
+    if vector_store_initialized:
+        print("[VECTOR_STORE] Initialized successfully")
+    else:
+        print("[VECTOR_STORE] Failed to initialize")
+        VECTOR_STORE_AVAILABLE = False
 
 def load_workflows():
     if not os.path.exists(WORKFLOW_FILE):
@@ -48,10 +71,29 @@ def save_execution_log(log_entry):
 
 @workflow_api.route('/api/workflows', methods=['GET'])
 def get_workflows():
+    if MONGODB_AVAILABLE:
+        try:
+            workflows = MongoWorkflow.get_all()
+            return jsonify(workflows)
+        except Exception as e:
+            print(f"[ERROR] MongoDB query failed: {e}")
+            # Fall back to file storage
+    
+    # File storage fallback
     return jsonify(load_workflows())
 
 @workflow_api.route('/api/workflows/<workflow_id>', methods=['GET'])
 def get_workflow(workflow_id):
+    if MONGODB_AVAILABLE:
+        try:
+            workflow = MongoWorkflow.get_by_id(workflow_id)
+            if workflow:
+                return jsonify(workflow)
+            return jsonify({'error': 'Workflow not found'}), 404
+        except Exception as e:
+            print(f"[ERROR] MongoDB query failed: {e}")
+    
+    # File storage fallback
     workflows = load_workflows()
     for wf in workflows:
         if wf['id'] == workflow_id:
@@ -60,53 +102,195 @@ def get_workflow(workflow_id):
 
 @workflow_api.route('/api/workflows', methods=['POST'])
 def create_workflow():
-    workflows = load_workflows()
     data = request.json
+    
+    if MONGODB_AVAILABLE:
+        try:
+            # Add user info if available
+            if hasattr(request, 'user'):
+                data['created_by'] = request.user.get('id')
+            
+            workflow = MongoWorkflow.create(data)
+            
+            # Store in vector database for searchability
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    vector_store.store_workflow_knowledge(workflow)
+                except Exception as e:
+                    print(f"[WARNING] Failed to store workflow in vector store: {e}")
+            
+            return jsonify(workflow), 201
+        except Exception as e:
+            print(f"[ERROR] MongoDB insert failed: {e}")
+    
+    # File storage fallback
+    workflows = load_workflows()
     data['id'] = str(uuid4())
+    data['created_at'] = datetime.utcnow().isoformat()
+    data['updated_at'] = datetime.utcnow().isoformat()
     workflows.append(data)
     save_workflows(workflows)
+    
+    # Store in vector database for searchability
+    if VECTOR_STORE_AVAILABLE:
+        try:
+            vector_store = get_vector_store()
+            vector_store.store_workflow_knowledge(data)
+        except Exception as e:
+            print(f"[WARNING] Failed to store workflow in vector store: {e}")
+    
     return jsonify(data)
 
-@workflow_api.route('/api/workflows', methods=['PUT'])
-def update_workflow():
+@workflow_api.route('/api/workflows/<workflow_id>', methods=['PUT'])
+def update_workflow(workflow_id):
+    """Update an existing workflow"""
+    workflow_data = request.get_json()
+    
+    if not workflow_data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Ensure the ID matches
+    workflow_data['id'] = workflow_id
+    workflow_data['updated_at'] = datetime.utcnow().isoformat()
+    
+    if MONGODB_AVAILABLE:
+        try:
+            result = MongoWorkflow.update(workflow_id, workflow_data)
+            if result.modified_count > 0:
+                # Return the updated workflow
+                updated_workflow = MongoWorkflow.get_by_id(workflow_id)
+                return jsonify(updated_workflow)
+            return jsonify({'error': 'Workflow not found'}), 404
+        except Exception as e:
+            print(f"[ERROR] MongoDB update failed: {e}")
+    
+    # File storage fallback
     workflows = load_workflows()
-    data = request.json
     for i, wf in enumerate(workflows):
-        if wf['id'] == data['id']:
-            workflows[i] = data
+        if wf['id'] == workflow_id:
+            workflows[i] = workflow_data
             save_workflows(workflows)
-            return jsonify(data)
-    return jsonify({'error': 'Not found'}), 404
-
-@workflow_api.route('/api/workflows/<workflow_id>/execute', methods=['POST'])
-def run_workflow_execution(workflow_id):
-    workflows = load_workflows()
-    wf = next((w for w in workflows if w['id'] == workflow_id), None)
-    if not wf:
-        return jsonify({'error': 'Not found'}), 404
+            return jsonify(workflow_data)
     
-    input_data = request.json or {}
-    execution_result = execute_workflow_nodes(wf, input_data)
-    
-    # Save execution log
-    log_entry = {
-        'workflow_id': workflow_id,
-        'workflow_name': wf.get('name', 'Unnamed Workflow'),
-        'execution_time': datetime.now().isoformat(),
-        'status': execution_result['status'],
-        'input_data': input_data,
-        'execution_log': execution_result['execution_log']
-    }
-    save_execution_log(log_entry)
-    
-    return jsonify(execution_result)
+    return jsonify({'error': 'Workflow not found'}), 404
 
 @workflow_api.route('/api/workflows/<workflow_id>', methods=['DELETE'])
 def delete_workflow(workflow_id):
+    if MONGODB_AVAILABLE:
+        try:
+            result = MongoWorkflow.delete(workflow_id)
+            if result.modified_count > 0:
+                return jsonify({'message': 'Workflow deleted successfully'})
+            return jsonify({'error': 'Workflow not found'}), 404
+        except Exception as e:
+            print(f"[ERROR] MongoDB delete failed: {e}")
+    
+    # File storage fallback
     workflows = load_workflows()
     workflows = [wf for wf in workflows if wf['id'] != workflow_id]
     save_workflows(workflows)
-    return jsonify({'message': 'Workflow deleted'})
+    return jsonify({'message': 'Workflow deleted successfully'})
+
+@workflow_api.route('/api/workflows/<workflow_id>/execute', methods=['POST'])
+def run_workflow_execution(workflow_id):
+    # Get workflow from MongoDB or file storage
+    if MONGODB_AVAILABLE:
+        try:
+            wf = MongoWorkflow.get_by_id(workflow_id)
+        except Exception as e:
+            print(f"[ERROR] MongoDB query failed: {e}")
+            wf = None
+    
+    if not wf:
+        # Fallback to file storage
+        workflows = load_workflows()
+        wf = next((w for w in workflows if w['id'] == workflow_id), None)
+    
+    if not wf:
+        return jsonify({'error': 'Workflow not found'}), 404
+    
+    input_data = request.json or {}
+    start_time = datetime.utcnow()
+    
+    # Create execution record in MongoDB
+    execution_id = None
+    if MONGODB_AVAILABLE:
+        try:
+            execution = MongoWorkflowExecution.create({
+                'workflow_id': workflow_id,
+                'workflow_name': wf.get('name', 'Unnamed Workflow'),
+                'status': 'running',
+                'input_data': input_data,
+                'triggered_by': request.headers.get('User-Agent', 'Unknown'),
+                'trigger_source': 'api'
+            })
+            execution_id = execution['_id']
+        except Exception as e:
+            print(f"[ERROR] Failed to create execution record: {e}")
+    
+    # Execute workflow
+    execution_result = execute_workflow_nodes(wf, input_data, execution_id)
+    
+    # Update execution record
+    end_time = datetime.utcnow()
+    duration_ms = int((end_time - start_time).total_seconds() * 1000)
+    
+    if MONGODB_AVAILABLE and execution_id:
+        try:
+            MongoWorkflowExecution.update_status(
+                execution_id,
+                execution_result['status'],
+                output_data=execution_result.get('output_data', {}),
+                execution_log=execution_result['execution_log'],
+                node_statuses=execution_result.get('node_statuses', {}),
+                duration_ms=duration_ms,
+                error_details=execution_result.get('error_details')
+            )
+            
+            # Increment workflow execution count
+            MongoWorkflow.increment_execution_count(workflow_id)
+            
+            # Store execution memory in vector store
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    execution_data = MongoWorkflowExecution.get_by_id(execution_id)
+                    if execution_data:
+                        vector_store.store_execution_memory(execution_data)
+                except Exception as e:
+                    print(f"[WARNING] Failed to store execution memory: {e}")
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to update execution record: {e}")
+    else:
+        # Fallback to file storage
+        log_entry = {
+            'workflow_id': workflow_id,
+            'workflow_name': wf.get('name', 'Unnamed Workflow'),
+            'execution_time': start_time.isoformat(),
+            'status': execution_result['status'],
+            'input_data': input_data,
+            'execution_log': execution_result['execution_log'],
+            'duration_ms': duration_ms
+        }
+        save_execution_log(log_entry)
+        
+        # Store execution memory in vector store
+        if VECTOR_STORE_AVAILABLE:
+            try:
+                vector_store = get_vector_store()
+                vector_store.store_execution_memory(log_entry)
+            except Exception as e:
+                print(f"[WARNING] Failed to store execution memory: {e}")
+    
+    # Add execution ID to response
+    execution_result['execution_id'] = execution_id
+    execution_result['duration_ms'] = duration_ms
+    
+    return jsonify(execution_result)
+
+
 
 @workflow_api.route('/api/execution-logs', methods=['GET'])
 def get_execution_logs():
@@ -691,8 +875,8 @@ def execute_node(node, context, workflow_id):
         
     return result, context
 
-def execute_workflow_nodes(workflow, input_data=None):
-    """Execute all nodes in a workflow"""
+def execute_workflow_nodes(workflow, input_data=None, execution_id=None):
+    """Execute all nodes in a workflow with real-time status updates"""
     nodes = workflow.get('nodes', [])
     edges = workflow.get('edges', [])
     
@@ -700,12 +884,14 @@ def execute_workflow_nodes(workflow, input_data=None):
         return {
             'status': 'error',
             'error': 'No nodes to execute',
-            'execution_log': []
+            'execution_log': [],
+            'node_statuses': {}
         }
     
     # Initialize context with input data
     context = input_data or {}
     execution_log = []
+    node_statuses = {}
     
     # Find start node
     start_node = next((node for node in nodes if node['type'] == 'start'), None)
@@ -718,58 +904,425 @@ def execute_workflow_nodes(workflow, input_data=None):
     max_iterations = 100  # Prevent infinite loops
     iterations = 0
     
-    while current_node_id and iterations < max_iterations:
-        if current_node_id in visited_nodes:
-            break  # Prevent infinite loops
+    try:
+        while current_node_id and iterations < max_iterations:
+            if current_node_id in visited_nodes:
+                break  # Prevent infinite loops
+                
+            visited_nodes.add(current_node_id)
+            iterations += 1
             
-        visited_nodes.add(current_node_id)
-        iterations += 1
-        
-        # Find current node
-        current_node = next((node for node in nodes if node['id'] == current_node_id), None)
-        if not current_node:
-            break
+            # Find current node
+            current_node = next((node for node in nodes if node['id'] == current_node_id), None)
+            if not current_node:
+                break
             
-        # Execute node
-        node_result, context = execute_node(current_node, context, workflow['id'])
-        execution_log.append(node_result)
-        
-        if node_result['status'] == 'error':
-            break
+            # Update node status to running
+            node_statuses[current_node_id] = {
+                'status': 'running',
+                'started_at': datetime.utcnow().isoformat()
+            }
             
-        # Find next node
-        current_node_id = None
-        
-        # For if conditions, choose path based on result
-        if current_node['type'] == 'ifCondition':
-            condition_result = context.get('last_condition_result', False)
+            # Update execution record if available
+            if MONGODB_AVAILABLE and execution_id:
+                try:
+                    MongoWorkflowExecution.update_node_status(
+                        execution_id, 
+                        current_node_id, 
+                        'running',
+                        started_at=datetime.utcnow()
+                    )
+                except Exception as e:
+                    print(f"[ERROR] Failed to update node status: {e}")
             
-            # Find true/false edges
-            true_edge = next((edge for edge in edges 
-                            if edge['source'] == current_node['id'] and 
-                            edge.get('label', '').lower() in ['true', '1', 'yes']), None)
-            false_edge = next((edge for edge in edges 
-                             if edge['source'] == current_node['id'] and 
-                             edge.get('label', '').lower() in ['false', '0', 'no']), None)
+            # Execute node
+            node_result, context = execute_node(current_node, context, workflow.get('id', 'temp'))
+            execution_log.append(node_result)
             
-            if condition_result and true_edge:
-                current_node_id = true_edge['target']
-            elif not condition_result and false_edge:
-                current_node_id = false_edge['target']
+            # Update node status based on result
+            node_status = 'success' if node_result['status'] == 'success' else 'error'
+            node_statuses[current_node_id].update({
+                'status': node_status,
+                'completed_at': datetime.utcnow().isoformat(),
+                'output': node_result.get('output'),
+                'error': node_result.get('error') if node_result['status'] == 'error' else None
+            })
+            
+            # Update execution record
+            if MONGODB_AVAILABLE and execution_id:
+                try:
+                    MongoWorkflowExecution.update_node_status(
+                        execution_id,
+                        current_node_id,
+                        node_status,
+                        completed_at=datetime.utcnow(),
+                        output=node_result.get('output'),
+                        error=node_result.get('error') if node_result['status'] == 'error' else None
+                    )
+                    
+                    # Add log entry
+                    MongoWorkflowExecution.add_log_entry(execution_id, node_result)
+                except Exception as e:
+                    print(f"[ERROR] Failed to update execution: {e}")
+            
+            if node_result['status'] == 'error':
+                # Mark remaining nodes as cancelled
+                for node in nodes:
+                    if node['id'] not in visited_nodes:
+                        node_statuses[node['id']] = {
+                            'status': 'cancelled',
+                            'cancelled_at': datetime.utcnow().isoformat()
+                        }
+                break
+                
+            # Find next node
+            current_node_id = None
+            
+            # For if conditions, choose path based on result
+            if current_node['type'] == 'ifCondition':
+                condition_result = context.get('last_condition_result', False)
+                
+                # Find true/false edges
+                true_edge = next((edge for edge in edges 
+                                if edge['source'] == current_node['id'] and 
+                                edge.get('sourceHandle', '').lower() in ['true', '1', 'yes']), None)
+                false_edge = next((edge for edge in edges 
+                                 if edge['source'] == current_node['id'] and 
+                                 edge.get('sourceHandle', '').lower() in ['false', '0', 'no']), None)
+                
+                if condition_result and true_edge:
+                    current_node_id = true_edge['target']
+                elif not condition_result and false_edge:
+                    current_node_id = false_edge['target']
+                else:
+                    # If no labeled edges, just use first outgoing edge
+                    next_edge = next((edge for edge in edges if edge['source'] == current_node['id']), None)
+                    if next_edge:
+                        current_node_id = next_edge['target']
             else:
-                # If no labeled edges, just use first outgoing edge
+                # For other nodes, follow first outgoing edge
                 next_edge = next((edge for edge in edges if edge['source'] == current_node['id']), None)
                 if next_edge:
                     current_node_id = next_edge['target']
-        else:
-            # For other nodes, follow first outgoing edge
-            next_edge = next((edge for edge in edges if edge['source'] == current_node['id']), None)
-            if next_edge:
-                current_node_id = next_edge['target']
+    
+    except Exception as e:
+        # Handle execution errors
+        execution_log.append({
+            'node_id': current_node_id,
+            'status': 'error',
+            'error': f'Workflow execution failed: {str(e)}',
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+        if current_node_id:
+            node_statuses[current_node_id] = {
+                'status': 'error',
+                'error': str(e),
+                'failed_at': datetime.utcnow().isoformat()
+            }
+    
+    # Determine overall status
+    has_errors = any(log['status'] == 'error' for log in execution_log)
+    overall_status = 'error' if has_errors else 'completed'
     
     return {
-        'status': 'completed' if not any(log['status'] == 'error' for log in execution_log) else 'error',
+        'status': overall_status,
         'execution_log': execution_log,
+        'node_statuses': node_statuses,
         'final_context': context,
-        'iterations': iterations
+        'iterations': iterations,
+        'output_data': context
     }
+
+# ─── Execution History and Statistics ──────────────────────────────────────
+
+@workflow_api.route('/api/workflows/<workflow_id>/executions', methods=['GET'])
+def get_workflow_executions(workflow_id):
+    """Get execution history for a workflow"""
+    limit = request.args.get('limit', 50, type=int)
+    
+    if MONGODB_AVAILABLE:
+        try:
+            executions = MongoWorkflowExecution.get_by_workflow(workflow_id, limit)
+            return jsonify({
+                'executions': executions,
+                'count': len(executions)
+            })
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch executions: {e}")
+    
+    # Fallback to file storage
+    logs = load_execution_logs()
+    workflow_logs = [log for log in logs if log.get('workflow_id') == workflow_id]
+    workflow_logs = sorted(workflow_logs, key=lambda x: x.get('execution_time', ''), reverse=True)
+    
+    return jsonify({
+        'executions': workflow_logs[:limit],
+        'count': len(workflow_logs)
+    })
+
+@workflow_api.route('/api/executions/<execution_id>', methods=['GET'])
+def get_execution_details(execution_id):
+    """Get detailed execution information"""
+    if MONGODB_AVAILABLE:
+        try:
+            execution = MongoWorkflowExecution.get_by_id(execution_id)
+            if execution:
+                return jsonify(execution)
+            return jsonify({'error': 'Execution not found'}), 404
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch execution: {e}")
+    
+    return jsonify({'error': 'Execution tracking not available'}), 404
+
+@workflow_api.route('/api/executions/recent', methods=['GET'])
+def get_recent_executions():
+    """Get recent executions across all workflows"""
+    limit = request.args.get('limit', 100, type=int)
+    
+    if MONGODB_AVAILABLE:
+        try:
+            executions = MongoWorkflowExecution.get_recent_executions(limit)
+            return jsonify({
+                'executions': executions,
+                'count': len(executions)
+            })
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch recent executions: {e}")
+    
+    # Fallback to file storage
+    logs = load_execution_logs()
+    recent_logs = sorted(logs, key=lambda x: x.get('execution_time', ''), reverse=True)
+    
+    return jsonify({
+        'executions': recent_logs[:limit],
+        'count': len(recent_logs)
+    })
+
+@workflow_api.route('/api/executions/stats', methods=['GET'])
+def get_execution_stats():
+    """Get execution statistics"""
+    if MONGODB_AVAILABLE:
+        try:
+            stats = MongoWorkflowExecution.get_execution_stats()
+            return jsonify({
+                'statistics': stats,
+                'mongodb_enabled': True
+            })
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch execution stats: {e}")
+    
+    # Fallback to file storage stats
+    logs = load_execution_logs()
+    stats = {}
+    for log in logs:
+        status = log.get('status', 'unknown')
+        stats[status] = stats.get(status, 0) + 1
+    
+    return jsonify({
+        'statistics': [{'_id': k, 'count': v} for k, v in stats.items()],
+        'mongodb_enabled': False
+    })
+
+@workflow_api.route('/api/executions/<execution_id>/cancel', methods=['POST'])
+def cancel_execution(execution_id):
+    """Cancel a running execution"""
+    if MONGODB_AVAILABLE:
+        try:
+            success = MongoWorkflowExecution.update_status(
+                execution_id, 
+                'cancelled',
+                cancelled_at=datetime.utcnow(),
+                cancelled_by=request.headers.get('User-Agent', 'Unknown')
+            )
+            if success:
+                return jsonify({'message': 'Execution cancelled successfully'})
+            return jsonify({'error': 'Execution not found or already completed'}), 404
+        except Exception as e:
+            print(f"[ERROR] Failed to cancel execution: {e}")
+    
+    return jsonify({'error': 'Execution cancellation not available'}), 404
+
+# ─── Vector Search and AI Insights ──────────────────────────────────────
+
+@workflow_api.route('/api/workflows/search', methods=['POST'])
+def search_workflows():
+    """Search workflows using vector similarity"""
+    data = request.json
+    query = data.get('query', '')
+    limit = data.get('limit', 10)
+    
+    if not query:
+        return jsonify({'error': 'Query parameter required'}), 400
+    
+    if not VECTOR_STORE_AVAILABLE:
+        return jsonify({
+            'message': 'Vector search not available',
+            'results': []
+        })
+    
+    try:
+        vector_store = get_vector_store()
+        similar_workflows = vector_store.search_similar_workflows(query, limit)
+        
+        return jsonify({
+            'query': query,
+            'results': similar_workflows,
+            'count': len(similar_workflows)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Search failed: {str(e)}'}), 500
+
+@workflow_api.route('/api/workflows/<workflow_id>/insights', methods=['GET'])
+def get_workflow_insights(workflow_id):
+    """Get AI-generated insights about a workflow"""
+    if not VECTOR_STORE_AVAILABLE:
+        return jsonify({
+            'message': 'AI insights not available',
+            'insights': {}
+        })
+    
+    try:
+        vector_store = get_vector_store()
+        insights = vector_store.get_workflow_insights(workflow_id)
+        
+        return jsonify({
+            'workflow_id': workflow_id,
+            'insights': insights
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate insights: {str(e)}'}), 500
+
+@workflow_api.route('/api/executions/search', methods=['POST'])
+def search_execution_memories():
+    """Search execution memories using vector similarity"""
+    data = request.json
+    query = data.get('query', '')
+    workflow_id = data.get('workflow_id')
+    limit = data.get('limit', 10)
+    
+    if not query:
+        return jsonify({'error': 'Query parameter required'}), 400
+    
+    if not VECTOR_STORE_AVAILABLE:
+        return jsonify({
+            'message': 'Vector search not available',
+            'results': []
+        })
+    
+    try:
+        vector_store = get_vector_store()
+        memories = vector_store.search_execution_memories(query, workflow_id, limit)
+        
+        return jsonify({
+            'query': query,
+            'workflow_id': workflow_id,
+            'results': memories,
+            'count': len(memories)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Memory search failed: {str(e)}'}), 500
+
+@workflow_api.route('/api/workflows/recommend', methods=['POST'])
+def recommend_workflows():
+    """Recommend workflows based on description or requirements"""
+    data = request.json
+    requirements = data.get('requirements', '')
+    limit = data.get('limit', 5)
+    
+    if not requirements:
+        return jsonify({'error': 'Requirements parameter required'}), 400
+    
+    if not VECTOR_STORE_AVAILABLE:
+        return jsonify({
+            'message': 'Workflow recommendations not available',
+            'recommendations': []
+        })
+    
+    try:
+        vector_store = get_vector_store()
+        
+        # Search for similar workflows
+        similar_workflows = vector_store.search_similar_workflows(requirements, limit * 2)
+        
+        # Filter and rank recommendations
+        recommendations = []
+        for workflow in similar_workflows:
+            if workflow['similarity_score'] > 0.7:  # Only high similarity
+                recommendations.append({
+                    'workflow_id': workflow['workflow_id'],
+                    'workflow_name': workflow['workflow_name'],
+                    'description': workflow['description'],
+                    'relevance_score': workflow['similarity_score'],
+                    'reason': f"Similar workflow with {workflow['similarity_score']:.1%} relevance",
+                    'node_count': workflow['node_count'],
+                    'tags': workflow.get('tags', [])
+                })
+        
+        # Limit results
+        recommendations = recommendations[:limit]
+        
+        return jsonify({
+            'requirements': requirements,
+            'recommendations': recommendations,
+            'count': len(recommendations)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Recommendation failed: {str(e)}'}), 500
+
+@workflow_api.route('/api/workflows/execute', methods=['POST'])
+def execute_workflow_direct():
+    """Execute a workflow provided in the request body"""
+    try:
+        data = request.json or {}
+        workflow = data.get('workflow')
+        input_data = data.get('input_data', {})
+        
+        if not workflow:
+            return jsonify({'error': 'Workflow data is required'}), 400
+        
+        # Validate workflow structure
+        if not all(key in workflow for key in ['nodes', 'edges']):
+            return jsonify({'error': 'Workflow must contain nodes and edges'}), 400
+        
+        start_time = datetime.utcnow()
+        
+        # Create a temporary execution ID
+        execution_id = str(uuid4())
+        
+        # Create execution record in MongoDB if available
+        if MONGODB_AVAILABLE:
+            try:
+                execution = MongoWorkflowExecution.create({
+                    'workflow_id': workflow.get('id', 'temp'),
+                    'workflow_name': workflow.get('name', 'Temporary Workflow'),
+                    'status': 'running',
+                    'input_data': input_data,
+                    'started_at': start_time,
+                    'execution_id': execution_id
+                })
+            except Exception as e:
+                print(f"[ERROR] Failed to create MongoDB execution record: {e}")
+        
+        # Execute the workflow
+        execution_result = execute_workflow_nodes(workflow, input_data, execution_id)
+        
+        # Update execution record if successful
+        if MONGODB_AVAILABLE:
+            try:
+                MongoWorkflowExecution.update_by_execution_id(execution_id, {
+                    'status': 'completed' if execution_result.get('success') else 'failed',
+                    'completed_at': datetime.utcnow(),
+                    'result': execution_result,
+                    'error_message': execution_result.get('error') if not execution_result.get('success') else None
+                })
+            except Exception as e:
+                print(f"[ERROR] Failed to update MongoDB execution record: {e}")
+        
+        return jsonify(execution_result)
+        
+    except Exception as e:
+        print(f"[ERROR] Workflow execution failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
