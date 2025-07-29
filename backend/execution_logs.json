@@ -1,0 +1,1048 @@
+[
+  {
+    "workflow_id": "temp-1753371701344",
+    "workflow_name": "Temporary Workflow",
+    "execution_time": "2025-07-24T18:41:41.344536",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753371713095",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-24T18:41:53.107398",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "start-1753371513593",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start/Trigger"
+        }
+      },
+      {
+        "node_id": "httpRequest-1753371515048",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "condition-1753371516205",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: If Condition"
+        }
+      },
+      {
+        "node_id": "delay-1753371518647",
+        "node_type": "delay",
+        "status": "success",
+        "output": {
+          "message": "Executed delay node: Delay/Wait"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753371725984",
+    "workflow_name": "Data Pipeline with AI",
+    "execution_time": "2025-07-24T18:42:05.990297",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Pipeline"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "file",
+        "status": "success",
+        "output": {
+          "message": "Executed file node: Load Data File"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "ai",
+        "status": "success",
+        "output": {
+          "message": "Executed ai node: AI Text Analysis"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "database",
+        "status": "success",
+        "output": {
+          "message": "Executed database node: Save Results"
+        }
+      },
+      {
+        "node_id": "5",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Sentiment"
+        }
+      },
+      {
+        "node_id": "6",
+        "node_type": "slack",
+        "status": "success",
+        "output": {
+          "message": "Executed slack node: Send Positive Alert"
+        }
+      },
+      {
+        "node_id": "7",
+        "node_type": "log",
+        "status": "success",
+        "output": {
+          "message": "Executed log node: Log Negative/Neutral"
+        }
+      },
+      {
+        "node_id": "8",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Pipeline"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "test-1",
+    "workflow_name": "Test Workflow",
+    "execution_time": "2025-07-24T18:43:24.614123",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "task",
+        "status": "success",
+        "output": {
+          "message": "Executed task node: Process Data"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "test-basic",
+    "workflow_name": "Basic Test Workflow",
+    "execution_time": "2025-07-24T18:44:44.863029",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "start",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "task1",
+        "node_type": "task",
+        "status": "success",
+        "output": {
+          "message": "Executed task node: Process Data"
+        }
+      },
+      {
+        "node_id": "end",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "test-grouped",
+    "workflow_name": "Grouped Workflow",
+    "execution_time": "2025-07-24T18:44:44.908644",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "start",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "auth",
+        "node_type": "auth",
+        "status": "success",
+        "output": {
+          "message": "Executed auth node: Authenticate"
+        }
+      },
+      {
+        "node_id": "validate",
+        "node_type": "validation",
+        "status": "success",
+        "output": {
+          "message": "Executed validation node: Validate Data"
+        }
+      },
+      {
+        "node_id": "process",
+        "node_type": "task",
+        "status": "success",
+        "output": {
+          "message": "Executed task node: Process"
+        }
+      },
+      {
+        "node_id": "notify",
+        "node_type": "notification",
+        "status": "success",
+        "output": {
+          "message": "Executed notification node: Send Notification"
+        }
+      },
+      {
+        "node_id": "end",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753372244385",
+    "workflow_name": "Test Workflow with Groups",
+    "execution_time": "2025-07-24T18:50:44.391358",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: API Call"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753372249929",
+    "workflow_name": "Data Pipeline with AI",
+    "execution_time": "2025-07-24T18:50:49.933661",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Pipeline"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "file",
+        "status": "success",
+        "output": {
+          "message": "Executed file node: Load Data File"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "ai",
+        "status": "success",
+        "output": {
+          "message": "Executed ai node: AI Text Analysis"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "database",
+        "status": "success",
+        "output": {
+          "message": "Executed database node: Save Results"
+        }
+      },
+      {
+        "node_id": "5",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Sentiment"
+        }
+      },
+      {
+        "node_id": "6",
+        "node_type": "slack",
+        "status": "success",
+        "output": {
+          "message": "Executed slack node: Send Positive Alert"
+        }
+      },
+      {
+        "node_id": "7",
+        "node_type": "log",
+        "status": "success",
+        "output": {
+          "message": "Executed log node: Log Negative/Neutral"
+        }
+      },
+      {
+        "node_id": "8",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Pipeline"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753372659175",
+    "workflow_name": "Test Workflow with Groups",
+    "execution_time": "2025-07-24T18:57:39.183483",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: API Call"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753372669528",
+    "workflow_name": "Simple API Workflow",
+    "execution_time": "2025-07-24T18:57:49.539067",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: Fetch User Data"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "log",
+        "status": "success",
+        "output": {
+          "message": "Executed log node: Log API Response"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753372688986",
+    "workflow_name": "Data Pipeline with AI",
+    "execution_time": "2025-07-24T18:58:08.990660",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Pipeline"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "file",
+        "status": "success",
+        "output": {
+          "message": "Executed file node: Load Data File"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "ai",
+        "status": "success",
+        "output": {
+          "message": "Executed ai node: AI Text Analysis"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "database",
+        "status": "success",
+        "output": {
+          "message": "Executed database node: Save Results"
+        }
+      },
+      {
+        "node_id": "5",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Sentiment"
+        }
+      },
+      {
+        "node_id": "6",
+        "node_type": "slack",
+        "status": "success",
+        "output": {
+          "message": "Executed slack node: Send Positive Alert"
+        }
+      },
+      {
+        "node_id": "7",
+        "node_type": "log",
+        "status": "success",
+        "output": {
+          "message": "Executed log node: Log Negative/Neutral"
+        }
+      },
+      {
+        "node_id": "8",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Pipeline"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753598624348",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T09:43:44.368006",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "start-1753598614659",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "delay-1753598618148",
+        "node_type": "delay",
+        "status": "success",
+        "output": {
+          "message": "Executed delay node: Delay"
+        }
+      },
+      {
+        "node_id": "loop-1753598619229",
+        "node_type": "loop",
+        "status": "success",
+        "output": {
+          "message": "Executed loop node: Loop"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753598660765",
+    "workflow_name": "Notification System",
+    "execution_time": "2025-07-27T09:44:20.784078",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "webhook",
+        "status": "success",
+        "output": {
+          "message": "Executed webhook node: Receive Event"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "switch",
+        "status": "success",
+        "output": {
+          "message": "Executed switch node: Route Message"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "email",
+        "status": "success",
+        "output": {
+          "message": "Executed email node: Send Email"
+        }
+      },
+      {
+        "node_id": "5",
+        "node_type": "slack",
+        "status": "success",
+        "output": {
+          "message": "Executed slack node: Send Slack"
+        }
+      },
+      {
+        "node_id": "6",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753600637926",
+    "workflow_name": "HTTP to Database",
+    "execution_time": "2025-07-27T10:17:17.931391",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: Fetch Data"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "database",
+        "status": "success",
+        "output": {
+          "message": "Executed database node: Save to DB"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753600819862",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:20:19.866805",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "start-1753600803702",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753601303225",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:28:23.229983",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753602151807",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:42:31.812168",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753602212926",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:43:32.931458",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      },
+      {
+        "node_id": "group-1753602204385",
+        "node_type": "group",
+        "status": "success",
+        "output": {
+          "message": "Executed group node: New Group"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753602300485",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:45:00.488990",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753602421822",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T10:47:01.826839",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753603484512",
+    "workflow_name": "New Workflow",
+    "execution_time": "2025-07-27T11:04:44.518615",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      },
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      },
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      },
+      {
+        "node_id": "sample-1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start Node"
+        }
+      },
+      {
+        "node_id": "sample-2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: HTTP Request"
+        }
+      },
+      {
+        "node_id": "sample-3",
+        "node_type": "condition",
+        "status": "success",
+        "output": {
+          "message": "Executed condition node: Check Response"
+        }
+      },
+      {
+        "node_id": "sample-4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End Node"
+        }
+      }
+    ]
+  },
+  {
+    "workflow_id": "temp-1753603772899",
+    "workflow_name": "HTTP to Database",
+    "execution_time": "2025-07-27T11:09:32.914629",
+    "status": "completed",
+    "input_data": {},
+    "execution_log": [
+      {
+        "node_id": "1",
+        "node_type": "start",
+        "status": "success",
+        "output": {
+          "message": "Executed start node: Start"
+        }
+      },
+      {
+        "node_id": "2",
+        "node_type": "httpRequest",
+        "status": "success",
+        "output": {
+          "message": "Executed httpRequest node: Fetch Data"
+        }
+      },
+      {
+        "node_id": "3",
+        "node_type": "database",
+        "status": "success",
+        "output": {
+          "message": "Executed database node: Save to DB"
+        }
+      },
+      {
+        "node_id": "4",
+        "node_type": "end",
+        "status": "success",
+        "output": {
+          "message": "Executed end node: End"
+        }
+      }
+    ]
+  }
+]

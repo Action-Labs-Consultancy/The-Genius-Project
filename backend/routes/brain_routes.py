@@ -82,33 +82,77 @@ def chunk_text(text, chunk_size=1000, overlap=200):
 
 @brain_routes.route('/api/brains', methods=['GET'])
 def get_brains():
-    """Get all brains"""
+    """Get all brains with cross-LAN visibility"""
     try:
+        # Ensure MongoDB connection for cross-LAN brain visibility
+        from mongo_db import mongo
+        if not mongo.db:
+            mongodb_uri = os.getenv('MONGODB_URI') or os.getenv('MONGO_URI')
+            if mongodb_uri:
+                mongo.connect(mongodb_uri)
+                print("[BRAINS] Reconnected to MongoDB for cross-LAN access")
+        
+        if not mongo.db:
+            return jsonify({
+                'error': 'Database not available',
+                'message': 'MongoDB connection required for cross-LAN brain visibility',
+                'brains': []
+            }), 503
+        
+        # Get all brains from shared MongoDB
         brains = Brain.get_all()
-        return jsonify({'brains': brains})
+        
+        # Add debug info for LAN troubleshooting
+        response_data = {
+            'success': True,
+            'message': 'Brains retrieved successfully',
+            'data': brains,
+            'debug': {
+                'brain_count': len(brains),
+                'database_connected': bool(mongo.db),
+                'timestamp': datetime.now().isoformat()
+            }
+        }
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"[BRAINS] Error fetching brains: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to retrieve brains',
+            'brains': []
+        }), 500
 
 @brain_routes.route('/api/brains', methods=['POST'])
 def create_brain():
-    """Create a new brain with proper prompt saving"""
+    """Create a new brain with proper MongoDB saving"""
     try:
+        # Ensure MongoDB connection
+        from mongo_db import mongo
+        if not mongo.db:
+            mongodb_uri = os.getenv('MONGODB_URI') or os.getenv('MONGO_URI')
+            if mongodb_uri:
+                mongo.connect(mongodb_uri)
+        
+        if not mongo.db:
+            return jsonify({'error': 'Database not available for brain creation'}), 503
+        
         data = request.get_json()
         if not data or 'name' not in data:
             return jsonify({'error': 'Name is required'}), 400
         
-        # Create brain with all required fields
+        # Create brain with proper field mapping
         brain = Brain.create(
             name=data['name'],
-            tone=data.get('tone', 'professional'),
-            prompt=data.get('prompt', ''),
-            user_id=data.get('user_id'),
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            description=data.get('description', f"A brain with {data.get('tone', 'professional')} personality"),
+            system_prompt=data.get('prompt', data.get('system_prompt', 'You are a helpful AI assistant.')),
+            user_id=data.get('user_id')
         )
         
         # Store brain prompt in Pinecone if provided
-        if data.get('prompt'):
+        if brain and data.get('prompt'):
             try:
                 metadata = [{
                     'brain_id': str(brain['_id']),
@@ -121,14 +165,24 @@ def create_brain():
                     texts=[data['prompt']], 
                     metadata_list=metadata
                 )
-                print(f"Stored brain prompt in Pinecone for brain {brain['_id']}")
+                print(f"[BRAIN] Stored brain prompt in Pinecone for brain {brain['_id']}")
             except Exception as e:
-                print(f"Warning: Failed to store brain prompt in Pinecone: {e}")
+                print(f"[BRAIN] Warning: Failed to store brain prompt in Pinecone: {e}")
         
-        return jsonify({'brain': brain}), 201
+        print(f"[BRAIN] Successfully created brain: {brain['name']} with ID: {brain['_id']}")
+        return jsonify({
+            'success': True,
+            'message': 'Brain created successfully',
+            'brain': brain
+        }), 201
+        
     except Exception as e:
-        print(f"Error creating brain: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"[BRAIN] Error creating brain: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to create brain'
+        }), 500
 
 @brain_routes.route('/api/brains/<brain_id>/knowledge-base/upload', methods=['POST'])
 def upload_to_knowledge_base(brain_id):

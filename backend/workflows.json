@@ -1,0 +1,58 @@
+[
+  {
+    "name": "Test Workflow with Groups",
+    "nodes": [
+      {
+        "id": "1",
+        "type": "start",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "label": "Start"
+        }
+      },
+      {
+        "id": "2",
+        "type": "httpRequest",
+        "position": {
+          "x": 100,
+          "y": 200
+        },
+        "data": {
+          "label": "API Call"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1-2",
+        "source": "1",
+        "target": "2"
+      }
+    ],
+    "groups": [
+      {
+        "id": "group-1",
+        "title": "API Group",
+        "description": "Test group",
+        "nodeIds": [
+          "1",
+          "2"
+        ],
+        "position": {
+          "x": 80,
+          "y": 80
+        },
+        "size": {
+          "width": 140,
+          "height": 160
+        },
+        "color": "#e0e7ff",
+        "borderColor": "#6366f1"
+      }
+    ],
+    "id": "397bea4d-390e-448a-ab60-9f0847792dc7"
+  }
+]

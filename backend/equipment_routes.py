@@ -9,6 +9,12 @@ import uuid
 def register_equipment_routes(app, mongo):
     """Register all equipment management routes"""
 
+    # Equipment status options
+    EQUIPMENT_STATUS = [
+        'Available', 'In Use', 'Out of Stock', 'Needs Repair', 
+        'Missing', 'Scrapped', 'Sold'
+    ]
+
     # File upload configuration
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'equipment')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -40,6 +46,23 @@ def register_equipment_routes(app, mongo):
             return unique_filename, None
         return None, "Invalid file type"
 
+    @app.route('/api/equipment/status-options', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_equipment_status_options():
+        """Get available equipment status options"""
+        try:
+            if request.method == 'OPTIONS':
+                response = jsonify({'message': 'OK'})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                return response, 200
+
+            return jsonify(EQUIPMENT_STATUS)
+        except Exception as e:
+            print(f"Error getting status options: {str(e)}")
+            return jsonify({'error': 'Internal server error'}), 500
+
     @app.route('/api/equipment', methods=['GET', 'POST', 'OPTIONS'])
     @cross_origin()
     def equipment():
@@ -58,9 +81,42 @@ def register_equipment_routes(app, mongo):
                 equipment = list(equipment_collection.find().sort('created_at', -1))
                 for item in equipment:
                     item['_id'] = str(item['_id'])
+                    
+                    # Normalize data structure for backward compatibility
+                    # Handle both old and new data formats
+                    
+                    # Map old field names to new ones
+                    if 'item_category' in item and 'category' not in item:
+                        item['category'] = item['item_category']
+                    
+                    if 'status' in item and 'item_status' not in item:
+                        item['item_status'] = item['status']
+                    
+                    # Ensure quantity fields exist (default to 1 if missing)
+                    if 'quantity_total' not in item:
+                        item['quantity_total'] = 1
+                    
+                    if 'quantity_available' not in item:
+                        # If it's checked out or assigned, available = 0, otherwise 1
+                        if item.get('assigned_to') or item.get('status') == 'checked_out' or item.get('item_status') == 'checked_out':
+                            item['quantity_available'] = 0
+                        else:
+                            item['quantity_available'] = item.get('quantity_total', 1)
+                    
+                    # Ensure other required fields exist
+                    if 'condition' not in item:
+                        item['condition'] = 'Good'
+                    
+                    if 'location' not in item:
+                        item['location'] = 'Office'
+                        
+                    if 'purchase_price' not in item:
+                        item['purchase_price'] = 0
+                    
                     # Add image URL if image exists
                     if item.get('item_image'):
                         item['image_url'] = f"/api/equipment/images/{item['item_image']}"
+                        
                 return jsonify(equipment)
 
             elif request.method == 'POST':

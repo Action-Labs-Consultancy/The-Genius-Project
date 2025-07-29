@@ -194,28 +194,40 @@ def delete_workflow(workflow_id):
 
 @workflow_api.route('/api/workflows/<workflow_id>/execute', methods=['POST'])
 def run_workflow_execution(workflow_id):
-    # Get workflow from MongoDB or file storage
-    if MONGODB_AVAILABLE:
-        try:
-            wf = MongoWorkflow.get_by_id(workflow_id)
-        except Exception as e:
-            print(f"[ERROR] MongoDB query failed: {e}")
-            wf = None
-    
-    if not wf:
-        # Fallback to file storage
-        workflows = load_workflows()
-        wf = next((w for w in workflows if w['id'] == workflow_id), None)
-    
-    if not wf:
-        return jsonify({'error': 'Workflow not found'}), 404
-    
     input_data = request.json or {}
+    
+    # Handle temporary workflow execution
+    if workflow_id == 'temp':
+        # Use workflow data from request
+        temp_workflow = {
+            'id': 'temp',
+            'name': 'Temporary Workflow',
+            'nodes': input_data.get('nodes', []),
+            'edges': input_data.get('edges', [])
+        }
+        wf = temp_workflow
+    else:
+        # Get workflow from MongoDB or file storage
+        if MONGODB_AVAILABLE:
+            try:
+                wf = MongoWorkflow.get_by_id(workflow_id)
+            except Exception as e:
+                print(f"[ERROR] MongoDB query failed: {e}")
+                wf = None
+        
+        if not wf:
+            # Fallback to file storage
+            workflows = load_workflows()
+            wf = next((w for w in workflows if w['id'] == workflow_id), None)
+        
+        if not wf:
+            return jsonify({'error': 'Workflow not found'}), 404
+    
     start_time = datetime.utcnow()
     
-    # Create execution record in MongoDB
+    # Create execution record in MongoDB (skip for temp workflows)
     execution_id = None
-    if MONGODB_AVAILABLE:
+    if MONGODB_AVAILABLE and workflow_id != 'temp':
         try:
             execution = MongoWorkflowExecution.create({
                 'workflow_id': workflow_id,
@@ -300,42 +312,129 @@ def get_execution_logs():
 def get_workflow_templates():
     templates = [
         {
-            'id': 'api-monitor',
-            'name': 'API Monitoring',
-            'description': 'Monitor an API endpoint and log responses',
+            'id': 'testing-million',
+            'name': 'Testing Million',
+            'description': 'Comprehensive test workflow exercising all node types with proper parameters',
             'nodes': [
-                {'id': 'start-1', 'type': 'start', 'position': {'x': 100, 'y': 100}, 'data': {'label': 'Start'}},
-                {'id': 'http-1', 'type': 'httpRequest', 'position': {'x': 300, 'y': 100}, 'data': {'label': 'Check API', 'config': {'url': 'https://api.example.com/health', 'method': 'GET'}}},
-                {'id': 'condition-1', 'type': 'ifCondition', 'position': {'x': 500, 'y': 100}, 'data': {'label': 'Check Status', 'config': {'leftOperand': '{{last_http_response.status_code}}', 'operator': '==', 'rightOperand': '200'}}},
-                {'id': 'log-success', 'type': 'log', 'position': {'x': 700, 'y': 50}, 'data': {'label': 'Log Success', 'config': {'message': 'API is healthy: {{last_http_response.status_code}}'}}},
-                {'id': 'log-error', 'type': 'log', 'position': {'x': 700, 'y': 150}, 'data': {'label': 'Log Error', 'config': {'message': 'API error: {{last_http_response.status_code}}'}}},
-                {'id': 'end-1', 'type': 'end', 'position': {'x': 900, 'y': 100}, 'data': {'label': 'End'}}
+                # Start Node
+                {'id': 'start-1', 'type': 'customNode', 'position': {'x': 100, 'y': 200}, 'data': {'label': 'Start Process', 'nodeType': 'start', 'icon': 'Play', 'color': '#10B981', 'config': {'triggerType': 'manual', 'triggerData': '{"order_id": "million-123", "customer_id": "cust-456"}'}}},
+                
+                # Variable Setting
+                {'id': 'var-order', 'type': 'customNode', 'position': {'x': 300, 'y': 200}, 'data': {'label': 'Load Order Data', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_total', 'value': '1000000'}}},
+                {'id': 'var-customer', 'type': 'customNode', 'position': {'x': 500, 'y': 200}, 'data': {'label': 'Set Customer Email', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'customer_email', 'value': 'test@million.com'}}},
+                
+                # AI Brain Processing
+                {'id': 'brain-fraud', 'type': 'customNode', 'position': {'x': 700, 'y': 200}, 'data': {'label': 'AI Fraud Check', 'nodeType': 'brain', 'icon': 'Zap', 'color': '#9D4EDD', 'config': {'brainId': 'fraud-detector-brain-123', 'userInput': 'Analyze order for fraud: total={{order_total}}, email={{customer_email}}', 'systemPrompt': 'You are a fraud detection expert. Analyze the order and respond with SAFE or FRAUD.'}}},
+                
+                # If/Else Condition 
+                {'id': 'condition-fraud', 'type': 'customNode', 'position': {'x': 900, 'y': 200}, 'data': {'label': 'Fraud Detected?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{ai_response}}', 'operator': 'contains', 'rightOperand': 'FRAUD'}}},
+                
+                # Fraud Alert Path
+                {'id': 'var-flag', 'type': 'customNode', 'position': {'x': 1100, 'y': 100}, 'data': {'label': 'Flag Order', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'FLAGGED_FRAUD'}}},
+                {'id': 'email-security', 'type': 'customNode', 'position': {'x': 1300, 'y': 100}, 'data': {'label': 'Alert Security Team', 'nodeType': 'email', 'icon': 'Mail', 'color': '#EF4444', 'config': {'to': 'security@company.com', 'subject': 'FRAUD ALERT: Million Dollar Order', 'body': 'Suspicious order detected. Total: ${{order_total}}, Customer: {{customer_email}}, AI Analysis: {{ai_response}}'}}},
+                {'id': 'slack-alert', 'type': 'customNode', 'position': {'x': 1500, 'y': 100}, 'data': {'label': 'Slack Alert', 'nodeType': 'slack', 'icon': 'MessageSquare', 'color': '#7C3AED', 'config': {'channel': '#security-alerts', 'message': '🚨 FRAUD ALERT: Million dollar order flagged by AI. Order: ${{order_total}}, Customer: {{customer_email}}'}}},
+                
+                # Normal Processing Path - Database Check
+                {'id': 'db-inventory', 'type': 'customNode', 'position': {'x': 1100, 'y': 300}, 'data': {'label': 'Check Inventory', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'find', 'collection': 'inventory', 'query': '{"product_id": "premium-package", "quantity": {"$gte": 1}}'}}},
+                
+                # Stock Condition Check
+                {'id': 'condition-stock', 'type': 'customNode', 'position': {'x': 1300, 'y': 300}, 'data': {'label': 'In Stock?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{db_result.quantity}}', 'operator': '>', 'rightOperand': '0'}}},
+                
+                # Out of Stock Path
+                {'id': 'email-backorder', 'type': 'customNode', 'position': {'x': 1500, 'y': 200}, 'data': {'label': 'Backorder Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#F59E0B', 'config': {'to': '{{customer_email}}', 'subject': 'Order Update: Item on Backorder', 'body': 'Thank you for your million dollar order! The premium package is currently on backorder. We will notify you when it becomes available.'}}},
+                {'id': 'var-backorder', 'type': 'customNode', 'position': {'x': 1700, 'y': 200}, 'data': {'label': 'Set Backorder', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'BACKORDERED'}}},
+                
+                # In Stock - Math Processing
+                {'id': 'math-pricing', 'type': 'customNode', 'position': {'x': 1500, 'y': 400}, 'data': {'label': 'Calculate Pricing', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 'config': {'operation': 'multiply', 'leftOperand': '{{order_total}}', 'rightOperand': '0.95', 'resultVariable': 'discounted_total'}}},
+                
+                # VIP Customer Check
+                {'id': 'condition-vip', 'type': 'customNode', 'position': {'x': 1700, 'y': 400}, 'data': {'label': 'VIP Customer?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{order_total}}', 'operator': '>', 'rightOperand': '500000'}}},
+                
+                # VIP Discount Path
+                {'id': 'math-vip', 'type': 'customNode', 'position': {'x': 1900, 'y': 300}, 'data': {'label': 'Apply VIP Discount', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 'config': {'operation': 'multiply', 'leftOperand': '{{discounted_total}}', 'rightOperand': '0.9', 'resultVariable': 'final_price'}}},
+                {'id': 'var-vip-price', 'type': 'customNode', 'position': {'x': 2100, 'y': 300}, 'data': {'label': 'Set Final Price', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'final_total', 'value': '{{final_price}}'}}},
+                
+                # Regular Pricing Path
+                {'id': 'var-regular-price', 'type': 'customNode', 'position': {'x': 1900, 'y': 500}, 'data': {'label': 'Set Regular Price', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'final_total', 'value': '{{discounted_total}}'}}},
+                
+                # HTTP Request - Payment Processing
+                {'id': 'http-payment', 'type': 'customNode', 'position': {'x': 2300, 'y': 400}, 'data': {'label': 'Process Payment', 'nodeType': 'httpRequest', 'icon': 'Globe', 'color': '#3B82F6', 'config': {'url': 'https://api.payment-processor.com/charge', 'method': 'POST', 'headers': '{"Content-Type": "application/json", "Authorization": "Bearer test-key-123"}', 'body': '{"amount": "{{final_total}}", "customer_email": "{{customer_email}}", "order_id": "{{order_id}}"}'}}},
+                
+                # Payment Success Check
+                {'id': 'condition-payment', 'type': 'customNode', 'position': {'x': 2500, 'y': 400}, 'data': {'label': 'Payment Success?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{last_http_response.status_code}}', 'operator': '==', 'rightOperand': '200'}}},
+                
+                # Payment Failed Path
+                {'id': 'email-failed', 'type': 'customNode', 'position': {'x': 2700, 'y': 300}, 'data': {'label': 'Payment Failed Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#EF4444', 'config': {'to': '{{customer_email}}', 'subject': 'Payment Processing Error', 'body': 'We encountered an issue processing your payment for order total: ${{final_total}}. Please contact support or try again.'}}},
+                {'id': 'var-failed', 'type': 'customNode', 'position': {'x': 2900, 'y': 300}, 'data': {'label': 'Set Failed Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'PAYMENT_FAILED'}}},
+                
+                # Payment Success Path
+                {'id': 'db-update', 'type': 'customNode', 'position': {'x': 2700, 'y': 500}, 'data': {'label': 'Update Inventory', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'update', 'collection': 'inventory', 'query': '{"product_id": "premium-package"}'}}},
+                {'id': 'var-shipped', 'type': 'customNode', 'position': {'x': 2900, 'y': 500}, 'data': {'label': 'Set Shipped Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'SHIPPED'}}},
+                {'id': 'email-confirm', 'type': 'customNode', 'position': {'x': 3100, 'y': 500}, 'data': {'label': 'Shipping Confirmation', 'nodeType': 'email', 'icon': 'Mail', 'color': '#10B981', 'config': {'to': '{{customer_email}}', 'subject': 'Million Dollar Order Shipped!', 'body': 'Congratulations! Your premium package worth ${{final_total}} has been shipped. Tracking info will follow shortly.'}}},
+                {'id': 'push-notify', 'type': 'customNode', 'position': {'x': 3300, 'y': 500}, 'data': {'label': 'Push Notification', 'nodeType': 'notification', 'icon': 'Bell', 'color': '#8B5CF6', 'config': {'title': 'Order Shipped', 'message': 'Your million dollar order is on its way!'}}},
+                
+                # AI Agent Processing
+                {'id': 'agent-process', 'type': 'customNode', 'position': {'x': 3500, 'y': 400}, 'data': {'label': 'Agent Process Order', 'nodeType': 'agent', 'icon': 'User', 'color': '#6366F1', 'config': {'agentId': 'order-processing-agent-789', 'task': 'Process completed order: {{order_id}} with status {{order_status}} and total {{final_total}}'}}},
+                
+                # Final Database Log
+                {'id': 'db-log', 'type': 'customNode', 'position': {'x': 3700, 'y': 400}, 'data': {'label': 'Log Transaction', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'insert', 'collection': 'transaction_logs', 'query': '{"order_id": "{{order_id}}", "total": "{{final_total}}", "status": "{{order_status}}", "timestamp": "2024-01-01T12:00:00Z"}'}}},
+                
+                # End Node
+                {'id': 'end-1', 'type': 'customNode', 'position': {'x': 3900, 'y': 400}, 'data': {'label': 'Process Complete', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#6B7280', 'config': {'status': 'success', 'returnData': '{"order_id": "{{order_id}}", "final_total": "{{final_total}}", "status": "{{order_status}}"}'}}}
             ],
             'edges': [
-                {'id': 'e1', 'source': 'start-1', 'target': 'http-1'},
-                {'id': 'e2', 'source': 'http-1', 'target': 'condition-1'},
-                {'id': 'e3', 'source': 'condition-1', 'target': 'log-success', 'label': 'true'},
-                {'id': 'e4', 'source': 'condition-1', 'target': 'log-error', 'label': 'false'},
-                {'id': 'e5', 'source': 'log-success', 'target': 'end-1'},
-                {'id': 'e6', 'source': 'log-error', 'target': 'end-1'}
-            ]
-        },
-        {
-            'id': 'data-processor',
-            'name': 'Data Processing Pipeline',
-            'description': 'Process data with variables and conditions',
-            'nodes': [
-                {'id': 'start-1', 'type': 'start', 'position': {'x': 100, 'y': 100}, 'data': {'label': 'Start'}},
-                {'id': 'var-1', 'type': 'setVariable', 'position': {'x': 300, 'y': 100}, 'data': {'label': 'Set Count', 'config': {'name': 'count', 'value': '10'}}},
-                {'id': 'condition-1', 'type': 'ifCondition', 'position': {'x': 500, 'y': 100}, 'data': {'label': 'Check Count', 'config': {'leftOperand': '{{count}}', 'operator': '>', 'rightOperand': '5'}}},
-                {'id': 'log-1', 'type': 'log', 'position': {'x': 700, 'y': 100}, 'data': {'label': 'Log Result', 'config': {'message': 'Count is: {{count}}'}}},
-                {'id': 'end-1', 'type': 'end', 'position': {'x': 900, 'y': 100}, 'data': {'label': 'End'}}
-            ],
-            'edges': [
-                {'id': 'e1', 'source': 'start-1', 'target': 'var-1'},
-                {'id': 'e2', 'source': 'var-1', 'target': 'condition-1'},
-                {'id': 'e3', 'source': 'condition-1', 'target': 'log-1', 'label': 'true'},
-                {'id': 'e4', 'source': 'log-1', 'target': 'end-1'}
+                # Main flow
+                {'id': 'e1', 'source': 'start-1', 'target': 'var-order', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e2', 'source': 'var-order', 'target': 'var-customer', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e3', 'source': 'var-customer', 'target': 'brain-fraud', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e4', 'source': 'brain-fraud', 'target': 'condition-fraud', 'type': 'smoothstep', 'animated': True},
+                
+                # Fraud path (true branch)
+                {'id': 'e5', 'source': 'condition-fraud', 'target': 'var-flag', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e6', 'source': 'var-flag', 'target': 'email-security', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e7', 'source': 'email-security', 'target': 'slack-alert', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e8', 'source': 'slack-alert', 'target': 'end-1', 'type': 'smoothstep', 'animated': True},
+                
+                # Normal path (false branch)
+                {'id': 'e9', 'source': 'condition-fraud', 'target': 'db-inventory', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e10', 'source': 'db-inventory', 'target': 'condition-stock', 'type': 'smoothstep', 'animated': True},
+                
+                # Out of stock (false branch)
+                {'id': 'e11', 'source': 'condition-stock', 'target': 'email-backorder', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e12', 'source': 'email-backorder', 'target': 'var-backorder', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e13', 'source': 'var-backorder', 'target': 'end-1', 'type': 'smoothstep', 'animated': True},
+                
+                # In stock (true branch)
+                {'id': 'e14', 'source': 'condition-stock', 'target': 'math-pricing', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e15', 'source': 'math-pricing', 'target': 'condition-vip', 'type': 'smoothstep', 'animated': True},
+                
+                # VIP pricing (true branch)
+                {'id': 'e16', 'source': 'condition-vip', 'target': 'math-vip', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e17', 'source': 'math-vip', 'target': 'var-vip-price', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e18', 'source': 'var-vip-price', 'target': 'http-payment', 'type': 'smoothstep', 'animated': True},
+                
+                # Regular pricing (false branch)
+                {'id': 'e19', 'source': 'condition-vip', 'target': 'var-regular-price', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e20', 'source': 'var-regular-price', 'target': 'http-payment', 'type': 'smoothstep', 'animated': True},
+                
+                # Payment processing
+                {'id': 'e21', 'source': 'http-payment', 'target': 'condition-payment', 'type': 'smoothstep', 'animated': True},
+                
+                # Payment failed (false branch)
+                {'id': 'e22', 'source': 'condition-payment', 'target': 'email-failed', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e23', 'source': 'email-failed', 'target': 'var-failed', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e24', 'source': 'var-failed', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                
+                # Payment success (true branch)
+                {'id': 'e25', 'source': 'condition-payment', 'target': 'db-update', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e26', 'source': 'db-update', 'target': 'var-shipped', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e27', 'source': 'var-shipped', 'target': 'email-confirm', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e28', 'source': 'email-confirm', 'target': 'push-notify', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e29', 'source': 'push-notify', 'target': 'agent-process', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e30', 'source': 'agent-process', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                
+                # Final
+                {'id': 'e31', 'source': 'db-log', 'target': 'end-1', 'type': 'smoothstep', 'animated': True}
             ]
         }
     ]
@@ -343,9 +442,14 @@ def get_workflow_templates():
 
 def execute_node(node, context, workflow_id):
     """Execute a single node based on its type"""
+    # Get node type from either 'type' or 'data.nodeType'
+    node_type = node.get('type')
+    if not node_type or node_type == 'customNode':
+        node_type = node.get('data', {}).get('nodeType', 'unknown')
+    
     result = {
         'node_id': node['id'],
-        'node_type': node['type'],
+        'node_type': node_type,
         'status': 'success',
         'output': None,
         'error': None,
@@ -353,10 +457,10 @@ def execute_node(node, context, workflow_id):
     }
     
     try:
-        if node['type'] == 'start':
+        if node_type == 'start':
             result['output'] = {'message': 'Workflow started', 'data': context}
             
-        elif node['type'] == 'httpRequest':
+        elif node_type == 'httpRequest':
             config = node['data'].get('config', {})
             url = config.get('url', '')
             method = config.get('method', 'GET').upper()
@@ -381,9 +485,9 @@ def execute_node(node, context, workflow_id):
             }
             context['last_http_response'] = result['output']
             
-        elif node['type'] == 'setVariable':
+        elif node_type == 'setVariable':
             config = node['data'].get('config', {})
-            var_name = config.get('name', '')
+            var_name = config.get('variableName', config.get('name', ''))
             var_value = config.get('value', '')
             
             # Simple variable substitution from context
@@ -394,7 +498,7 @@ def execute_node(node, context, workflow_id):
             context[var_name] = var_value
             result['output'] = {f'{var_name}': var_value}
             
-        elif node['type'] == 'ifCondition':
+        elif node_type == 'ifCondition':
             config = node['data'].get('config', {})
             left_operand = config.get('leftOperand', '')
             operator = config.get('operator', '==')
@@ -434,13 +538,13 @@ def execute_node(node, context, workflow_id):
             }
             context['last_condition_result'] = condition_result
             
-        elif node['type'] == 'delay':
+        elif node_type == 'delay':
             config = node['data'].get('config', {})
             seconds = float(config.get('seconds', 1))
             time.sleep(seconds)
             result['output'] = {'delayed_seconds': seconds}
             
-        elif node['type'] == 'log':
+        elif node_type == 'log':
             config = node['data'].get('config', {})
             message = config.get('message', 'Log message')
             
@@ -452,11 +556,11 @@ def execute_node(node, context, workflow_id):
             result['output'] = {'message': message}
             print(f"[WORKFLOW LOG] {message}")
             
-        elif node['type'] == 'email':
+        elif node_type == 'email':
             config = node['data'].get('config', {})
             to_email = config.get('to', config.get('recipient', ''))
             subject = config.get('subject', 'Workflow Notification')
-            message = config.get('message', config.get('body', 'Message from workflow'))
+            message = config.get('body', config.get('message', 'Message from workflow'))
             from_email = config.get('from', os.getenv('SMTP_FROM_EMAIL', 'workflow@example.com'))
             
             # Variable substitution
@@ -499,7 +603,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'Email failed: {str(e)}'
                 
-        elif node['type'] == 'slack':
+        elif node_type == 'slack':
             config = node['data'].get('config', {})
             channel = config.get('channel', '#general')
             message = config.get('message', 'Message from workflow')
@@ -529,7 +633,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'Slack failed: {str(e)}'
                 
-        elif node['type'] == 'ai':
+        elif node_type == 'ai':
             config = node['data'].get('config', {})
             prompt = config.get('prompt', 'Hello, how can I help you?')
             model = config.get('model', 'gpt-3.5-turbo')
@@ -562,38 +666,56 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'AI failed: {str(e)}'
                 
-        elif node['type'] == 'math':
+        elif node_type == 'math':
             config = node['data'].get('config', {})
-            expression = config.get('expression', '1 + 1')
-            operation = config.get('operation', 'eval')
+            operation = config.get('operation', 'add')
+            left_operand = config.get('leftOperand', '0')
+            right_operand = config.get('rightOperand', '0')
+            result_variable = config.get('resultVariable', 'math_result')
             
             # Variable substitution
-            if isinstance(expression, str) and '{{' in expression:
+            if isinstance(left_operand, str) and '{{' in left_operand:
                 for key, value in context.items():
-                    if isinstance(value, (int, float)):
-                        expression = expression.replace(f'{{{{{key}}}}}', str(value))
+                    left_operand = left_operand.replace(f'{{{{{key}}}}}', str(value))
+            if isinstance(right_operand, str) and '{{' in right_operand:
+                for key, value in context.items():
+                    right_operand = right_operand.replace(f'{{{{{key}}}}}', str(value))
             
             try:
-                if operation == 'eval':
-                    # Safe math evaluation (basic operations only)
-                    allowed_names = {
-                        'abs': abs, 'round': round, 'min': min, 'max': max,
-                        'sum': sum, 'pow': pow, 'sqrt': math.sqrt,
-                        'sin': math.sin, 'cos': math.cos, 'tan': math.tan,
-                        'log': math.log, 'exp': math.exp, 'pi': math.pi,
-                        'e': math.e
-                    }
-                    result_value = eval(expression, {"__builtins__": {}}, allowed_names)
-                    result['output'] = {'expression': expression, 'result': result_value}
-                    context['math_result'] = result_value
+                # Convert to numbers
+                left_val = float(left_operand) if str(left_operand).replace('.', '').replace('-', '').isdigit() else 0
+                right_val = float(right_operand) if str(right_operand).replace('.', '').replace('-', '').isdigit() else 0
+                
+                # Perform operation
+                if operation == 'add':
+                    result_value = left_val + right_val
+                elif operation == 'subtract':
+                    result_value = left_val - right_val
+                elif operation == 'multiply':
+                    result_value = left_val * right_val
+                elif operation == 'divide':
+                    result_value = left_val / right_val if right_val != 0 else 0
+                elif operation == 'power':
+                    result_value = left_val ** right_val
+                elif operation == 'sqrt':
+                    result_value = math.sqrt(left_val)
+                elif operation == 'round':
+                    result_value = round(left_val)
+                elif operation == 'ceil':
+                    result_value = math.ceil(left_val)
+                elif operation == 'floor':
+                    result_value = math.floor(left_val)
                 else:
-                    result['status'] = 'error'
-                    result['error'] = f'Unknown math operation: {operation}'
+                    result_value = left_val
+                
+                result['output'] = {'operation': operation, 'result': result_value}
+                context[result_variable] = result_value
+                context['math_result'] = result_value  # backward compatibility
             except Exception as e:
                 result['status'] = 'error'
                 result['error'] = f'Math calculation failed: {str(e)}'
                 
-        elif node['type'] == 'file':
+        elif node_type == 'file':
             config = node['data'].get('config', {})
             operation = config.get('operation', 'read')
             file_path = config.get('path', '')
@@ -639,7 +761,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'File operation failed: {str(e)}'
                 
-        elif node['type'] == 'timer':
+        elif node_type == 'timer':
             config = node['data'].get('config', {})
             action = config.get('action', 'wait')
             duration = config.get('duration', '5s')
@@ -669,7 +791,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'Timer failed: {str(e)}'
                 
-        elif node['type'] == 'notification':
+        elif node_type == 'notification':
             config = node['data'].get('config', {})
             title = config.get('title', 'Workflow Notification')
             message = config.get('message', 'Notification from workflow')
@@ -687,10 +809,12 @@ def execute_node(node, context, workflow_id):
             result['output'] = {'title': title, 'message': message, 'type': type_notify}
             print(f"[NOTIFICATION] {type_notify.upper()}: {title} - {message}")
                 
-        elif node['type'] == 'database':
+        elif node_type == 'database':
             config = node['data'].get('config', {})
-            query = config.get('query', 'SELECT 1')
-            db_type = config.get('db_type', 'mongodb')
+            operation = config.get('operation', 'find')
+            collection_name = config.get('collection', 'test')
+            query = config.get('query', '{}')
+            data = config.get('data', '{}')
             
             # Variable substitution
             if isinstance(query, str) and '{{' in query:
@@ -698,33 +822,57 @@ def execute_node(node, context, workflow_id):
                     query = query.replace(f'{{{{{key}}}}}', str(value))
             
             try:
-                if db_type == 'mongodb':
-                    # Use the existing mongo connection
+                # Parse JSON query
+                if isinstance(query, str):
+                    query_obj = json.loads(query) if query else {}
+                else:
+                    query_obj = query
+                
+                # Use the existing mongo connection
+                try:
                     from mongo_db import mongo
                     if mongo and mongo.db:
-                        # Simple MongoDB query execution (be careful with eval in production)
-                        collection_name = config.get('collection', 'test')
-                        if query.startswith('find'):
-                            collection = mongo.db[collection_name]
-                            # Parse simple find queries
-                            if 'find({})' in query or 'find()' in query:
-                                docs = list(collection.find().limit(10))
-                            else:
-                                docs = list(collection.find().limit(10))  # Safe fallback
+                        collection = mongo.db[collection_name]
+                        
+                        if operation == 'find':
+                            docs = list(collection.find(query_obj).limit(10))
                             result['output'] = {'documents': docs, 'count': len(docs)}
+                            context['db_result'] = {'documents': docs, 'count': len(docs)}
+                        elif operation == 'findOne':
+                            doc = collection.find_one(query_obj)
+                            result['output'] = {'document': doc}
+                            context['db_result'] = doc
+                        elif operation == 'insert':
+                            data_obj = json.loads(data) if isinstance(data, str) else data
+                            insert_result = collection.insert_one(data_obj)
+                            result['output'] = {'inserted_id': str(insert_result.inserted_id)}
+                        elif operation == 'update':
+                            data_obj = json.loads(data) if isinstance(data, str) else data
+                            update_result = collection.update_many(query_obj, {'$set': data_obj})
+                            result['output'] = {'modified_count': update_result.modified_count}
                         else:
-                            result['output'] = {'message': 'MongoDB query executed (simulated)', 'query': query}
+                            result['output'] = {'message': f'MongoDB {operation} executed (simulated)', 'query': query}
                     else:
-                        result['output'] = {'message': 'MongoDB query simulated', 'query': query}
-                        print(f"[DB SIMULATION] Query: {query}")
-                else:
-                    result['output'] = {'message': f'{db_type} query simulated', 'query': query}
-                    print(f"[DB SIMULATION] {db_type}: {query}")
+                        result['output'] = {'message': f'MongoDB {operation} simulated', 'query': query}
+                        print(f"[DB SIMULATION] {operation}: {query}")
+                        # Simulate some result for testing
+                        if operation == 'find':
+                            context['db_result'] = {'documents': [{'quantity': 5}], 'count': 1}
+                        else:
+                            context['db_result'] = {'quantity': 5}
+                except ImportError:
+                    result['output'] = {'message': f'MongoDB {operation} simulated (no connection)', 'query': query}
+                    print(f"[DB SIMULATION] {operation}: {query}")
+                    # Simulate some result for testing
+                    if operation == 'find':
+                        context['db_result'] = {'documents': [{'quantity': 5}], 'count': 1}
+                    else:
+                        context['db_result'] = {'quantity': 5}
             except Exception as e:
                 result['status'] = 'error'
                 result['error'] = f'Database query failed: {str(e)}'
                 
-        elif node['type'] == 'code':
+        elif node_type == 'code':
             config = node['data'].get('config', {})
             code = config.get('code', 'print("Hello World")')
             language = config.get('language', 'python')
@@ -758,7 +906,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = f'Code execution failed: {str(e)}'
             
-        elif node['type'] == 'email':
+        elif node_type == 'email':
             config = node['data'].get('config', {})
             to = config.get('to', '')
             subject = config.get('subject', 'No Subject')
@@ -787,7 +935,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = str(e)
                 
-        elif node['type'] == 'slack':
+        elif node_type == 'slack':
             config = node['data'].get('config', {})
             channel = config.get('channel', '')
             message = config.get('message', '')
@@ -806,7 +954,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = str(e)
                 
-        elif node['type'] == 'openai':
+        elif node_type == 'openai':
             config = node['data'].get('config', {})
             prompt = config.get('prompt', '')
             model = config.get('model', 'gpt-3.5-turbo')
@@ -829,7 +977,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = str(e)
                 
-        elif node['type'] == 'math':
+        elif node_type == 'math':
             config = node['data'].get('config', {})
             expression = config.get('expression', '')
             
@@ -844,7 +992,7 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = str(e)
                 
-        elif node['type'] == 'base64':
+        elif node_type == 'base64':
             config = node['data'].get('config', {})
             text = config.get('text', '')
             action = config.get('action', 'encode')  # encode or decode
@@ -862,21 +1010,179 @@ def execute_node(node, context, workflow_id):
                 result['status'] = 'error'
                 result['error'] = str(e)
                 
-        elif node['type'] == 'end':
+        elif node_type == 'end':
             result['output'] = {'message': 'Workflow completed', 'final_context': context}
             
+        elif node_type == 'brain':
+            config = node['data'].get('config', {})
+            brain_id = config.get('brainId', 'default-brain')
+            user_input = config.get('userInput', 'Hello')
+            system_prompt = config.get('systemPrompt', 'You are a helpful AI assistant.')
+            temperature = config.get('temperature', 0.7)
+            memory_namespace = config.get('memoryNamespace', 'default')
+            
+            # Variable substitution
+            if isinstance(user_input, str) and '{{' in user_input:
+                for key, value in context.items():
+                    user_input = user_input.replace(f'{{{{{key}}}}}', str(value))
+            
+            # Store/retrieve memory using vector store if available
+            memory_context = ""
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    memories = vector_store.search_memories(memory_namespace, context.get('query', ''), limit=5)
+                    if memories:
+                        memory_context = "\n".join([mem.get('content', '') for mem in memories])
+                except Exception as e:
+                    print(f"[WARNING] Failed to retrieve memories: {e}")
+            
+            # Process with AI model (mock implementation)
+            try:
+                if hasattr(openai, 'ChatCompletion'):
+                    # Use OpenAI if available
+                    response = openai.ChatCompletion.create(
+                        model='gpt-3.5-turbo',
+                        messages=[
+                            {"role": "system", "content": f"{system_prompt}\n\nMemory Context:\n{memory_context}"},
+                            {"role": "user", "content": str(user_input)}
+                        ],
+                        temperature=temperature,
+                        max_tokens=1000
+                    )
+                    ai_response = response.choices[0].message.content
+                else:
+                    # Mock response if OpenAI not available
+                    ai_response = f"[Brain {brain_id}] Processed input: {user_input}"
+            except Exception as e:
+                print(f"[WARNING] AI model failed, using mock response: {e}")
+                ai_response = f"[Brain {brain_id}] Mock response to: {user_input}"
+            
+            # Store interaction in memory
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    vector_store.store_memory(
+                        memory_namespace,
+                        f"Input: {user_input} | Response: {ai_response}",
+                        {"node_id": node['id'], "brain_id": brain_id, "workflow_id": workflow_id}
+                    )
+                except Exception as e:
+                    print(f"[WARNING] Failed to store memory: {e}")
+            
+            result['output'] = {
+                'response': ai_response,
+                'brain_id': brain_id,
+                'memory_namespace': memory_namespace
+            }
+            context['ai_response'] = ai_response
+            context['last_brain_output'] = ai_response
+            
+        elif node_type == 'agent':
+            config = node['data'].get('config', {})
+            agent_id = config.get('agentId', 'default-agent')
+            task = config.get('task', 'Complete the task')
+            tools = config.get('tools', '').split(',') if config.get('tools') else []
+            temperature = config.get('temperature', 0.3)
+            memory_namespace = config.get('memoryNamespace', 'agent_default')
+            
+            # Variable substitution
+            if isinstance(task, str) and '{{' in task:
+                for key, value in context.items():
+                    task = task.replace(f'{{{{{key}}}}}', str(value))
+            
+            # Get memory context
+            memory_context = ""
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    memories = vector_store.search_memories(memory_namespace, task, limit=3)
+                    if memories:
+                        memory_context = "\n".join([mem.get('content', '') for mem in memories])
+                except Exception as e:
+                    print(f"[WARNING] Failed to retrieve agent memories: {e}")
+            
+            # Process agent task
+            try:
+                if hasattr(openai, 'ChatCompletion'):
+                    system_message = f"You are an AI agent with ID {agent_id}.\nMemory:\n{memory_context}\nAvailable tools: {tools}"
+                    response = openai.ChatCompletion.create(
+                        model='gpt-3.5-turbo',
+                        messages=[
+                            {"role": "system", "content": system_message},
+                            {"role": "user", "content": str(task)}
+                        ],
+                        temperature=temperature,
+                        max_tokens=1500
+                    )
+                    agent_response = response.choices[0].message.content
+                else:
+                    # Mock response
+                    agent_response = f"[Agent {agent_id}] Completed task: {task}"
+            except Exception as e:
+                print(f"[WARNING] Agent model failed, using mock response: {e}")
+                agent_response = f"[Agent {agent_id}] Mock completion of: {task}"
+            
+            # Store agent interaction
+            if VECTOR_STORE_AVAILABLE:
+                try:
+                    vector_store = get_vector_store()
+                    vector_store.store_memory(
+                        memory_namespace,
+                        f"Task: {task} | Result: {agent_response}",
+                        {"node_id": node['id'], "agent_id": agent_id, "workflow_id": workflow_id}
+                    )
+                except Exception as e:
+                    print(f"[WARNING] Failed to store agent memory: {e}")
+            
+            result['output'] = {
+                'result': agent_response,
+                'agent_id': agent_id,
+                'tools_used': tools
+            }
+            context['agent_result'] = agent_response
+            context['last_agent_output'] = agent_response
+            
         else:
+            # Unknown node type
             result['status'] = 'error'
-            result['error'] = f"Unknown node type: {node['type']}"
+            result['error'] = f"Unknown node type: {node_type}"
             
     except Exception as e:
         result['status'] = 'error'
         result['error'] = str(e)
-        
+        print(f"[ERROR] Node execution failed: {e}")
+    
     return result, context
 
+
 def execute_workflow_nodes(workflow, input_data=None, execution_id=None):
-    """Execute all nodes in a workflow with real-time status updates"""
+    """Execute all nodes in a workflow using the new WorkflowExecutor engine"""
+    try:
+        from workflow_execution import WorkflowExecutor
+        
+        # Create workflow executor
+        executor = WorkflowExecutor()
+        
+        # Execute workflow
+        result = executor.execute_workflow(workflow, input_data or {}, execution_id)
+        
+        return result
+        
+    except ImportError:
+        # Fallback to simple execution if workflow_execution module not available
+        return _execute_workflow_simple(workflow, input_data, execution_id)
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'Workflow execution failed: {str(e)}',
+            'execution_log': [],
+            'node_statuses': {},
+            'final_context': input_data or {}
+        }
+
+def _execute_workflow_simple(workflow, input_data=None, execution_id=None):
+    """Simple fallback workflow execution"""
     nodes = workflow.get('nodes', [])
     edges = workflow.get('edges', [])
     
@@ -894,7 +1200,7 @@ def execute_workflow_nodes(workflow, input_data=None, execution_id=None):
     node_statuses = {}
     
     # Find start node
-    start_node = next((node for node in nodes if node['type'] == 'start'), None)
+    start_node = next((node for node in nodes if node.get('data', {}).get('nodeType') == 'start'), None)
     if not start_node:
         start_node = nodes[0]  # Use first node if no start node found
     
@@ -923,18 +1229,6 @@ def execute_workflow_nodes(workflow, input_data=None, execution_id=None):
                 'started_at': datetime.utcnow().isoformat()
             }
             
-            # Update execution record if available
-            if MONGODB_AVAILABLE and execution_id:
-                try:
-                    MongoWorkflowExecution.update_node_status(
-                        execution_id, 
-                        current_node_id, 
-                        'running',
-                        started_at=datetime.utcnow()
-                    )
-                except Exception as e:
-                    print(f"[ERROR] Failed to update node status: {e}")
-            
             # Execute node
             node_result, context = execute_node(current_node, context, workflow.get('id', 'temp'))
             execution_log.append(node_result)
@@ -948,381 +1242,71 @@ def execute_workflow_nodes(workflow, input_data=None, execution_id=None):
                 'error': node_result.get('error') if node_result['status'] == 'error' else None
             })
             
-            # Update execution record
-            if MONGODB_AVAILABLE and execution_id:
-                try:
-                    MongoWorkflowExecution.update_node_status(
-                        execution_id,
-                        current_node_id,
-                        node_status,
-                        completed_at=datetime.utcnow(),
-                        output=node_result.get('output'),
-                        error=node_result.get('error') if node_result['status'] == 'error' else None
-                    )
-                    
-                    # Add log entry
-                    MongoWorkflowExecution.add_log_entry(execution_id, node_result)
-                except Exception as e:
-                    print(f"[ERROR] Failed to update execution: {e}")
-            
+            # Stop execution if node failed
             if node_result['status'] == 'error':
-                # Mark remaining nodes as cancelled
-                for node in nodes:
-                    if node['id'] not in visited_nodes:
-                        node_statuses[node['id']] = {
-                            'status': 'cancelled',
-                            'cancelled_at': datetime.utcnow().isoformat()
-                        }
                 break
-                
-            # Find next node
-            current_node_id = None
             
-            # For if conditions, choose path based on result
-            if current_node['type'] == 'ifCondition':
-                condition_result = context.get('last_condition_result', False)
-                
-                # Find true/false edges
-                true_edge = next((edge for edge in edges 
-                                if edge['source'] == current_node['id'] and 
-                                edge.get('sourceHandle', '').lower() in ['true', '1', 'yes']), None)
-                false_edge = next((edge for edge in edges 
-                                 if edge['source'] == current_node['id'] and 
-                                 edge.get('sourceHandle', '').lower() in ['false', '0', 'no']), None)
-                
-                if condition_result and true_edge:
-                    current_node_id = true_edge['target']
-                elif not condition_result and false_edge:
-                    current_node_id = false_edge['target']
-                else:
-                    # If no labeled edges, just use first outgoing edge
-                    next_edge = next((edge for edge in edges if edge['source'] == current_node['id']), None)
-                    if next_edge:
-                        current_node_id = next_edge['target']
-            else:
-                # For other nodes, follow first outgoing edge
-                next_edge = next((edge for edge in edges if edge['source'] == current_node['id']), None)
-                if next_edge:
-                    current_node_id = next_edge['target']
-    
+            # Find next node to execute
+            next_node_id = None
+            next_edge = next((edge for edge in edges if edge['source'] == current_node_id), None)
+            
+            if next_edge:
+                next_node_id = next_edge['target']
+            
+            current_node_id = next_node_id
+        
+        # Determine final status
+        final_status = 'success'
+        error_details = None
+        
+        for log_entry in execution_log:
+            if log_entry['status'] == 'error':
+                final_status = 'error'
+                error_details = log_entry.get('error', 'Unknown error')
+                break
+        
+        return {
+            'status': final_status,
+            'execution_log': execution_log,
+            'node_statuses': node_statuses,
+            'final_context': context,
+            'iterations': iterations,
+            'error_details': error_details
+        }
+        
     except Exception as e:
-        # Handle execution errors
-        execution_log.append({
-            'node_id': current_node_id,
+        return {
             'status': 'error',
-            'error': f'Workflow execution failed: {str(e)}',
-            'timestamp': datetime.utcnow().isoformat()
-        })
-        
-        if current_node_id:
-            node_statuses[current_node_id] = {
-                'status': 'error',
-                'error': str(e),
-                'failed_at': datetime.utcnow().isoformat()
-            }
-    
-    # Determine overall status
-    has_errors = any(log['status'] == 'error' for log in execution_log)
-    overall_status = 'error' if has_errors else 'completed'
-    
-    return {
-        'status': overall_status,
-        'execution_log': execution_log,
-        'node_statuses': node_statuses,
-        'final_context': context,
-        'iterations': iterations,
-        'output_data': context
-    }
-
-# ─── Execution History and Statistics ──────────────────────────────────────
-
-@workflow_api.route('/api/workflows/<workflow_id>/executions', methods=['GET'])
-def get_workflow_executions(workflow_id):
-    """Get execution history for a workflow"""
-    limit = request.args.get('limit', 50, type=int)
-    
-    if MONGODB_AVAILABLE:
-        try:
-            executions = MongoWorkflowExecution.get_by_workflow(workflow_id, limit)
-            return jsonify({
-                'executions': executions,
-                'count': len(executions)
-            })
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch executions: {e}")
-    
-    # Fallback to file storage
-    logs = load_execution_logs()
-    workflow_logs = [log for log in logs if log.get('workflow_id') == workflow_id]
-    workflow_logs = sorted(workflow_logs, key=lambda x: x.get('execution_time', ''), reverse=True)
-    
-    return jsonify({
-        'executions': workflow_logs[:limit],
-        'count': len(workflow_logs)
-    })
-
-@workflow_api.route('/api/executions/<execution_id>', methods=['GET'])
-def get_execution_details(execution_id):
-    """Get detailed execution information"""
-    if MONGODB_AVAILABLE:
-        try:
-            execution = MongoWorkflowExecution.get_by_id(execution_id)
-            if execution:
-                return jsonify(execution)
-            return jsonify({'error': 'Execution not found'}), 404
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch execution: {e}")
-    
-    return jsonify({'error': 'Execution tracking not available'}), 404
-
-@workflow_api.route('/api/executions/recent', methods=['GET'])
-def get_recent_executions():
-    """Get recent executions across all workflows"""
-    limit = request.args.get('limit', 100, type=int)
-    
-    if MONGODB_AVAILABLE:
-        try:
-            executions = MongoWorkflowExecution.get_recent_executions(limit)
-            return jsonify({
-                'executions': executions,
-                'count': len(executions)
-            })
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch recent executions: {e}")
-    
-    # Fallback to file storage
-    logs = load_execution_logs()
-    recent_logs = sorted(logs, key=lambda x: x.get('execution_time', ''), reverse=True)
-    
-    return jsonify({
-        'executions': recent_logs[:limit],
-        'count': len(recent_logs)
-    })
-
-@workflow_api.route('/api/executions/stats', methods=['GET'])
-def get_execution_stats():
-    """Get execution statistics"""
-    if MONGODB_AVAILABLE:
-        try:
-            stats = MongoWorkflowExecution.get_execution_stats()
-            return jsonify({
-                'statistics': stats,
-                'mongodb_enabled': True
-            })
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch execution stats: {e}")
-    
-    # Fallback to file storage stats
-    logs = load_execution_logs()
-    stats = {}
-    for log in logs:
-        status = log.get('status', 'unknown')
-        stats[status] = stats.get(status, 0) + 1
-    
-    return jsonify({
-        'statistics': [{'_id': k, 'count': v} for k, v in stats.items()],
-        'mongodb_enabled': False
-    })
-
-@workflow_api.route('/api/executions/<execution_id>/cancel', methods=['POST'])
-def cancel_execution(execution_id):
-    """Cancel a running execution"""
-    if MONGODB_AVAILABLE:
-        try:
-            success = MongoWorkflowExecution.update_status(
-                execution_id, 
-                'cancelled',
-                cancelled_at=datetime.utcnow(),
-                cancelled_by=request.headers.get('User-Agent', 'Unknown')
-            )
-            if success:
-                return jsonify({'message': 'Execution cancelled successfully'})
-            return jsonify({'error': 'Execution not found or already completed'}), 404
-        except Exception as e:
-            print(f"[ERROR] Failed to cancel execution: {e}")
-    
-    return jsonify({'error': 'Execution cancellation not available'}), 404
-
-# ─── Vector Search and AI Insights ──────────────────────────────────────
-
-@workflow_api.route('/api/workflows/search', methods=['POST'])
-def search_workflows():
-    """Search workflows using vector similarity"""
-    data = request.json
-    query = data.get('query', '')
-    limit = data.get('limit', 10)
-    
-    if not query:
-        return jsonify({'error': 'Query parameter required'}), 400
-    
-    if not VECTOR_STORE_AVAILABLE:
-        return jsonify({
-            'message': 'Vector search not available',
-            'results': []
-        })
-    
-    try:
-        vector_store = get_vector_store()
-        similar_workflows = vector_store.search_similar_workflows(query, limit)
-        
-        return jsonify({
-            'query': query,
-            'results': similar_workflows,
-            'count': len(similar_workflows)
-        })
-    except Exception as e:
-        return jsonify({'error': f'Search failed: {str(e)}'}), 500
-
-@workflow_api.route('/api/workflows/<workflow_id>/insights', methods=['GET'])
-def get_workflow_insights(workflow_id):
-    """Get AI-generated insights about a workflow"""
-    if not VECTOR_STORE_AVAILABLE:
-        return jsonify({
-            'message': 'AI insights not available',
-            'insights': {}
-        })
-    
-    try:
-        vector_store = get_vector_store()
-        insights = vector_store.get_workflow_insights(workflow_id)
-        
-        return jsonify({
-            'workflow_id': workflow_id,
-            'insights': insights
-        })
-    except Exception as e:
-        return jsonify({'error': f'Failed to generate insights: {str(e)}'}), 500
-
-@workflow_api.route('/api/executions/search', methods=['POST'])
-def search_execution_memories():
-    """Search execution memories using vector similarity"""
-    data = request.json
-    query = data.get('query', '')
-    workflow_id = data.get('workflow_id')
-    limit = data.get('limit', 10)
-    
-    if not query:
-        return jsonify({'error': 'Query parameter required'}), 400
-    
-    if not VECTOR_STORE_AVAILABLE:
-        return jsonify({
-            'message': 'Vector search not available',
-            'results': []
-        })
-    
-    try:
-        vector_store = get_vector_store()
-        memories = vector_store.search_execution_memories(query, workflow_id, limit)
-        
-        return jsonify({
-            'query': query,
-            'workflow_id': workflow_id,
-            'results': memories,
-            'count': len(memories)
-        })
-    except Exception as e:
-        return jsonify({'error': f'Memory search failed: {str(e)}'}), 500
-
-@workflow_api.route('/api/workflows/recommend', methods=['POST'])
-def recommend_workflows():
-    """Recommend workflows based on description or requirements"""
-    data = request.json
-    requirements = data.get('requirements', '')
-    limit = data.get('limit', 5)
-    
-    if not requirements:
-        return jsonify({'error': 'Requirements parameter required'}), 400
-    
-    if not VECTOR_STORE_AVAILABLE:
-        return jsonify({
-            'message': 'Workflow recommendations not available',
-            'recommendations': []
-        })
-    
-    try:
-        vector_store = get_vector_store()
-        
-        # Search for similar workflows
-        similar_workflows = vector_store.search_similar_workflows(requirements, limit * 2)
-        
-        # Filter and rank recommendations
-        recommendations = []
-        for workflow in similar_workflows:
-            if workflow['similarity_score'] > 0.7:  # Only high similarity
-                recommendations.append({
-                    'workflow_id': workflow['workflow_id'],
-                    'workflow_name': workflow['workflow_name'],
-                    'description': workflow['description'],
-                    'relevance_score': workflow['similarity_score'],
-                    'reason': f"Similar workflow with {workflow['similarity_score']:.1%} relevance",
-                    'node_count': workflow['node_count'],
-                    'tags': workflow.get('tags', [])
-                })
-        
-        # Limit results
-        recommendations = recommendations[:limit]
-        
-        return jsonify({
-            'requirements': requirements,
-            'recommendations': recommendations,
-            'count': len(recommendations)
-        })
-    except Exception as e:
-        return jsonify({'error': f'Recommendation failed: {str(e)}'}), 500
+            'error': str(e),
+            'execution_log': execution_log,
+            'node_statuses': node_statuses,
+            'final_context': context,
+            'iterations': iterations
+        }
 
 @workflow_api.route('/api/workflows/execute', methods=['POST'])
-def execute_workflow_direct():
-    """Execute a workflow provided in the request body"""
-    try:
-        data = request.json or {}
-        workflow = data.get('workflow')
-        input_data = data.get('input_data', {})
-        
-        if not workflow:
-            return jsonify({'error': 'Workflow data is required'}), 400
-        
-        # Validate workflow structure
-        if not all(key in workflow for key in ['nodes', 'edges']):
-            return jsonify({'error': 'Workflow must contain nodes and edges'}), 400
-        
-        start_time = datetime.utcnow()
-        
-        # Create a temporary execution ID
-        execution_id = str(uuid4())
-        
-        # Create execution record in MongoDB if available
-        if MONGODB_AVAILABLE:
-            try:
-                execution = MongoWorkflowExecution.create({
-                    'workflow_id': workflow.get('id', 'temp'),
-                    'workflow_name': workflow.get('name', 'Temporary Workflow'),
-                    'status': 'running',
-                    'input_data': input_data,
-                    'started_at': start_time,
-                    'execution_id': execution_id
-                })
-            except Exception as e:
-                print(f"[ERROR] Failed to create MongoDB execution record: {e}")
-        
-        # Execute the workflow
-        execution_result = execute_workflow_nodes(workflow, input_data, execution_id)
-        
-        # Update execution record if successful
-        if MONGODB_AVAILABLE:
-            try:
-                MongoWorkflowExecution.update_by_execution_id(execution_id, {
-                    'status': 'completed' if execution_result.get('success') else 'failed',
-                    'completed_at': datetime.utcnow(),
-                    'result': execution_result,
-                    'error_message': execution_result.get('error') if not execution_result.get('success') else None
-                })
-            except Exception as e:
-                print(f"[ERROR] Failed to update MongoDB execution record: {e}")
-        
-        return jsonify(execution_result)
-        
-    except Exception as e:
-        print(f"[ERROR] Workflow execution failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+def execute_temporary_workflow():
+    """Execute a temporary workflow from frontend"""
+    data = request.json or {}
+    workflow_data = data.get('workflow', {})
+    input_data = data.get('input_data', {})
+    
+    if not workflow_data:
+        return jsonify({'error': 'No workflow data provided'}), 400
+    
+    start_time = datetime.utcnow()
+    
+    # Execute workflow directly
+    execution_result = execute_workflow_nodes(workflow_data, input_data, None)
+    
+    end_time = datetime.utcnow()
+    duration_ms = int((end_time - start_time).total_seconds() * 1000)
+    
+    # Add execution metadata
+    execution_result['start_time'] = start_time.isoformat()
+    execution_result['end_time'] = end_time.isoformat()
+    execution_result['duration_ms'] = duration_ms
+    execution_result['workflow_name'] = workflow_data.get('name', 'Temporary Workflow')
+    execution_result['executed_nodes'] = len(execution_result.get('execution_log', []))
+    
+    return jsonify(execution_result)

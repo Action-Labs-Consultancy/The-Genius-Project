@@ -523,3 +523,214 @@ class MongoChatConversation:
             {'$set': {'title': title, 'updated_at': datetime.utcnow()}}
         )
         return collection.find_one({'_id': ObjectId(conversation_id)})
+
+
+# ─── Workflow Models ──────────────────────────────────────────────────────
+
+class MongoWorkflow:
+    """MongoDB model for workflows"""
+    
+    @staticmethod
+    def create(workflow_data):
+        """Create a new workflow"""
+        workflow = {
+            'name': workflow_data.get('name', 'Unnamed Workflow'),
+            'description': workflow_data.get('description', ''),
+            'nodes': workflow_data.get('nodes', []),
+            'edges': workflow_data.get('edges', []),
+            'groups': workflow_data.get('groups', []),
+            'variables': workflow_data.get('variables', {}),
+            'settings': workflow_data.get('settings', {}),
+            'tags': workflow_data.get('tags', []),
+            'version': workflow_data.get('version', '1.0.0'),
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow(),
+            'created_by': workflow_data.get('created_by'),
+            'is_active': True,
+            'execution_count': 0,
+            'last_executed': None
+        }
+        collection = mongo.get_collection('workflows')
+        result = collection.insert_one(workflow)
+        workflow['_id'] = str(result.inserted_id)
+        return workflow
+    
+    @staticmethod
+    def get_all():
+        """Get all workflows"""
+        collection = mongo.get_collection('workflows')
+        workflows = list(collection.find({'is_active': True}).sort('updated_at', -1))
+        for workflow in workflows:
+            workflow['_id'] = str(workflow['_id'])
+        return workflows
+    
+    @staticmethod
+    def get_by_id(workflow_id):
+        """Get workflow by ID"""
+        collection = mongo.get_collection('workflows')
+        workflow = collection.find_one({'_id': ObjectId(workflow_id)})
+        if workflow:
+            workflow['_id'] = str(workflow['_id'])
+        return workflow
+    
+    @staticmethod
+    def update(workflow_id, update_data):
+        """Update workflow"""
+        update_data['updated_at'] = datetime.utcnow()
+        collection = mongo.get_collection('workflows')
+        result = collection.update_one(
+            {'_id': ObjectId(workflow_id)},
+            {'$set': update_data}
+        )
+        if result.modified_count > 0:
+            return MongoWorkflow.get_by_id(workflow_id)
+        return None
+    
+    @staticmethod
+    def delete(workflow_id):
+        """Soft delete workflow"""
+        collection = mongo.get_collection('workflows')
+        return collection.update_one(
+            {'_id': ObjectId(workflow_id)},
+            {'$set': {'is_active': False, 'deleted_at': datetime.utcnow()}}
+        )
+    
+    @staticmethod
+    def increment_execution_count(workflow_id):
+        """Increment execution count"""
+        collection = mongo.get_collection('workflows')
+        collection.update_one(
+            {'_id': ObjectId(workflow_id)},
+            {
+                '$inc': {'execution_count': 1},
+                '$set': {'last_executed': datetime.utcnow()}
+            }
+        )
+
+
+class MongoWorkflowExecution:
+    """MongoDB model for workflow executions"""
+    
+    @staticmethod
+    def create(execution_data):
+        """Create a new workflow execution"""
+        execution = {
+            'workflow_id': execution_data.get('workflow_id'),
+            'workflow_name': execution_data.get('workflow_name'),
+            'status': execution_data.get('status', 'running'),  # running, completed, failed, cancelled
+            'input_data': execution_data.get('input_data', {}),
+            'output_data': execution_data.get('output_data', {}),
+            'execution_log': execution_data.get('execution_log', []),
+            'node_statuses': execution_data.get('node_statuses', {}),
+            'error_details': execution_data.get('error_details'),
+            'started_at': datetime.utcnow(),
+            'completed_at': execution_data.get('completed_at'),
+            'duration_ms': execution_data.get('duration_ms'),
+            'triggered_by': execution_data.get('triggered_by'),
+            'trigger_source': execution_data.get('trigger_source', 'manual'),
+            'execution_context': execution_data.get('execution_context', {}),
+            'resource_usage': execution_data.get('resource_usage', {}),
+            'is_active': True
+        }
+        collection = mongo.get_collection('workflow_executions')
+        result = collection.insert_one(execution)
+        execution['_id'] = str(result.inserted_id)
+        return execution
+    
+    @staticmethod
+    def get_by_workflow(workflow_id, limit=50):
+        """Get executions for a workflow"""
+        collection = mongo.get_collection('workflow_executions')
+        executions = list(
+            collection.find({'workflow_id': workflow_id})
+            .sort('started_at', -1)
+            .limit(limit)
+        )
+        for execution in executions:
+            execution['_id'] = str(execution['_id'])
+        return executions
+    
+    @staticmethod
+    def get_by_id(execution_id):
+        """Get execution by ID"""
+        collection = mongo.get_collection('workflow_executions')
+        execution = collection.find_one({'_id': ObjectId(execution_id)})
+        if execution:
+            execution['_id'] = str(execution['_id'])
+        return execution
+    
+    @staticmethod
+    def update_status(execution_id, status, **kwargs):
+        """Update execution status"""
+        update_data = {'status': status, 'updated_at': datetime.utcnow()}
+        
+        if status in ['completed', 'failed', 'cancelled']:
+            update_data['completed_at'] = datetime.utcnow()
+        
+        # Add any additional fields
+        update_data.update(kwargs)
+        
+        collection = mongo.get_collection('workflow_executions')
+        result = collection.update_one(
+            {'_id': ObjectId(execution_id)},
+            {'$set': update_data}
+        )
+        return result.modified_count > 0
+    
+    @staticmethod
+    def add_log_entry(execution_id, log_entry):
+        """Add log entry to execution"""
+        collection = mongo.get_collection('workflow_executions')
+        collection.update_one(
+            {'_id': ObjectId(execution_id)},
+            {
+                '$push': {'execution_log': log_entry},
+                '$set': {'updated_at': datetime.utcnow()}
+            }
+        )
+    
+    @staticmethod
+    def update_node_status(execution_id, node_id, status, **node_data):
+        """Update individual node status"""
+        update_data = {
+            f'node_statuses.{node_id}.status': status,
+            f'node_statuses.{node_id}.updated_at': datetime.utcnow()
+        }
+        
+        # Add any additional node data
+        for key, value in node_data.items():
+            update_data[f'node_statuses.{node_id}.{key}'] = value
+        
+        collection = mongo.get_collection('workflow_executions')
+        collection.update_one(
+            {'_id': ObjectId(execution_id)},
+            {'$set': update_data}
+        )
+    
+    @staticmethod
+    def get_recent_executions(limit=100):
+        """Get recent executions across all workflows"""
+        collection = mongo.get_collection('workflow_executions')
+        executions = list(
+            collection.find()
+            .sort('started_at', -1)
+            .limit(limit)
+        )
+        for execution in executions:
+            execution['_id'] = str(execution['_id'])
+        return executions
+    
+    @staticmethod
+    def get_execution_stats():
+        """Get execution statistics"""
+        collection = mongo.get_collection('workflow_executions')
+        pipeline = [
+            {
+                '$group': {
+                    '_id': '$status',
+                    'count': {'$sum': 1},
+                    'avg_duration': {'$avg': '$duration_ms'}
+                }
+            }
+        ]
+        return list(collection.aggregate(pipeline))

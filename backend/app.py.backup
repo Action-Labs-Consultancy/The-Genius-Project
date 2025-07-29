@@ -1820,15 +1820,14 @@ def handle_meetings():
                 dm_channel = MongoChannel.find_by_members(dm_name, True, member_ids)
                 if not dm_channel:
                     dm_channel = MongoChannel.create_channel(dm_name, True, member_ids, organizer_id)
-                
-                channel_id = dm_channel.get('_id')
-                # Send notification message about meeting invitation
-                MongoMessage.create_message(
-                    channel_id=channel_id,
-                    user_id='system',
-                    content=f'You have been invited to a meeting: "{title}" from {start_time} to {end_time}.',
-                    name='System',
-                    parent_message_id=None
+                    'send_message',
+                    {
+                        'channel_id': channel_id,
+                        'user_id': 'system',
+                        'content': f'You have been invited to a meeting: "{title}" from {start_time} to {end_time}.',
+                        'name': 'System',
+                        'parent_message_id': None
+                    }
                 )
 
             return jsonify({
@@ -2401,29 +2400,4 @@ def debug_lan_connectivity():
         }
         
         return jsonify({
-            'success': True,            "timestamp": datetime.now().isoformat(),
-            "network_info": network_info,
-            "database_info": {
-                "mongodb_connected": bool(mongo.db),
-                "brains_sample": brains_sample
-            },
-            "message": "LAN connectivity debug information"
-        })
-        
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "message": "LAN connectivity debug failed"
-        }), 500
-
-# ─── Main Application Entry Point ──────────────────────────────────────────
-
-if __name__ == "__main__":
-    print("[FLASK] Starting Genius Project Backend...")
-    
-    # Get port from environment or use default 10000
-    port = int(os.getenv("PORT", 10000))
-    print(f"[FLASK] Starting on port {port}")
-    
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+            'success': True,
