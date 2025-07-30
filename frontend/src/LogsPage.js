@@ -1,359 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import './styles.css';
+import React, { useEffect, useState } from 'react';
+import './LogsPage.css';
+import { API_BASE_URL } from './config/api';
+
+const fetchLogs = async (filters = {}) => {
+  try {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/api/logs?${params.toString()}`);
+    const data = await response.json();
+    
+    if (data.success) {
+      return data.data;
+    } else {
+      console.error('API Error:', data.error);
+      return [];
+    }
+  } catch (error) {
+    console.error('Fetch error:', error);
+    return [];
+  }
+};
 
 const LogsPage = () => {
-    const [logs, setLogs] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [filters, setFilters] = useState({
-        limit: 50,
-        offset: 0,
-        level: '',
-        action_type: '',
-        user_id: '',
-        brain_id: '',
-        workflow_id: ''
-    });
-    const [stats, setStats] = useState(null);
-    const [totalCount, setTotalCount] = useState(0);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ 
+    user: '', 
+    role: '', 
+    project: '', 
+    task: '', 
+    event_type: '', 
+    start_date: '', 
+    end_date: '' 
+  });
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
-    // Fetch logs from backend
-    const fetchLogs = async () => {
-        setLoading(true);
-        try {
-            const queryParams = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value !== '' && value !== null && value !== undefined) {
-                    queryParams.append(key, value);
-                }
-            });
+  const loadLogs = async () => {
+    setLoading(true);
+    const data = await fetchLogs(filters);
+    setLogs(data);
+    setLoading(false);
+  };
 
-            const response = await fetch(`/api/logs?${queryParams}`);
-            const data = await response.json();
-            
-            if (response.ok) {
-                setLogs(data.logs);
-                setTotalCount(data.total_count);
-                setError(null);
-            } else {
-                setError(data.error || 'Failed to fetch logs');
-            }
-        } catch (err) {
-            setError('Failed to connect to server');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Fetch log statistics
-    const fetchStats = async () => {
-        try {
-            const response = await fetch('/api/logs/stats');
-            const data = await response.json();
-            
-            if (response.ok) {
-                setStats(data);
-            }
-        } catch (err) {
-            console.error('Failed to fetch log stats:', err);
-        }
-    };
-
-    useEffect(() => {
-        fetchLogs();
-        fetchStats();
-    }, [filters]);
-
-    const handleFilterChange = (key, value) => {
-        setFilters(prev => ({
-            ...prev,
-            [key]: value,
-            offset: 0 // Reset to first page when filtering
-        }));
-    };
-
-    const handlePageChange = (direction) => {
-        const newOffset = direction === 'next' 
-            ? filters.offset + filters.limit
-            : Math.max(0, filters.offset - filters.limit);
-        
-        setFilters(prev => ({
-            ...prev,
-            offset: newOffset
-        }));
-    };
-
-    const formatTimestamp = (timestamp) => {
-        return new Date(timestamp).toLocaleString();
-    };
-
-    const getLevelColor = (level) => {
-        switch (level) {
-            case 'error': return '#ff4444';
-            case 'warning': return '#ffaa00';
-            case 'info': return '#00aaff';
-            case 'debug': return '#888888';
-            case 'critical': return '#ff0000';
-            default: return '#ffffff';
-        }
-    };
-
-    const getActionTypeColor = (actionType) => {
-        if (actionType.includes('brain')) return '#ffeb3b';
-        if (actionType.includes('workflow')) return '#2196f3';
-        if (actionType.includes('node')) return '#4caf50';
-        if (actionType.includes('error')) return '#f44336';
-        return '#ffffff';
-    };
-
-    if (loading && logs.length === 0) {
-        return (
-            <div className="logs-page">
-                <div className="page-header">
-                    <h1>System Logs</h1>
-                </div>
-                <div className="loading-spinner">Loading logs...</div>
-            </div>
-        );
+  useEffect(() => {
+    let interval;
+    loadLogs();
+    
+    if (autoRefresh) {
+      interval = setInterval(loadLogs, 10000); // Refresh every 10 seconds
     }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [filters, autoRefresh]);
 
-    return (
-        <div className="logs-page">
-            <div className="page-header">
-                <h1>System Logs</h1>
-                <p>Real-time system activity and audit trail</p>
-            </div>
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
 
-            {/* Statistics Dashboard */}
-            {stats && (
-                <div className="logs-stats">
-                    <div className="stat-card">
-                        <h3>Total Logs</h3>
-                        <div className="stat-value">{stats.total_logs.toLocaleString()}</div>
-                    </div>
-                    <div className="stat-card">
-                        <h3>Last 24 Hours</h3>
-                        <div className="stat-value">{stats.recent_activity_24h}</div>
-                    </div>
-                    <div className="stat-card">
-                        <h3>Log Levels</h3>
-                        <div className="level-breakdown">
-                            {stats.level_stats.map(level => (
-                                <div key={level._id} className="level-item">
-                                    <span 
-                                        className="level-badge" 
-                                        style={{backgroundColor: getLevelColor(level._id)}}
-                                    >
-                                        {level._id}
-                                    </span>
-                                    <span>{level.count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="stat-card">
-                        <h3>Top Actions</h3>
-                        <div className="action-breakdown">
-                            {stats.action_stats.slice(0, 5).map(action => (
-                                <div key={action._id} className="action-item">
-                                    <span className="action-name">{action._id}</span>
-                                    <span className="action-count">{action.count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+  const clearFilters = () => {
+    setFilters({ user: '', role: '', project: '', task: '', event_type: '', start_date: '', end_date: '' });
+  };
 
-            {/* Filters */}
-            <div className="logs-filters">
-                <div className="filter-group">
-                    <label>Level:</label>
-                    <select 
-                        value={filters.level} 
-                        onChange={(e) => handleFilterChange('level', e.target.value)}
-                    >
-                        <option value="">All Levels</option>
-                        <option value="debug">Debug</option>
-                        <option value="info">Info</option>
-                        <option value="warning">Warning</option>
-                        <option value="error">Error</option>
-                        <option value="critical">Critical</option>
-                    </select>
-                </div>
-
-                <div className="filter-group">
-                    <label>Action Type:</label>
-                    <input
-                        type="text"
-                        placeholder="e.g., brain_created, workflow_executed"
-                        value={filters.action_type}
-                        onChange={(e) => handleFilterChange('action_type', e.target.value)}
-                    />
-                </div>
-
-                <div className="filter-group">
-                    <label>User ID:</label>
-                    <input
-                        type="text"
-                        placeholder="Filter by user"
-                        value={filters.user_id}
-                        onChange={(e) => handleFilterChange('user_id', e.target.value)}
-                    />
-                </div>
-
-                <div className="filter-group">
-                    <label>Brain ID:</label>
-                    <input
-                        type="text"
-                        placeholder="Filter by brain"
-                        value={filters.brain_id}
-                        onChange={(e) => handleFilterChange('brain_id', e.target.value)}
-                    />
-                </div>
-
-                <div className="filter-group">
-                    <label>Per Page:</label>
-                    <select 
-                        value={filters.limit} 
-                        onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
-                    >
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                        <option value={200}>200</option>
-                    </select>
-                </div>
-
-                <button className="btn btn-secondary" onClick={() => setFilters({
-                    limit: 50,
-                    offset: 0,
-                    level: '',
-                    action_type: '',
-                    user_id: '',
-                    brain_id: '',
-                    workflow_id: ''
-                })}>
-                    Clear Filters
-                </button>
-            </div>
-
-            {/* Error Display */}
-            {error && (
-                <div className="error-message">
-                    {error}
-                </div>
-            )}
-
-            {/* Logs Table */}
-            <div className="logs-container">
-                <div className="logs-header">
-                    <h2>Activity Log</h2>
-                    <div className="pagination-info">
-                        Showing {filters.offset + 1}-{Math.min(filters.offset + filters.limit, totalCount)} of {totalCount} logs
-                    </div>
-                </div>
-
-                <div className="logs-table-wrapper">
-                    <table className="logs-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Level</th>
-                                <th>Action Type</th>
-                                <th>Description</th>
-                                <th>User</th>
-                                <th>Context</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {logs.map((log) => (
-                                <tr key={log._id} className={`log-row log-level-${log.level}`}>
-                                    <td className="timestamp-cell">
-                                        {formatTimestamp(log.timestamp)}
-                                    </td>
-                                    <td className="level-cell">
-                                        <span 
-                                            className="level-badge"
-                                            style={{backgroundColor: getLevelColor(log.level)}}
-                                        >
-                                            {log.level.toUpperCase()}
-                                        </span>
-                                    </td>
-                                    <td className="action-cell">
-                                        <span 
-                                            className="action-badge"
-                                            style={{backgroundColor: getActionTypeColor(log.action_type)}}
-                                        >
-                                            {log.action_type}
-                                        </span>
-                                    </td>
-                                    <td className="description-cell">
-                                        {log.description}
-                                    </td>
-                                    <td className="user-cell">
-                                        {log.user_id || 'system'}
-                                    </td>
-                                    <td className="context-cell">
-                                        <div className="context-info">
-                                            {log.brain_id && <div className="context-item brain">Brain: {log.brain_id.slice(0, 8)}...</div>}
-                                            {log.workflow_id && <div className="context-item workflow">Workflow: {log.workflow_id.slice(0, 8)}...</div>}
-                                            {log.node_id && <div className="context-item node">Node: {log.node_id.slice(0, 8)}...</div>}
-                                        </div>
-                                    </td>
-                                    <td className="details-cell">
-                                        {log.metadata && Object.keys(log.metadata).length > 0 && (
-                                            <details>
-                                                <summary>View Metadata</summary>
-                                                <pre className="metadata-display">
-                                                    {JSON.stringify(log.metadata, null, 2)}
-                                                </pre>
-                                            </details>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                <div className="pagination">
-                    <button 
-                        className="btn btn-secondary"
-                        onClick={() => handlePageChange('prev')}
-                        disabled={filters.offset === 0}
-                    >
-                        Previous
-                    </button>
-                    
-                    <span className="pagination-info">
-                        Page {Math.floor(filters.offset / filters.limit) + 1} of {Math.ceil(totalCount / filters.limit)}
-                    </span>
-                    
-                    <button 
-                        className="btn btn-secondary"
-                        onClick={() => handlePageChange('next')}
-                        disabled={filters.offset + filters.limit >= totalCount}
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
-
-            {/* Auto-refresh toggle */}
-            <div className="logs-controls">
-                <button 
-                    className="btn btn-primary"
-                    onClick={fetchLogs}
-                    disabled={loading}
-                >
-                    {loading ? 'Refreshing...' : 'Refresh'}
-                </button>
-            </div>
+  return (
+    <div className="logs-page">
+      <div className="logs-header">
+        <h1>System Activity Logs</h1>
+        <div className="logs-actions">
+          <button onClick={loadLogs} className="btn-primary">
+            Refresh
+          </button>
         </div>
-    );
+      </div>
+
+      <div className="filters-section">
+        <div className="filters-grid">
+          <input 
+            name="user" 
+            placeholder="Filter by User" 
+            value={filters.user} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="role" 
+            placeholder="Filter by Role" 
+            value={filters.role} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="project" 
+            placeholder="Filter by Project" 
+            value={filters.project} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="task" 
+            placeholder="Filter by Task" 
+            value={filters.task} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="event_type" 
+            placeholder="Filter by Event Type" 
+            value={filters.event_type} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="start_date" 
+            type="date" 
+            title="Start Date"
+            value={filters.start_date} 
+            onChange={handleFilterChange} 
+          />
+          <input 
+            name="end_date" 
+            type="date" 
+            title="End Date"
+            value={filters.end_date} 
+            onChange={handleFilterChange} 
+          />
+        </div>
+        
+        <div className="filters-controls">
+          <label className="auto-refresh-control">
+            <input 
+              type="checkbox" 
+              checked={autoRefresh} 
+              onChange={(e) => setAutoRefresh(e.target.checked)} 
+            />
+            Auto-refresh (10s)
+          </label>
+          <button onClick={clearFilters} className="btn-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div className="logs-content">
+        {loading ? (
+          <div className="loading">Loading logs...</div>
+        ) : (
+          <>
+            <div className="logs-count">
+              {logs.length} log{logs.length !== 1 ? 's' : ''} found
+            </div>
+            
+            <div className="table-container">
+              <table className="logs-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                    <th>Description</th>
+                    <th>Project</th>
+                    <th>Task</th>
+                    <th>Event Type</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log, index) => (
+                    <tr key={log._id || index}>
+                      <td>{log.user || '-'}</td>
+                      <td>{log.role || '-'}</td>
+                      <td>{log.action || '-'}</td>
+                      <td className="description-cell">{log.description || '-'}</td>
+                      <td>{log.project || '-'}</td>
+                      <td>{log.task || '-'}</td>
+                      <td>
+                        <span className={`event-type ${log.event_type}`}>
+                          {log.event_type || '-'}
+                        </span>
+                      </td>
+                      <td className="timestamp-cell">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {logs.length === 0 && !loading && (
+                <div className="no-logs">
+                  <p>No logs found matching your criteria.</p>
+                  <p>Try adjusting your filters or create some sample logs to get started.</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default LogsPage;

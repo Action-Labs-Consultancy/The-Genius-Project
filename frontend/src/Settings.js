@@ -904,7 +904,7 @@ export default function Settings({ onNavigate, onUserUpdate, user }) {
                       <tr key={req.id}>
                         <td style={{ padding: '1.1rem 0.7rem' }}>{req.name || '-'}</td>
                         <td style={{ padding: '1.1rem 0.7rem' }}>{req.email}</td>
-                        <td style={{ padding: '1.1rem 0.7rem' }}>{req.requested_at ? new Date(req.requested_at).toLocaleDateString() + ' ' + new Date(req.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                        <td style={{ padding: '1.1rem 0.7rem' }}>{req.created_at ? new Date(req.created_at).toLocaleDateString() + ' ' + new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</td>
                         <td className="user-type-col" style={{ padding: '1.1rem 32px' }}>
                           {req.status === 'pending' ? (
                             <div className="modern-requests-cell" style={{ alignItems: 'center', gap: 8 }}>

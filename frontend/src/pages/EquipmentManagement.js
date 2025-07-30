@@ -33,9 +33,14 @@ const EquipmentManagement = ({ user }) => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'equipment', 'checkout'
   const [editingItem, setEditingItem] = useState(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
+
+  // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   // Form states
   const [equipmentForm, setEquipmentForm] = useState({
@@ -200,23 +205,23 @@ const EquipmentManagement = ({ user }) => {
   };
 
   const handleDeleteEquipment = async (equipmentId) => {
-    if (!confirm('Are you sure you want to delete this equipment?')) return;
+    showConfirmation('Are you sure you want to delete this equipment?', async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/equipment/${equipmentId}`, {
+          method: 'DELETE',
+        });
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/equipment/${equipmentId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        await loadEquipment();
-      } else {
-        const error = await response.json();
-        showPopup(`Error: ${error.error}`);
+        if (response.ok) {
+          await loadEquipment();
+        } else {
+          const error = await response.json();
+          showPopup(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        console.error('Error deleting equipment:', error);
+        showPopup('Error deleting equipment');
       }
-    } catch (error) {
-      console.error('Error deleting equipment:', error);
-      showPopup('Error deleting equipment');
-    }
+    });
   };
 
   // Equipment Request Approval/Rejection
@@ -301,12 +306,28 @@ const EquipmentManagement = ({ user }) => {
     setConfirmModal({ show: true, message, onConfirm });
   };
 
+  // Confirmation dialog function
+  const showConfirmation = (message, action) => {
+    setConfirmMessage(message);
+    setConfirmAction(() => action);
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmAction = () => {
+    if (confirmAction) {
+      confirmAction();
+    }
+    setShowConfirmDialog(false);
+    setConfirmAction(null);
+    setConfirmMessage('');
+  };
+
   // Filter equipment
   const filteredEquipment = equipment.filter(item => {
     const matchesSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.unique_id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !filterStatus || item.item_status === filterStatus;
-    const matchesCategory = !filterCategory || item.category === filterCategory;
+    const matchesStatus = filterStatus === 'all' || item.item_status === filterStatus;
+    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
@@ -437,7 +458,7 @@ const EquipmentManagement = ({ user }) => {
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
             >
-              <option value="">All Categories</option>
+              <option value="all">All Categories</option>
               {categories.map(category => (
                 <option key={category} value={category}>{category}</option>
               ))}
@@ -446,7 +467,7 @@ const EquipmentManagement = ({ user }) => {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="">All Status</option>
+              <option value="all">All Status</option>
               {statusOptions.map(status => (
                 <option key={status} value={status}>{status}</option>
               ))}
@@ -700,6 +721,30 @@ const EquipmentManagement = ({ user }) => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <h3>Confirm Action</h3>
+            <p>{confirmMessage}</p>
+            <div className="modal-buttons">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowConfirmDialog(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={handleConfirmAction}
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}

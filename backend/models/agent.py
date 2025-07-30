@@ -16,7 +16,7 @@ class Agent:
     def get_all_by_brain(brain_id):
         """Get all agents for a specific brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None or not mongo.is_connected():
                 raise Exception("Database not available")
                 
             agents = list(mongo.db.agents.find({'brain_id': brain_id}))
@@ -30,7 +30,7 @@ class Agent:
     def create(brain_id, agent_name, role_description, system_prompt, user_id=None, temperature=0.7, tools=None, personality="professional"):
         """Create a new agent within a brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None or not mongo.is_connected():
                 raise Exception("Database not available")
             
             # Verify brain exists

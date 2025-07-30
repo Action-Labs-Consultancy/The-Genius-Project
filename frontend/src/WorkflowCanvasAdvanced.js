@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import ReactFlow, { 
   addEdge, 
   MiniMap, 
@@ -17,7 +17,11 @@ import 'reactflow/dist/style.css';
 import './WorkflowCanvas.css';
 import GroupNode from './components/GroupNode';
 import IfNode from './components/IfNode';
-import NodeDetailsPanel from './components/NodeDetailsPanel';
+import NodeDetailsSidebar from './components/NodeDetailsSidebar';
+import ExecutionLogPanel from './components/ExecutionLogPanel';
+import { NODE_SCHEMAS, validateNodeParameters, getNodeDefaults, getAllNodeTypes } from './nodeSchemas';
+import io from 'socket.io-client';
+import { API_BASE_URL } from './config/api';
 
 // Custom Node Components
 // --- Modernized Node Icons (less emojis) ---
@@ -42,15 +46,64 @@ const nodeIconMap = {
   math: '∑',
   file: '📄',
   timer: '⏲',
-  notification: '🔔'
+  notification: '🔔',
+  // Business workflow nodes
+  section: '�',
+  request: '📋',
+  department: '🏢',
+  task: '✅',
+  cardDetails: '🗃️',
+  phase: '📊',
+  result: '🎯'
 };
 
 const CustomNode = ({ data, type, id, selected }) => {
   const icon = nodeIconMap[type] || '⚪';
-  const statusIcon = data.status === 'success' ? '✅' : data.status === 'error' ? '❌' : '';
+  const statusIcon = data.status === 'success' ? '✅' : data.status === 'error' ? '❌' : 
+                     data.status === 'running' ? '🔄' : data.status === 'pending' ? '⏳' : '';
+  
+  // Check if node has validation errors
+  const hasErrors = data.params ? validateNodeParameters(type, data.params).length > 0 : false;
+  
+  // Get dynamic node name from parameters
+  const getNodeDisplayName = () => {
+    if (data.config) {
+      // For section nodes, show the section name
+      if (type === 'section' && data.config.sectionName) {
+        return data.config.sectionName;
+      }
+      // For other nodes, show their specific name fields
+      if (type === 'request' && data.config.requestTitle) {
+        return data.config.requestTitle;
+      }
+      if (type === 'department' && data.config.departmentName) {
+        return data.config.departmentName;
+      }
+      if (type === 'task' && data.config.taskTitle) {
+        return data.config.taskTitle;
+      }
+      if (type === 'cardDetails' && data.config.cardTitle) {
+        return data.config.cardTitle;
+      }
+      if (type === 'phase' && data.config.phaseName) {
+        return data.config.phaseName;
+      }
+      if (type === 'result' && data.config.resultTitle) {
+        return data.config.resultTitle;
+      }
+    }
+    
+    // Fallback to default label
+    return data.label || NODE_SCHEMAS[type]?.label || type;
+  };
+
+  // Show detailed parameters for cardDetails node
+  const showDetailedParams = type === 'cardDetails';
   
   return (
-    <div className={`custom-node ${type} ${selected ? 'selected' : ''} ${data.status || ''}`}>
+    <div 
+      className={`custom-node ${type} ${selected ? 'selected' : ''} ${data.status || ''} ${hasErrors ? 'has-errors' : ''}`}
+    >
       <Handle
         type="target"
         position={Position.Top}
@@ -59,19 +112,74 @@ const CustomNode = ({ data, type, id, selected }) => {
       <div className="node-content">
         <div className="node-header">
           <span className="node-icon">{icon}</span>
-          <span className="node-label">{data.label || type}</span>
+          <span className="node-label" style={{ color: type === 'request' ? 'white' : '#333' }}>
+            {getNodeDisplayName()}
+          </span>
+          {hasErrors && <span className="node-error">⚠️</span>}
           {statusIcon && <span className="node-status">{statusIcon}</span>}
         </div>
-        {data.params && Object.keys(data.params).length > 0 && (
-          <div className="node-params">
-            {Object.entries(data.params).map(([key, value]) => (
-              <div key={key} className="param">
-                <span className="param-key">{key}:</span>
-                <span className="param-value">{String(value)}</span>
+        
+        {/* ONLY CARD DETAILS SHOWS PARAMETERS - ALL OTHER BUSINESS NODES SHOW JUST NAME */}
+        {showDetailedParams && type === 'cardDetails' && data.config && (
+          <div className="card-details-info">
+            {data.config.cardType && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Type:</span>
+                <span className="card-detail-value">{data.config.cardType}</span>
               </div>
-            ))}
+            )}
+            {data.config.description && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Desc:</span>
+                <span className="card-detail-value">{data.config.description.length > 35 ? data.config.description.substring(0, 35) + '...' : data.config.description}</span>
+              </div>
+            )}
+            {data.config.assignedTo && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Assigned:</span>
+                <span className="card-detail-value">{data.config.assignedTo}</span>
+              </div>
+            )}
+            {data.config.priority && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Priority:</span>
+                <span className="card-detail-value">{data.config.priority}</span>
+              </div>
+            )}
+            {data.config.acceptanceCriteria && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Criteria:</span>
+                <span className="card-detail-value">{data.config.acceptanceCriteria.length > 30 ? data.config.acceptanceCriteria.substring(0, 30) + '...' : data.config.acceptanceCriteria}</span>
+              </div>
+            )}
+            {data.config.storyPoints && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Points:</span>
+                <span className="card-detail-value">{data.config.storyPoints}</span>
+              </div>
+            )}
+            {data.config.labels && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Labels:</span>
+                <span className="card-detail-value">{data.config.labels.length > 20 ? data.config.labels.substring(0, 20) + '...' : data.config.labels}</span>
+              </div>
+            )}
+            {data.config.dueDate && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Due:</span>
+                <span className="card-detail-value">{data.config.dueDate}</span>
+              </div>
+            )}
+            {data.config.customFields && Object.keys(JSON.parse(data.config.customFields || '{}')).length > 0 && (
+              <div className="card-detail-item">
+                <span className="card-detail-label">Custom:</span>
+                <span className="card-detail-value">{Object.keys(JSON.parse(data.config.customFields)).length} field(s)</span>
+              </div>
+            )}
           </div>
         )}
+        
+        {/* ABSOLUTELY NO PARAMETERS SHOWN FOR ANY NODES EXCEPT CARD DETAILS */}
       </div>
       <Handle
         type="source"
@@ -82,195 +190,625 @@ const CustomNode = ({ data, type, id, selected }) => {
   );
 };
 
-const nodeTypesList = [
-  { type: 'start', label: 'Start', category: 'Flow' },
-  { type: 'httpRequest', label: 'HTTP Request', category: 'Network' },
-  { type: 'setVariable', label: 'Set Variable', category: 'Data' },
-  { type: 'condition', label: 'Condition', category: 'Logic' },
-  { type: 'ifCondition', label: 'IF', category: 'Logic' },
-  { type: 'delay', label: 'Delay', category: 'Flow' },
-  { type: 'loop', label: 'Loop', category: 'Flow' },
-  { type: 'log', label: 'Log', category: 'Debug' },
-  { type: 'webhook', label: 'Webhook', category: 'Network' },
-  { type: 'end', label: 'End', category: 'Flow' },
-  { type: 'code', label: 'Code', category: 'Logic' },
-  { type: 'switch', label: 'Switch', category: 'Logic' },
-  { type: 'merge', label: 'Merge', category: 'Flow' },
-  { type: 'set', label: 'Set', category: 'Data' },
-  { type: 'email', label: 'Email', category: 'Communication' },
-  { type: 'slack', label: 'Slack', category: 'Communication' },
-  { type: 'database', label: 'Database', category: 'Data' },
-  { type: 'ai', label: 'AI', category: 'AI' },
-  { type: 'math', label: 'Math', category: 'Data' },
-  { type: 'file', label: 'File', category: 'Data' },
-  { type: 'timer', label: 'Timer', category: 'Flow' },
-  { type: 'notification', label: 'Notification', category: 'Communication' }
-];
+// Use dynamic node types from schemas
+const nodeTypesList = getAllNodeTypes();
 
+// No hardcoded templates - will be fetched from API
+// Professional Workflow Templates for Business Automation
 const workflowTemplates = [
   {
-    name: 'HTTP to Database',
-    description: 'Fetch data from an API and store in database',
+    name: "Customer Onboarding Automation",
+    description: "Automate new customer welcome emails, account setup, and follow-up sequences",
+    category: "CRM",
     nodes: [
-      { id: '1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
-      { id: '2', type: 'httpRequest', position: { x: 100, y: 200 }, data: { label: 'Fetch Data', params: { url: 'https://api.example.com/data', method: 'GET' } } },
-      { id: '3', type: 'database', position: { x: 100, y: 300 }, data: { label: 'Save to DB', params: { operation: 'insert', table: 'data' } } },
-      { id: '4', type: 'end', position: { x: 100, y: 400 }, data: { label: 'End' } }
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 100 },
+        data: { 
+          label: 'New Customer Registration',
+          nodeType: 'start',
+          config: { trigger: 'new_customer_signup' }
+        }
+      },
+      {
+        id: 'email-1',
+        type: 'email',
+        position: { x: 300, y: 100 },
+        data: { 
+          label: 'Welcome Email',
+          nodeType: 'email',
+          config: {
+            subject: 'Welcome to {{company_name}}!',
+            template: 'welcome_template',
+            to_email: '{{customer_email}}'
+          }
+        }
+      },
+      {
+        id: 'delay-1',
+        type: 'delay',
+        position: { x: 500, y: 100 },
+        data: { 
+          label: 'Wait 24 Hours',
+          nodeType: 'delay',
+          config: { delay_amount: 24, delay_unit: 'hours' }
+        }
+      },
+      {
+        id: 'email-2',
+        type: 'email',
+        position: { x: 700, y: 100 },
+        data: { 
+          label: 'Getting Started Guide',
+          nodeType: 'email',
+          config: {
+            subject: 'Your {{product_name}} Getting Started Guide',
+            template: 'getting_started_template',
+            to_email: '{{customer_email}}'
+          }
+        }
+      }
     ],
     edges: [
-      { id: 'e1-2', source: '1', target: '2' },
-      { id: 'e2-3', source: '2', target: '3' },
-      { id: 'e3-4', source: '3', target: '4' }
+      { id: 'e1-2', source: 'start-1', target: 'email-1' },
+      { id: 'e2-3', source: 'email-1', target: 'delay-1' },
+      { id: 'e3-4', source: 'delay-1', target: 'email-2' }
     ]
   },
   {
-    name: 'Data Processing Pipeline',
-    description: 'Process data with conditions and loops',
+    name: "Lead Qualification System",
+    description: "Score and qualify leads automatically using AI and conditional logic",
+    category: "Sales",
     nodes: [
-      { id: '1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
-      { id: '2', type: 'setVariable', position: { x: 100, y: 200 }, data: { label: 'Set Counter', params: { variable: 'counter', value: '0' } } },
-      { id: '3', type: 'loop', position: { x: 100, y: 300 }, data: { label: 'Process Loop', params: { iterations: '10' } } },
-      { id: '4', type: 'condition', position: { x: 300, y: 300 }, data: { label: 'Check Value', params: { condition: 'counter > 5' } } },
-      { id: '5', type: 'log', position: { x: 500, y: 300 }, data: { label: 'Log Result' } },
-      { id: '6', type: 'end', position: { x: 100, y: 500 }, data: { label: 'End' } }
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 150 },
+        data: { 
+          label: 'New Lead Submission',
+          nodeType: 'start',
+          config: { trigger: 'form_submission' }
+        }
+      },
+      {
+        id: 'ai-1',
+        type: 'ai',
+        position: { x: 300, y: 150 },
+        data: { 
+          label: 'Lead Analysis',
+          nodeType: 'ai',
+          config: {
+            prompt: 'Analyze this lead data and provide a qualification score from 1-10 based on company size, budget, and need urgency.',
+            brainId: '',
+            temperature: 0.3
+          }
+        }
+      },
+      {
+        id: 'condition-1',
+        type: 'condition',
+        position: { x: 500, y: 150 },
+        data: { 
+          label: 'High Quality Lead?',
+          nodeType: 'condition',
+          config: {
+            condition_field: 'lead_score',
+            condition_operator: 'greater_than',
+            condition_value: '7'
+          }
+        }
+      },
+      {
+        id: 'email-1',
+        type: 'email',
+        position: { x: 700, y: 80 },
+        data: { 
+          label: 'Sales Team Alert',
+          nodeType: 'email',
+          config: {
+            subject: 'High-Quality Lead Alert',
+            to_email: 'sales@company.com',
+            template: 'sales_alert_template'
+          }
+        }
+      },
+      {
+        id: 'email-2',
+        type: 'email',
+        position: { x: 700, y: 220 },
+        data: { 
+          label: 'Nurture Sequence',
+          nodeType: 'email',
+          config: {
+            subject: 'Thanks for your interest',
+            to_email: '{{lead_email}}',
+            template: 'nurture_template'
+          }
+        }
+      }
     ],
     edges: [
-      { id: 'e1-2', source: '1', target: '2' },
-      { id: 'e2-3', source: '2', target: '3' },
-      { id: 'e3-4', source: '3', target: '4' },
-      { id: 'e4-5', source: '4', target: '5' },
-      { id: 'e3-6', source: '3', target: '6' }
+      { id: 'e1-2', source: 'start-1', target: 'ai-1' },
+      { id: 'e2-3', source: 'ai-1', target: 'condition-1' },
+      { id: 'e3-4', source: 'condition-1', target: 'email-1', label: 'Yes' },
+      { id: 'e3-5', source: 'condition-1', target: 'email-2', label: 'No' }
     ]
   },
   {
-    name: 'Notification System',
-    description: 'Send notifications via multiple channels',
+    name: "Content Creation Pipeline",
+    description: "Generate, review, and publish content automatically using AI agents",
+    category: "Marketing",
     nodes: [
-      { id: '1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
-      { id: '2', type: 'webhook', position: { x: 100, y: 200 }, data: { label: 'Receive Event' } },
-      { id: '3', type: 'switch', position: { x: 100, y: 300 }, data: { label: 'Route Message', params: { field: 'type' } } },
-      { id: '4', type: 'email', position: { x: 50, y: 450 }, data: { label: 'Send Email' } },
-      { id: '5', type: 'slack', position: { x: 150, y: 450 }, data: { label: 'Send Slack' } },
-      { id: '6', type: 'end', position: { x: 100, y: 600 }, data: { label: 'End' } }
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 200 },
+        data: { 
+          label: 'Content Request',
+          nodeType: 'start',
+          config: { trigger: 'manual' }
+        }
+      },
+      {
+        id: 'agent-1',
+        type: 'agent',
+        position: { x: 300, y: 200 },
+        data: { 
+          label: 'Content Writer Agent',
+          nodeType: 'agent',
+          config: {
+            agentId: '',
+            task: 'Write a blog post about {{topic}} targeting {{audience}}'
+          }
+        }
+      },
+      {
+        id: 'agent-2',
+        type: 'agent',
+        position: { x: 500, y: 200 },
+        data: { 
+          label: 'Editor Agent',
+          nodeType: 'agent',
+          config: {
+            agentId: '',
+            task: 'Review and edit the content for grammar, tone, and SEO optimization'
+          }
+        }
+      },
+      {
+        id: 'condition-1',
+        type: 'condition',
+        position: { x: 700, y: 200 },
+        data: { 
+          label: 'Content Approved?',
+          nodeType: 'condition',
+          config: {
+            condition_field: 'approval_status',
+            condition_operator: 'equals',
+            condition_value: 'approved'
+          }
+        }
+      },
+      {
+        id: 'webhook-1',
+        type: 'webhook',
+        position: { x: 900, y: 130 },
+        data: { 
+          label: 'Publish to CMS',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://cms.company.com/api/publish',
+            method: 'POST'
+          }
+        }
+      },
+      {
+        id: 'email-1',
+        type: 'email',
+        position: { x: 900, y: 270 },
+        data: { 
+          label: 'Request Revision',
+          nodeType: 'email',
+          config: {
+            subject: 'Content needs revision',
+            to_email: 'content-team@company.com'
+          }
+        }
+      }
     ],
     edges: [
-      { id: 'e1-2', source: '1', target: '2' },
-      { id: 'e2-3', source: '2', target: '3' },
-      { id: 'e3-4', source: '3', target: '4' },
-      { id: 'e3-5', source: '3', target: '5' },
-      { id: 'e4-6', source: '4', target: '6' },
-      { id: 'e5-6', source: '5', target: '6' }
+      { id: 'e1-2', source: 'start-1', target: 'agent-1' },
+      { id: 'e2-3', source: 'agent-1', target: 'agent-2' },
+      { id: 'e3-4', source: 'agent-2', target: 'condition-1' },
+      { id: 'e4-5', source: 'condition-1', target: 'webhook-1', label: 'Yes' },
+      { id: 'e4-6', source: 'condition-1', target: 'email-1', label: 'No' }
     ]
   },
   {
-    name: 'Smart E-commerce Order Processing',
-    description: 'Intelligent order processing with AI-powered fraud detection, dynamic pricing, and multi-channel notifications',
+    name: "Support Ticket Automation",
+    description: "Automatically categorize, route, and respond to customer support tickets",
+    category: "Support",
     nodes: [
-      { id: '1', type: 'start', position: { x: 200, y: 50 }, data: { label: 'Order Received' } },
-      { id: '2', type: 'setVariable', position: { x: 200, y: 150 }, data: { label: 'Load Order Data', params: { variable: 'order', value: '${webhook.order}' } } },
-      { id: '3', type: 'ai', position: { x: 200, y: 250 }, data: { label: 'AI Fraud Check', params: { prompt: 'Analyze order for fraud patterns', model: 'gpt-4' } } },
-      { id: '4', type: 'ifCondition', position: { x: 200, y: 350 }, data: { label: 'Fraud Detected?', params: { condition: 'ai_result.fraud_score > 0.7' } } },
-      
-      // Fraud path (left branch)
-      { id: '5', type: 'setVariable', position: { x: 50, y: 450 }, data: { label: 'Flag Order', params: { variable: 'status', value: 'FRAUD_REVIEW' } } },
-      { id: '6', type: 'email', position: { x: 50, y: 550 }, data: { label: 'Alert Security Team', params: { to: 'security@company.com', subject: 'Fraud Alert' } } },
-      { id: '7', type: 'slack', position: { x: 50, y: 650 }, data: { label: 'Slack Alert', params: { channel: '#security', message: 'High-risk order detected' } } },
-      
-      // Normal processing path (right branch)
-      { id: '8', type: 'database', position: { x: 350, y: 450 }, data: { label: 'Check Inventory', params: { operation: 'select', query: 'SELECT stock FROM products WHERE id = ${order.product_id}' } } },
-      { id: '9', type: 'ifCondition', position: { x: 350, y: 550 }, data: { label: 'In Stock?', params: { condition: 'db_result.stock > order.quantity' } } },
-      
-      // Out of stock path
-      { id: '10', type: 'email', position: { x: 200, y: 650 }, data: { label: 'Backorder Email', params: { to: '${order.customer_email}', subject: 'Item on Backorder' } } },
-      { id: '11', type: 'setVariable', position: { x: 200, y: 750 }, data: { label: 'Set Backorder', params: { variable: 'status', value: 'BACKORDERED' } } },
-      
-      // In stock processing
-      { id: '12', type: 'math', position: { x: 500, y: 650 }, data: { label: 'Calculate Pricing', params: { operation: 'multiply', a: '${order.quantity}', b: '${product.price}' } } },
-      { id: '13', type: 'ifCondition', position: { x: 500, y: 750 }, data: { label: 'VIP Customer?', params: { condition: 'customer.tier === "VIP"' } } },
-      
-      // VIP discount path
-      { id: '14', type: 'math', position: { x: 650, y: 850 }, data: { label: 'Apply VIP Discount', params: { operation: 'multiply', a: '${total}', b: '0.9' } } },
-      { id: '15', type: 'setVariable', position: { x: 650, y: 950 }, data: { label: 'Set Final Price', params: { variable: 'final_total', value: '${discounted_price}' } } },
-      
-      // Regular pricing path
-      { id: '16', type: 'setVariable', position: { x: 350, y: 850 }, data: { label: 'Set Regular Price', params: { variable: 'final_total', value: '${total}' } } },
-      
-      // Payment processing
-      { id: '17', type: 'httpRequest', position: { x: 500, y: 1050 }, data: { label: 'Process Payment', params: { url: 'https://api.stripe.com/charges', method: 'POST', headers: { 'Authorization': 'Bearer ${STRIPE_KEY}' } } } },
-      { id: '18', type: 'ifCondition', position: { x: 500, y: 1150 }, data: { label: 'Payment Success?', params: { condition: 'payment_result.status === "succeeded"' } } },
-      
-      // Payment failed
-      { id: '19', type: 'email', position: { x: 300, y: 1250 }, data: { label: 'Payment Failed Email', params: { to: '${order.customer_email}', subject: 'Payment Issue' } } },
-      { id: '20', type: 'setVariable', position: { x: 300, y: 1350 }, data: { label: 'Set Failed Status', params: { variable: 'status', value: 'PAYMENT_FAILED' } } },
-      
-      // Payment succeeded - fulfillment
-      { id: '21', type: 'database', position: { x: 700, y: 1250 }, data: { label: 'Update Inventory', params: { operation: 'update', query: 'UPDATE products SET stock = stock - ${order.quantity}' } } },
-      { id: '22', type: 'httpRequest', position: { x: 700, y: 1350 }, data: { label: 'Ship Order', params: { url: 'https://api.shipstation.com/orders', method: 'POST' } } },
-      { id: '23', type: 'setVariable', position: { x: 700, y: 1450 }, data: { label: 'Set Shipped Status', params: { variable: 'status', value: 'SHIPPED' } } },
-      
-      // Multi-channel notifications
-      { id: '24', type: 'email', position: { x: 500, y: 1550 }, data: { label: 'Shipping Confirmation', params: { to: '${order.customer_email}', subject: 'Your order is on the way!' } } },
-      { id: '25', type: 'notification', position: { x: 600, y: 1650 }, data: { label: 'Push Notification', params: { title: 'Order Shipped', message: 'Track your package' } } },
-      { id: '26', type: 'database', position: { x: 400, y: 1650 }, data: { label: 'Log Transaction', params: { operation: 'insert', table: 'order_log' } } },
-      
-      // End states
-      { id: '27', type: 'end', position: { x: 500, y: 1750 }, data: { label: 'Order Complete' } },
-      { id: '28', type: 'end', position: { x: 50, y: 750 }, data: { label: 'Fraud Review Required' } },
-      { id: '29', type: 'end', position: { x: 200, y: 850 }, data: { label: 'Backordered' } },
-      { id: '30', type: 'end', position: { x: 300, y: 1450 }, data: { label: 'Payment Failed' } }
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 180 },
+        data: { 
+          label: 'New Support Ticket',
+          nodeType: 'start',
+          config: { trigger: 'ticket_created' }
+        }
+      },
+      {
+        id: 'ai-1',
+        type: 'ai',
+        position: { x: 300, y: 180 },
+        data: { 
+          label: 'Ticket Classification',
+          nodeType: 'ai',
+          config: {
+            prompt: 'Classify this support ticket into categories: Technical, Billing, Feature Request, or Bug Report. Also determine urgency: Low, Medium, High.',
+            brainId: '',
+            temperature: 0.1
+          }
+        }
+      },
+      {
+        id: 'switch-1',
+        type: 'switch',
+        position: { x: 500, y: 180 },
+        data: { 
+          label: 'Route by Category',
+          nodeType: 'switch',
+          config: {
+            switch_field: 'category',
+            cases: ['Technical', 'Billing', 'Feature Request', 'Bug Report']
+          }
+        }
+      },
+      {
+        id: 'email-1',
+        type: 'email',
+        position: { x: 700, y: 80 },
+        data: { 
+          label: 'Technical Team',
+          nodeType: 'email',
+          config: {
+            to_email: 'tech-support@company.com',
+            subject: 'Technical Support Ticket #{{ticket_id}}'
+          }
+        }
+      },
+      {
+        id: 'email-2',
+        type: 'email',
+        position: { x: 700, y: 160 },
+        data: { 
+          label: 'Billing Team',
+          nodeType: 'email',
+          config: {
+            to_email: 'billing@company.com',
+            subject: 'Billing Inquiry #{{ticket_id}}'
+          }
+        }
+      },
+      {
+        id: 'database-1',
+        type: 'database',
+        position: { x: 700, y: 240 },
+        data: { 
+          label: 'Log Feature Request',
+          nodeType: 'database',
+          config: {
+            operation: 'insert',
+            table: 'feature_requests',
+            connection: 'main_db'
+          }
+        }
+      },
+      {
+        id: 'webhook-1',
+        type: 'webhook',
+        position: { x: 700, y: 320 },
+        data: { 
+          label: 'Create Bug Report',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://bugs.company.com/api/create',
+            method: 'POST'
+          }
+        }
+      }
     ],
     edges: [
-      // Main flow
-      { id: 'e1-2', source: '1', target: '2' },
-      { id: 'e2-3', source: '2', target: '3' },
-      { id: 'e3-4', source: '3', target: '4' },
-      
-      // Fraud detection branch
-      { id: 'e4-5', source: '4', target: '5', label: 'YES', style: { stroke: '#ef4444' } },
-      { id: 'e5-6', source: '5', target: '6' },
-      { id: 'e6-7', source: '6', target: '7' },
-      { id: 'e7-28', source: '7', target: '28' },
-      
-      // Normal processing branch
-      { id: 'e4-8', source: '4', target: '8', label: 'NO', style: { stroke: '#22c55e' } },
-      { id: 'e8-9', source: '8', target: '9' },
-      
-      // Inventory check branches
-      { id: 'e9-10', source: '9', target: '10', label: 'NO', style: { stroke: '#f59e0b' } },
-      { id: 'e10-11', source: '10', target: '11' },
-      { id: 'e11-29', source: '11', target: '29' },
-      
-      { id: 'e9-12', source: '9', target: '12', label: 'YES', style: { stroke: '#22c55e' } },
-      { id: 'e12-13', source: '12', target: '13' },
-      
-      // VIP customer branches
-      { id: 'e13-14', source: '13', target: '14', label: 'YES', style: { stroke: '#8b5cf6' } },
-      { id: 'e14-15', source: '14', target: '15' },
-      { id: 'e15-17', source: '15', target: '17' },
-      
-      { id: 'e13-16', source: '13', target: '16', label: 'NO', style: { stroke: '#6b7280' } },
-      { id: 'e16-17', source: '16', target: '17' },
-      
-      // Payment processing
-      { id: 'e17-18', source: '17', target: '18' },
-      
-      // Payment failed branch
-      { id: 'e18-19', source: '18', target: '19', label: 'NO', style: { stroke: '#ef4444' } },
-      { id: 'e19-20', source: '19', target: '20' },
-      { id: 'e20-30', source: '20', target: '30' },
-      
-      // Payment success branch
-      { id: 'e18-21', source: '18', target: '21', label: 'YES', style: { stroke: '#22c55e' } },
-      { id: 'e21-22', source: '21', target: '22' },
-      { id: 'e22-23', source: '22', target: '23' },
-      { id: 'e23-24', source: '23', target: '24' },
-      { id: 'e24-25', source: '24', target: '25' },
-      { id: 'e24-26', source: '24', target: '26' },
-      { id: 'e25-27', source: '25', target: '27' },
-      { id: 'e26-27', source: '26', target: '27' }
+      { id: 'e1-2', source: 'start-1', target: 'ai-1' },
+      { id: 'e2-3', source: 'ai-1', target: 'switch-1' },
+      { id: 'e3-4', source: 'switch-1', target: 'email-1', label: 'Technical' },
+      { id: 'e3-5', source: 'switch-1', target: 'email-2', label: 'Billing' },
+      { id: 'e3-6', source: 'switch-1', target: 'database-1', label: 'Feature Request' },
+      { id: 'e3-7', source: 'switch-1', target: 'webhook-1', label: 'Bug Report' }
+    ]
+  },
+  {
+    name: "E-commerce Order Processing",
+    description: "Process orders, check inventory, send confirmations, and handle fulfillment",
+    category: "E-commerce",
+    nodes: [
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 160 },
+        data: { 
+          label: 'New Order',
+          nodeType: 'start',
+          config: { trigger: 'order_placed' }
+        }
+      },
+      {
+        id: 'database-1',
+        type: 'database',
+        position: { x: 300, y: 160 },
+        data: { 
+          label: 'Check Inventory',
+          nodeType: 'database',
+          config: {
+            operation: 'select',
+            query: 'SELECT stock_quantity FROM products WHERE id = {{product_id}}',
+            connection: 'inventory_db'
+          }
+        }
+      },
+      {
+        id: 'condition-1',
+        type: 'condition',
+        position: { x: 500, y: 160 },
+        data: { 
+          label: 'In Stock?',
+          nodeType: 'condition',
+          config: {
+            condition_field: 'stock_quantity',
+            condition_operator: 'greater_than',
+            condition_value: '0'
+          }
+        }
+      },
+      {
+        id: 'email-1',
+        type: 'email',
+        position: { x: 700, y: 90 },
+        data: { 
+          label: 'Order Confirmation',
+          nodeType: 'email',
+          config: {
+            to_email: '{{customer_email}}',
+            subject: 'Order Confirmation #{{order_id}}',
+            template: 'order_confirmation'
+          }
+        }
+      },
+      {
+        id: 'webhook-1',
+        type: 'webhook',
+        position: { x: 900, y: 90 },
+        data: { 
+          label: 'Fulfillment Center',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://fulfillment.company.com/api/ship',
+            method: 'POST'
+          }
+        }
+      },
+      {
+        id: 'email-2',
+        type: 'email',
+        position: { x: 700, y: 230 },
+        data: { 
+          label: 'Out of Stock Notice',
+          nodeType: 'email',
+          config: {
+            to_email: '{{customer_email}}',
+            subject: 'Item temporarily unavailable',
+            template: 'out_of_stock'
+          }
+        }
+      },
+      {
+        id: 'database-2',
+        type: 'database',
+        position: { x: 900, y: 230 },
+        data: { 
+          label: 'Update Order Status',
+          nodeType: 'database',
+          config: {
+            operation: 'update',
+            query: 'UPDATE orders SET status = "backordered" WHERE id = {{order_id}}',
+            connection: 'main_db'
+          }
+        }
+      }
+    ],
+    edges: [
+      { id: 'e1-2', source: 'start-1', target: 'database-1' },
+      { id: 'e2-3', source: 'database-1', target: 'condition-1' },
+      { id: 'e3-4', source: 'condition-1', target: 'email-1', label: 'Yes' },
+      { id: 'e4-5', source: 'email-1', target: 'webhook-1' },
+      { id: 'e3-6', source: 'condition-1', target: 'email-2', label: 'No' },
+      { id: 'e6-7', source: 'email-2', target: 'database-2' }
+    ]
+  },
+  {
+    name: "Social Media Management",
+    description: "Create, schedule, and analyze social media posts across platforms",
+    category: "Marketing",
+    nodes: [
+      {
+        id: 'start-1',
+        type: 'start',
+        position: { x: 100, y: 150 },
+        data: { 
+          label: 'Content Calendar Trigger',
+          nodeType: 'start',
+          config: { trigger: 'scheduled' }
+        }
+      },
+      {
+        id: 'agent-1',
+        type: 'agent',
+        position: { x: 300, y: 150 },
+        data: { 
+          label: 'Content Creator Agent',
+          nodeType: 'agent',
+          config: {
+            agentId: '',
+            task: 'Create engaging social media post about {{topic}} for {{platform}}'
+          }
+        }
+      },
+      {
+        id: 'switch-1',
+        type: 'switch',
+        position: { x: 500, y: 150 },
+        data: { 
+          label: 'Platform Router',
+          nodeType: 'switch',
+          config: {
+            switch_field: 'platform',
+            cases: ['Twitter', 'LinkedIn', 'Facebook', 'Instagram']
+          }
+        }
+      },
+      {
+        id: 'webhook-1',
+        type: 'webhook',
+        position: { x: 700, y: 50 },
+        data: { 
+          label: 'Post to Twitter',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://api.twitter.com/2/tweets',
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer {{twitter_token}}' }
+          }
+        }
+      },
+      {
+        id: 'webhook-2',
+        type: 'webhook',
+        position: { x: 700, y: 130 },
+        data: { 
+          label: 'Post to LinkedIn',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://api.linkedin.com/v2/shares',
+            method: 'POST'
+          }
+        }
+      },
+      {
+        id: 'webhook-3',
+        type: 'webhook',
+        position: { x: 700, y: 210 },
+        data: { 
+          label: 'Post to Facebook',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://graph.facebook.com/v18.0/{{page_id}}/feed',
+            method: 'POST'
+          }
+        }
+      },
+      {
+        id: 'webhook-4',
+        type: 'webhook',
+        position: { x: 700, y: 290 },
+        data: { 
+          label: 'Post to Instagram',
+          nodeType: 'webhook',
+          config: {
+            url: 'https://graph.facebook.com/v18.0/{{instagram_id}}/media',
+            method: 'POST'
+          }
+        }
+      },
+      {
+        id: 'database-1',
+        type: 'database',
+        position: { x: 900, y: 150 },
+        data: { 
+          label: 'Log Analytics',
+          nodeType: 'database',
+          config: {
+            operation: 'insert',
+            table: 'social_posts',
+            connection: 'analytics_db'
+          }
+        }
+      }
+    ],
+    edges: [
+      { id: 'e1-2', source: 'start-1', target: 'agent-1' },
+      { id: 'e2-3', source: 'agent-1', target: 'switch-1' },
+      { id: 'e3-4', source: 'switch-1', target: 'webhook-1', label: 'Twitter' },
+      { id: 'e3-5', source: 'switch-1', target: 'webhook-2', label: 'LinkedIn' },
+      { id: 'e3-6', source: 'switch-1', target: 'webhook-3', label: 'Facebook' },
+      { id: 'e3-7', source: 'switch-1', target: 'webhook-4', label: 'Instagram' },
+      { id: 'e4-8', source: 'webhook-1', target: 'database-1' },
+      { id: 'e5-8', source: 'webhook-2', target: 'database-1' },
+      { id: 'e6-8', source: 'webhook-3', target: 'database-1' },
+      { id: 'e7-8', source: 'webhook-4', target: 'database-1' }
     ]
   }
 ];
+
+// Move nodeTypes and edgeTypes outside component to fix React Flow warning
+const createNodeTypes = (handleUngroup) => ({
+  start: (props) => <CustomNode {...props} type="start" />,
+  httpRequest: (props) => <CustomNode {...props} type="httpRequest" />,
+  setVariable: (props) => <CustomNode {...props} type="setVariable" />,
+  condition: (props) => <CustomNode {...props} type="condition" />,
+  ifCondition: (props) => <IfNode {...props} />,
+  delay: (props) => <CustomNode {...props} type="delay" />,
+  loop: (props) => <CustomNode {...props} type="loop" />,
+  log: (props) => <CustomNode {...props} type="log" />,
+  webhook: (props) => <CustomNode {...props} type="webhook" />,
+  end: (props) => <CustomNode {...props} type="end" />,
+  code: (props) => <CustomNode {...props} type="code" />,
+  switch: (props) => <CustomNode {...props} type="switch" />,
+  merge: (props) => <CustomNode {...props} type="merge" />,
+  set: (props) => <CustomNode {...props} type="set" />,
+  email: (props) => <CustomNode {...props} type="email" />,
+  slack: (props) => <CustomNode {...props} type="slack" />,
+  database: (props) => <CustomNode {...props} type="database" />,
+  ai: (props) => <CustomNode {...props} type="ai" />,
+  math: (props) => <CustomNode {...props} type="math" />,
+  file: (props) => <CustomNode {...props} type="file" />,
+  timer: (props) => <CustomNode {...props} type="timer" />,
+  notification: (props) => <CustomNode {...props} type="notification" />,
+  brain: (props) => <CustomNode {...props} type="brain" />,
+  agent: (props) => <CustomNode {...props} type="agent" />,
+  group: (props) => <GroupNode {...props} data={{...props.data, onUngroup: handleUngroup}} />,
+  // Business Workflow Nodes
+  section: (props) => <CustomNode {...props} type="section" />,
+  request: (props) => <CustomNode {...props} type="request" />,
+  department: (props) => <CustomNode {...props} type="department" />,
+  task: (props) => <CustomNode {...props} type="task" />,
+  cardDetails: (props) => <CustomNode {...props} type="cardDetails" />,
+  phase: (props) => <CustomNode {...props} type="phase" />,
+  result: (props) => <CustomNode {...props} type="result" />,
+  // Add customNode as an alias for backward compatibility
+  customNode: (props) => <CustomNode {...props} />,
+});
+
+const defaultEdgeOptions = {
+  style: { strokeWidth: 2, stroke: '#b1b1b7' },
+  type: 'smoothstep',
+  markerEnd: {
+    type: 'arrowclosed',
+    color: '#b1b1b7',
+  },
+};
 
 function WorkflowCanvas() {
   // Component state
@@ -289,35 +827,93 @@ function WorkflowCanvas() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [savedWorkflows, setSavedWorkflows] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [nodeSearch, setNodeSearch] = useState("");
   const [isShiftPressed, setIsShiftPressed] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
-  const [showNodeDetails, setShowNodeDetails] = useState(false);
+  
+  // Execution Log Panel state
+  const [isLogCollapsed, setIsLogCollapsed] = useState(true); // Start collapsed
+  const [showParameterPanel, setShowParameterPanel] = useState(false);
 
   // Refs and ReactFlow instance
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
   // API Configuration
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5002';
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
 
+  // WebSocket for real-time execution streaming
+  const [socket, setSocket] = useState(null);
+  
   // Initialize saved workflows from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('savedWorkflows');
     if (saved) {
       setSavedWorkflows(JSON.parse(saved));
     }
+    
+    // Fetch templates from API
+    const fetchTemplates = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/workflow-templates`);
+        if (response.ok) {
+          const templatesData = await response.json();
+          setTemplates(templatesData);
+          console.log('✅ Loaded templates from API:', templatesData.length);
+        } else {
+          console.error('❌ Failed to fetch templates:', response.status);
+          setTemplates(workflowTemplates); // fallback to empty array
+        }
+      } catch (error) {
+        console.error('❌ Error fetching templates:', error);
+        setTemplates(workflowTemplates); // fallback to empty array
+      }
+    };
+    
+    fetchTemplates();
+  }, []);
+
+  // Initialize WebSocket connection for real-time execution streaming
+  useEffect(() => {
+    const socketConnection = io(API_BASE_URL);
+    setSocket(socketConnection);
+    
+    // Listen for execution log updates
+    socketConnection.on('execution_log', (logEntry) => {
+      setExecutionLog(prev => [...prev, logEntry]);
+    });
+    
+    // Listen for node status updates
+    socketConnection.on('node_status', (statusUpdate) => {
+      setNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === statusUpdate.nodeId 
+            ? { ...node, data: { ...node.data, status: statusUpdate.status } }
+            : node
+        )
+      );
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      socketConnection.disconnect();
+    };
   }, []);
 
   // Helper function to create a new node
   const createNode = useCallback((type, position) => {
+    const defaults = getNodeDefaults(type);
+    const schema = NODE_SCHEMAS[type];
+    
     const newNode = {
       id: `${type}-${Date.now()}`,
       type,
       position,
       data: { 
-        label: nodeTypesList.find(n => n.type === type)?.label || type,
-        params: {}
+        label: schema?.label || type,
+        config: defaults,
+        status: 'pending'
       }
     };
     return newNode;
@@ -342,10 +938,17 @@ function WorkflowCanvas() {
     } else {
       setSelectedNode(node);
       setSelectedNodes([node]);
-      setShowNodeDetails(true);
+      setShowParameterPanel(true); // Show the new sidebar
     }
     setSelectedEdge(null);
   }, [isShiftPressed]);
+
+  const onNodeDoubleClick = useCallback((event, node) => {
+    event.preventDefault();
+    setSelectedNode(node);
+    setShowParameterPanel(true);
+    setContextMenu(null);
+  }, []);
 
   const onEdgeClick = useCallback((event, edge) => {
     setSelectedEdge(edge);
@@ -357,7 +960,7 @@ function WorkflowCanvas() {
     setSelectedEdge(null);
     setSelectedNodes([]);
     setContextMenu(null);
-    setShowNodeDetails(false);
+    setShowParameterPanel(false);
   }, []);
 
   const onNodeContextMenu = useCallback((event, node) => {
@@ -382,91 +985,425 @@ function WorkflowCanvas() {
     }
   }, [groups]);
 
-  // Handle node updates from NodeDetailsPanel
-  const handleNodeUpdate = useCallback((updatedNode) => {
+  // Handle node updates from sidebar
+  const handleNodeUpdate = useCallback((nodeId, updatedData) => {
     setNodes(prev => prev.map(node => 
-      node.id === updatedNode.id ? updatedNode : node
+      node.id === nodeId 
+        ? { ...node, data: { ...node.data, ...updatedData } }
+        : node
     ));
-    setSelectedNode(updatedNode);
+    
+    // Update selected node if it's the one being updated
+    if (selectedNode && selectedNode.id === nodeId) {
+      setSelectedNode(prev => ({
+        ...prev,
+        data: { ...prev.data, ...updatedData }
+      }));
+    }
+  }, [selectedNode]);
+
+  // Execute individual node for testing
+  const executeNode = useCallback(async (nodeId) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    // Validate node parameters first
+    const errors = validateNodeParameters(node.type, node.data.params || {});
+    if (errors.length > 0) {
+      console.error('Node validation failed:', errors);
+      setExecutionLog(prev => [...prev, {
+        nodeId,
+        nodeName: node.data.label || node.type,
+        status: 'error',
+        message: `Validation failed: ${errors.join(', ')}`,
+        timestamp: new Date().toISOString(),
+        output: null
+      }]);
+      return;
+    }
+
+    // Update node status to running
+    handleNodeUpdate(nodeId, { status: 'running' });
+    
+    // Add log entry for start
+    setExecutionLog(prev => [...prev, {
+      nodeId,
+      nodeName: node.data.label || node.type,
+      status: 'running',
+      message: 'Node execution started',
+      timestamp: new Date().toISOString(),
+      output: null
+    }]);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/nodes/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nodeId,
+          nodeType: node.type,
+          nodeData: node.data,
+          workflowId: workflowName
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Update node status and output
+        handleNodeUpdate(nodeId, { 
+          status: 'success',
+          lastOutput: result.output,
+          lastExecutionTime: new Date().toISOString()
+        });
+        
+        // Add success log entry
+        setExecutionLog(prev => [...prev, {
+          nodeId,
+          nodeName: node.data.label || node.type,
+          status: 'success',
+          message: 'Node executed successfully',
+          timestamp: new Date().toISOString(),
+          output: result.output
+        }]);
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Node execution failed');
+      }
+    } catch (error) {
+      console.error('Node execution error:', error);
+      
+      // Update node status to error
+      handleNodeUpdate(nodeId, { 
+        status: 'error',
+        lastError: error.message,
+        lastExecutionTime: new Date().toISOString()
+      });
+      
+      // Add error log entry
+      setExecutionLog(prev => [...prev, {
+        nodeId,
+        nodeName: node.data.label || node.type,
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        output: null
+      }]);
+    }
+  }, [nodes, handleNodeUpdate, workflowName, API_BASE_URL]);
+
+  // Delete node function (moved before useEffect that uses it)
+  const deleteNode = useCallback((nodeId) => {
+    // Remove the node
+    setNodes(prev => prev.filter(node => node.id !== nodeId));
+    
+    // Remove any edges connected to this node
+    setEdges(prev => prev.filter(edge => 
+      edge.source !== nodeId && edge.target !== nodeId
+    ));
+    
+    // Clear selection if this node was selected
+    if (selectedNode?.id === nodeId) {
+      setSelectedNode(null);
+    }
+    
+    // Remove from selected nodes if it was selected
+    setSelectedNodes(prev => prev.filter(id => id !== nodeId));
+    
+    // Remove from any groups
+    setGroups(prev => prev.map(group => ({
+      ...group,
+      nodeIds: group.nodeIds.filter(id => id !== nodeId)
+    })).filter(group => group.nodeIds.length > 0));
+    
+    // Clear context menu
+    setContextMenu(null);
+    
+    console.log(`Deleted node: ${nodeId}`);
+  }, [selectedNode]);
+
+  // Handle context menu actions
+  const handleContextMenuAction = useCallback((action, nodeId) => {
+    switch (action) {
+      case 'delete':
+        deleteNode(nodeId);
+        break;
+      case 'duplicate':
+        // Find the node to duplicate
+        const nodeToDuplicate = nodes.find(n => n.id === nodeId);
+        if (nodeToDuplicate) {
+          const newId = (Date.now() + Math.random()).toString();
+          const newNode = {
+            ...nodeToDuplicate,
+            id: newId,
+            position: {
+              x: nodeToDuplicate.position.x + 50,
+              y: nodeToDuplicate.position.y + 50
+            },
+            data: {
+              ...nodeToDuplicate.data,
+              label: `${nodeToDuplicate.data.label || nodeToDuplicate.type} (Copy)`
+            }
+          };
+          setNodes(prev => [...prev, newNode]);
+        }
+        break;
+      case 'ungroup':
+        handleUngroup(nodeId);
+        break;
+      case 'duplicateGroup':
+        const groupToDuplicate = groups.find(g => g.id === nodeId);
+        if (groupToDuplicate) {
+          const newGroupId = `group-${Date.now()}`;
+          const nodeIdMap = {};
+          
+          // Duplicate all nodes in the group
+          const duplicatedNodes = groupToDuplicate.nodeIds.map(oldNodeId => {
+            const originalNode = nodes.find(n => n.id === oldNodeId);
+            if (originalNode) {
+              const newNodeId = `${oldNodeId}-copy-${Date.now()}`;
+              nodeIdMap[oldNodeId] = newNodeId;
+              return {
+                ...originalNode,
+                id: newNodeId,
+                position: {
+                  x: originalNode.position.x + 100,
+                  y: originalNode.position.y + 100
+                }
+              };
+            }
+            return null;
+          }).filter(Boolean);
+          
+          // Duplicate edges between group nodes
+          const groupEdges = edges.filter(edge => 
+            groupToDuplicate.nodeIds.includes(edge.source) && 
+            groupToDuplicate.nodeIds.includes(edge.target)
+          );
+          const duplicatedEdges = groupEdges.map(edge => ({
+            ...edge,
+            id: `${edge.id}-copy-${Date.now()}`,
+            source: nodeIdMap[edge.source],
+            target: nodeIdMap[edge.target]
+          }));
+          
+          // Create new group
+          const newGroup = {
+            ...groupToDuplicate,
+            id: newGroupId,
+            title: `${groupToDuplicate.title} (Copy)`,
+            nodeIds: Object.values(nodeIdMap),
+            position: {
+              x: groupToDuplicate.position.x + 100,
+              y: groupToDuplicate.position.y + 100
+            }
+          };
+          
+          setNodes(prev => [...prev, ...duplicatedNodes]);
+          setEdges(prev => [...prev, ...duplicatedEdges]);
+          setGroups(prev => [...prev, newGroup]);
+        }
+        break;
+      default:
+        break;
+    }
+    setContextMenu(null);
+  }, [nodes, deleteNode]);
+
+  // Log panel functions (moved before executeWorkflow to fix dependency order)
+  const addLogEntry = useCallback((entry) => {
+    setExecutionLog(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      timestamp: new Date().toISOString(),
+      ...entry
+    }]);
+  }, []);
+
+  const clearExecutionLog = useCallback(() => {
+    setExecutionLog([]);
+  }, []);
+
+  const toggleLogCollapse = useCallback(() => {
+    setIsLogCollapsed(prev => !prev);
   }, []);
 
   // Execute workflow function (SINGLE DECLARATION)
   const executeWorkflow = useCallback(async () => {
-    setIsExecuting(true);
-    setExecutionLog([]);
+    if (isExecuting) return;
     
-    // Find start node
-    const startNode = nodes.find(n => n.type === 'start');
-    if (!startNode) {
-      setExecutionLog(['❌ No start node found']);
-      setIsExecuting(false);
-      return;
-    }
+    setIsExecuting(true);
+    setIsLogCollapsed(false); // Expand log when execution starts
+    clearExecutionLog();
+    
+    // Add initial log entry
+    const systemLogEntry = {
+      node_id: 'system',
+      node_name: 'Workflow System',
+      status: 'running',
+      message: 'Starting workflow execution...',
+      timestamp: new Date().toISOString(),
+      output: null
+    };
+    setExecutionLog([systemLogEntry]);
     
     try {
-      // Create workflow object
-      const workflow = {
-        id: `temp-${Date.now()}`,
-        name: workflowName,
-        nodes,
-        edges,
-        groups
+      // Validate all nodes first
+      const validationErrors = [];
+      nodes.forEach(node => {
+        const nodeType = node.data.nodeType;
+        const config = node.data.config || {};
+        const errors = validateNodeParameters(nodeType, config);
+        if (errors.length > 0) {
+          validationErrors.push(`${node.data.label || nodeType}: ${errors.join(', ')}`);
+        }
+      });
+      
+      if (validationErrors.length > 0) {
+        throw new Error(`Validation failed:\n${validationErrors.join('\n')}`);
+      }
+      
+      // Find start node
+      const startNode = nodes.find(n => n.data.nodeType === 'start');
+      if (!startNode) {
+        throw new Error('No start node found. Workflow must have a start node to execute.');
+      }
+      
+      // Reset all node statuses
+      const resetNodes = nodes.map(node => ({
+        ...node,
+        data: { ...node.data, status: 'pending' }
+      }));
+      setNodes(resetNodes);
+      
+      // Create workflow payload for new backend format
+      const workflowPayload = {
+        workflow: {
+          id: `temp-${Date.now()}`,
+          name: workflowName,
+          nodes: resetNodes,
+          edges,
+          groups
+        },
+        input_data: {
+          user_input: 'Manual execution',
+          timestamp: new Date().toISOString()
+        }
       };
       
-      // Execute on backend using the new temporary execution endpoint
+      // Log workflow start
+      setExecutionLog(prev => [...prev, {
+        node_id: 'system',
+        node_name: 'Workflow System',
+        status: 'running',
+        message: `Executing "${workflowName}" with ${nodes.length} nodes`,
+        timestamp: new Date().toISOString(),
+        output: { nodesCount: nodes.length, edgesCount: edges.length }
+      }]);
+      
+      // Emit start execution event via WebSocket if available
+      if (socket) {
+        socket.emit('start_execution', {
+          workflow_id: workflowPayload.workflow.id,
+          workflow_name: workflowName
+        });
+      }
+      
+      // Execute workflow on backend
       const response = await fetch(`${API_BASE_URL}/api/workflows/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          workflow,
-          input_data: {}
-        })
+        body: JSON.stringify(workflowPayload)
       });
       
       if (response.ok) {
         const result = await response.json();
-        const log = [`▶️ Workflow execution started`];
         
-        // Update node status based on execution results
-        if (result.execution_log) {
-          const updatedNodes = nodes.map(node => {
-            const logEntry = result.execution_log.find(entry => entry.node_id === node.id);
-            if (logEntry) {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  status: logEntry.status // 'success' or 'error'
-                }
-              };
-            }
-            return node;
-          });
-          setNodes(updatedNodes);
+        // Process execution results
+        if (result.status === 'success') {
+          // Update nodes with execution results
+          if (result.node_statuses) {
+            const updatedNodes = nodes.map(node => {
+              const nodeStatus = result.node_statuses[node.id];
+              if (nodeStatus) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    status: nodeStatus.status,
+                    lastOutput: nodeStatus.output,
+                    lastExecutionTime: nodeStatus.completed_at,
+                    error: nodeStatus.error
+                  }
+                };
+              }
+              return node;
+            });
+            setNodes(updatedNodes);
+          }
           
-          result.execution_log.forEach(entry => {
-            const statusIcon = entry.status === 'success' ? '✅' : '❌';
-            log.push(`${statusIcon} ${entry.node_type || entry.type || 'Unknown'}: ${entry.output?.message || JSON.stringify(entry.output || entry)}`);
-          });
+          // Add execution log entries
+          if (result.execution_log && Array.isArray(result.execution_log)) {
+            const newLogEntries = result.execution_log.map(entry => ({
+              node_id: entry.node_id,
+              node_name: entry.node_name || entry.node_type,
+              node_type: entry.node_type,
+              status: entry.status,
+              message: entry.message,
+              timestamp: entry.timestamp,
+              output: entry.output,
+              error: entry.error
+            }));
+            setExecutionLog(prev => [...prev, ...newLogEntries]);
+          }
+          
+          // Add completion log
+          setExecutionLog(prev => [...prev, {
+            node_id: 'system',
+            node_name: 'Workflow System',
+            status: 'success',
+            message: `Workflow completed successfully in ${result.duration_seconds?.toFixed(2) || 'unknown'} seconds`,
+            timestamp: new Date().toISOString(),
+            output: {
+              status: result.status,
+              nodesExecuted: result.nodes_executed,
+              duration: result.duration_seconds
+            }
+          }]);
+        } else {
+          throw new Error(result.error || 'Workflow execution failed');
         }
-        
-        log.push(`✅ Workflow execution ${result.status}`);
-        setExecutionLog(log);
       } else {
-        const errorData = await response.text();
-        setExecutionLog([`❌ Failed to execute workflow: ${errorData}`]);
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
     } catch (error) {
       console.error('Workflow execution error:', error);
-      setExecutionLog(['❌ Workflow execution failed: ' + error.message]);
+      
+      // Add error to execution log
+      setExecutionLog(prev => [...prev, {
+        node_id: 'system',
+        node_name: 'Workflow System',
+        status: 'error',
+        message: `Workflow execution failed: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        error: error.message
+      }]);
+      
+      // Update nodes to show error state
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        data: { ...node.data, status: 'error' }
+      })));
+    } finally {
+      setIsExecuting(false);
     }
-    
-    setIsExecuting(false);
-  }, [nodes, edges, groups, workflowName, API_BASE_URL]);
+  }, [nodes, edges, groups, workflowName, isExecuting, socket]);
 
-  // Save workflow function (SINGLE DECLARATION)
+  // Save workflow function
   const saveWorkflow = useCallback(async () => {
     const workflow = {
       name: workflowName,
@@ -711,6 +1648,11 @@ function WorkflowCanvas() {
         e.preventDefault();
         createGroup();
       }
+      // Delete selected node with Delete or Backspace key
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        e.preventDefault();
+        deleteNode(selectedNode.id);
+      }
     };
 
     const handleKeyUp = (e) => {
@@ -726,34 +1668,10 @@ function WorkflowCanvas() {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedNodes, createGroup]);
+  }, [selectedNodes, createGroup, selectedNode, deleteNode]);
 
-  // Node types mapping with access to handleUngroup
-  const nodeTypes = {
-    start: (props) => <CustomNode {...props} type="start" />,
-    httpRequest: (props) => <CustomNode {...props} type="httpRequest" />,
-    setVariable: (props) => <CustomNode {...props} type="setVariable" />,
-    condition: (props) => <CustomNode {...props} type="condition" />,
-    ifCondition: (props) => <IfNode {...props} />,
-    delay: (props) => <CustomNode {...props} type="delay" />,
-    loop: (props) => <CustomNode {...props} type="loop" />,
-    log: (props) => <CustomNode {...props} type="log" />,
-    webhook: (props) => <CustomNode {...props} type="webhook" />,
-    end: (props) => <CustomNode {...props} type="end" />,
-    code: (props) => <CustomNode {...props} type="code" />,
-    switch: (props) => <CustomNode {...props} type="switch" />,
-    merge: (props) => <CustomNode {...props} type="merge" />,
-    set: (props) => <CustomNode {...props} type="set" />,
-    email: (props) => <CustomNode {...props} type="email" />,
-    slack: (props) => <CustomNode {...props} type="slack" />,
-    database: (props) => <CustomNode {...props} type="database" />,
-    ai: (props) => <CustomNode {...props} type="ai" />,
-    math: (props) => <CustomNode {...props} type="math" />,
-    file: (props) => <CustomNode {...props} type="file" />,
-    timer: (props) => <CustomNode {...props} type="timer" />,
-    notification: (props) => <CustomNode {...props} type="notification" />,
-    group: (props) => <GroupNode {...props} data={{...props.data, onUngroup: handleUngroup}} />,
-  };
+  // Memoized nodeTypes to prevent React Flow warnings
+  const nodeTypes = useMemo(() => createNodeTypes(handleUngroup), [handleUngroup]);
 
   return (
     <div className="workflow-canvas-container">
@@ -764,6 +1682,7 @@ function WorkflowCanvas() {
             value={workflowName}
             onChange={(e) => setWorkflowName(e.target.value)}
             className="workflow-name-input"
+            placeholder="Enter workflow name..."
           />
         </div>
         <div className="workflow-actions">
@@ -795,8 +1714,9 @@ function WorkflowCanvas() {
       </div>
 
       <div className="workflow-content">
+        {/* Left: Node Palette */}
         <div className="node-palette">
-          <h3>Nodes</h3>
+          <h3>Workflow Nodes</h3>
           <input
             type="text"
             placeholder="Search nodes..."
@@ -829,6 +1749,7 @@ function WorkflowCanvas() {
           ))}
         </div>
 
+        {/* Center: Canvas Area */}
         <div className="canvas-area" ref={reactFlowWrapper}>
           <ReactFlowProvider>
             <ReactFlow
@@ -838,43 +1759,52 @@ function WorkflowCanvas() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onNodeClick={onNodeClick}
+              onNodeDoubleClick={onNodeDoubleClick}
               onEdgeClick={onEdgeClick}
               onPaneClick={onPaneClick}
               onNodeContextMenu={onNodeContextMenu}
               nodeTypes={nodeTypes}
+              defaultEdgeOptions={defaultEdgeOptions}
               fitView
-              style={{ background: '#111' }}
+              style={{ background: '#0f0f0f' }}
               onSelectionChange={onSelectionChange}
               onInit={setReactFlowInstance}
               onDrop={onDrop}
               onDragOver={onDragOver}
+              multiSelectionKeyCode="Shift"
+              selectionOnDrag={true}
+              panOnDrag={!isShiftPressed}
+              selectionMode="partial"
             >
               <MiniMap 
                 style={{
                   height: 120,
-                  backgroundColor: '#1e293b',
+                  backgroundColor: '#1a1a1a',
+                  border: '2px solid #FFD600',
+                  borderRadius: '8px'
                 }}
                 nodeStrokeColor={(n) => {
-                  if (n.type === 'input') return '#0041d0';
-                  if (n.type === 'output') return '#ff0072';
-                  if (n.type === 'default') return '#1a192b';
-                  return '#eee';
+                  if (n.type === 'input') return '#FFD600';
+                  if (n.type === 'output') return '#FFD600';
+                  if (n.type === 'default') return '#FFD600';
+                  return '#FFD600';
                 }}
                 nodeColor={(n) => {
-                  if (n.type === 'input') return '#0041d0';
-                  if (n.type === 'output') return '#ff0072';
-                  if (n.type === 'default') return '#1a192b';
-                  return '#fff';
+                  if (n.type === 'input') return '#333';
+                  if (n.type === 'output') return '#333';
+                  if (n.type === 'default') return '#333';
+                  return '#333';
                 }}
-                nodeBorderRadius={2}
+                nodeBorderRadius={8}
               />
               <Controls 
                 style={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #374151',
+                  backgroundColor: '#1a1a1a',
+                  border: '2px solid #FFD600',
+                  borderRadius: '8px'
                 }}
               />
-              <Background color="#374151" gap={16} />
+              <Background color="#333" gap={20} size={1} />
               
               {/* Group visualizations */}
               {groups.map(group => (
@@ -887,21 +1817,21 @@ function WorkflowCanvas() {
                     top: group.position.y,
                     width: group.size.width,
                     height: group.size.height,
-                    border: '2px dashed #60a5fa',
-                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
-                    borderRadius: '8px',
+                    border: '2px dashed #FFD600',
+                    backgroundColor: 'rgba(255, 214, 0, 0.1)',
+                    borderRadius: '12px',
                     pointerEvents: 'none',
                     zIndex: -1
                   }}
                 >
                   <div className="group-label" style={{
                     position: 'absolute',
-                    top: '-25px',
-                    left: '5px',
-                    background: '#60a5fa',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
+                    top: '-30px',
+                    left: '8px',
+                    background: '#FFD600',
+                    color: '#111',
+                    padding: '4px 12px',
+                    borderRadius: '6px',
                     fontSize: '12px',
                     fontWeight: 'bold'
                   }}>
@@ -911,70 +1841,6 @@ function WorkflowCanvas() {
               ))}
             </ReactFlow>
           </ReactFlowProvider>
-        </div>
-
-        <div className="side-panel">
-          {selectedNode && (
-            <div className="node-properties">
-              <h3>Node Properties</h3>
-              <div className="property">
-                <label>Type:</label>
-                <span>{selectedNode.type}</span>
-              </div>
-              <div className="property">
-                <label>ID:</label>
-                <span>{selectedNode.id}</span>
-              </div>
-              <div className="property">
-                <label>Label:</label>
-                <input
-                  type="text"
-                  value={selectedNode.data.label}
-                  onChange={(e) => {
-                    const updatedNode = {
-                      ...selectedNode,
-                      data: { ...selectedNode.data, label: e.target.value }
-                    };
-                    setNodes(nodes.map(node => node.id === selectedNode.id ? updatedNode : node));
-                    setSelectedNode(updatedNode);
-                  }}
-                />
-              </div>
-              {selectedNode.data.params && Object.entries(selectedNode.data.params).map(([key, value]) => (
-                <div key={key} className="property">
-                  <label>{key}:</label>
-                  <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => {
-                      const updatedNode = {
-                        ...selectedNode,
-                        data: {
-                          ...selectedNode.data,
-                          params: { ...selectedNode.data.params, [key]: e.target.value }
-                        }
-                      };
-                      setNodes(nodes.map(node => node.id === selectedNode.id ? updatedNode : node));
-                      setSelectedNode(updatedNode);
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {executionLog.length > 0 && (
-            <div className="execution-log">
-              <h3>Execution Log</h3>
-              <div className="log-content">
-                {executionLog.map((entry, index) => (
-                  <div key={index} className="log-entry">
-                    {entry}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -988,7 +1854,7 @@ function WorkflowCanvas() {
             </div>
             <div className="modal-content">
               <div className="templates-grid">
-                {workflowTemplates.map((template, index) => (
+                {templates.map((template, index) => (
                   <div key={index} className="template-card">
                     <h3>{template.name}</h3>
                     <p>{template.description}</p>
@@ -1063,16 +1929,80 @@ function WorkflowCanvas() {
         </div>
       )}
 
-      {/* Node Details Panel */}
-      {showNodeDetails && selectedNode && (
-        <NodeDetailsPanel
-          selectedNode={selectedNode}
-          nodes={nodes}
-          edges={edges}
-          onNodeUpdate={handleNodeUpdate}
-          onClose={() => setShowNodeDetails(false)}
-        />
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            top: contextMenu.top,
+            left: contextMenu.left,
+          }}
+          onMouseLeave={() => setContextMenu(null)}
+        >
+          {/* Check if this is a group node */}
+          {nodes.find(n => n.id === contextMenu.id)?.type === 'group' ? (
+            <>
+              <button
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('duplicateGroup', contextMenu.id)}
+              >
+                <span>📋</span>
+                Duplicate Group
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('ungroup', contextMenu.id)}
+              >
+                <span>📦</span>
+                Ungroup
+              </button>
+              <button
+                className="context-menu-item danger"
+                onClick={() => handleContextMenuAction('delete', contextMenu.id)}
+              >
+                <span>🗑️</span>
+                Delete Group
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('duplicate', contextMenu.id)}
+              >
+                <span>📋</span>
+                Duplicate
+              </button>
+              <button
+                className="context-menu-item danger"
+                onClick={() => handleContextMenuAction('delete', contextMenu.id)}
+              >
+                <span>🗑️</span>
+                Delete
+              </button>
+            </>
+          )}
+        </div>
       )}
+
+      {/* Node Details Sidebar */}
+      <NodeDetailsSidebar
+        selectedNode={selectedNode}
+        onNodeUpdate={handleNodeUpdate}
+        onClose={() => setShowParameterPanel(false)}
+        isVisible={showParameterPanel}
+        edges={edges}
+        nodes={nodes}
+        onExecuteNode={executeNode}
+      />
+
+      {/* Execution Log Panel */}
+      <ExecutionLogPanel
+        executionLog={executionLog}
+        isCollapsed={isLogCollapsed}
+        onToggleCollapse={toggleLogCollapse}
+        onClearLog={clearExecutionLog}
+      />
     </div>
   );
 }

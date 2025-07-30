@@ -43,6 +43,10 @@ class MongoDB:
             raise RuntimeError("Not connected to MongoDB")
         return self.db[name]
     
+    def is_connected(self):
+        """Check if connected to MongoDB"""
+        return self.db is not None
+    
     def close(self):
         """Close MongoDB connection"""
         if self.client:

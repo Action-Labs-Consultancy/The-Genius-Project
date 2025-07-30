@@ -1,0 +1,442 @@
+/* ========================================
+   MINIMAL LOGIN PAGE - PURE BLACK & YELLOW
+   ======================================== */
+
+/* Force override ALL existing styles - highest priority */
+body:has(.minimal-login-container),
+html:has(.minimal-login-container) {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #000000 !important;
+  overflow: hidden !important;
+}
+
+/* Force override all existing styles */
+.minimal-login-container,
+.minimal-login-container * {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Container - Full Screen Pure Black */
+.minimal-login-container {
+  min-height: 100vh !important;
+  width: 100vw !important;
+  background: #000000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  padding: 20px !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+}
+
+/* Main Content Area */
+.minimal-login-content {
+  width: 100% !important;
+  max-width: 400px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 40px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Brand Section */
+.minimal-brand h1 {
+  font-size: 32px !important;
+  font-weight: 300 !important;
+  color: #FFD600 !important;
+  text-align: center !important;
+  letter-spacing: -0.5px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Login Form */
+.minimal-login-form {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Input Groups */
+.minimal-input-group {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Input Fields */
+.minimal-input {
+  width: 100% !important;
+  height: 50px !important;
+  background: transparent !important;
+  border: 1px solid #333333 !important;
+  border-radius: 0 !important;
+  color: #FFFFFF !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  padding: 0 16px !important;
+  transition: border-color 0.2s ease !important;
+  outline: none !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.minimal-input::placeholder {
+  color: #666666 !important;
+  font-weight: 300 !important;
+  opacity: 1 !important;
+}
+
+.minimal-input:focus {
+  border-color: #FFD600 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.minimal-input:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Buttons */
+.minimal-button {
+  height: 50px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease, opacity 0.2s ease !important;
+  outline: none !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+}
+
+.minimal-button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Primary Button */
+.minimal-button-primary {
+  background: #FFD600 !important;
+  color: #000000 !important;
+  width: 100% !important;
+  border: 1px solid #FFD600 !important;
+}
+
+.minimal-button-primary:hover:not(:disabled) {
+  background: #E6C200 !important;
+  border-color: #E6C200 !important;
+}
+
+/* Secondary Button */
+.minimal-button-secondary {
+  background: transparent !important;
+  color: #FFFFFF !important;
+  border: 1px solid #333333 !important;
+}
+
+.minimal-button-secondary:hover:not(:disabled) {
+  border-color: #FFD600 !important;
+  color: #FFD600 !important;
+  background: transparent !important;
+}
+
+/* Links Section */
+.minimal-links {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin-top: 8px !important;
+  background: transparent !important;
+}
+
+.minimal-link {
+  background: none !important;
+  border: none !important;
+  color: #666666 !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  cursor: pointer !important;
+  transition: color 0.2s ease !important;
+  text-decoration: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 8px !important;
+}
+
+.minimal-link:hover:not(:disabled) {
+  color: #FFD600 !important;
+}
+
+.minimal-link:disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+}
+
+/* Modal Overlay */
+.minimal-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10000 !important;
+  padding: 20px !important;
+}
+
+/* Modal */
+.minimal-modal {
+  background: #000000 !important;
+  border: 1px solid #333333 !important;
+  width: 100% !important;
+  max-width: 400px !important;
+  padding: 32px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+/* Modal Header */
+.minimal-modal-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 24px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.minimal-modal-header h2 {
+  font-size: 24px !important;
+  font-weight: 300 !important;
+  color: #FFD600 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.minimal-close-button {
+  background: none !important;
+  border: none !important;
+  color: #666666 !important;
+  font-size: 24px !important;
+  font-weight: 300 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: color 0.2s ease !important;
+  outline: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.minimal-close-button:hover:not(:disabled) {
+  color: #FFD600 !important;
+}
+
+/* Modal Form */
+.minimal-modal-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Modal Text */
+.minimal-modal-text {
+  color: #CCCCCC !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.5 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Modal Actions */
+.minimal-modal-actions {
+  display: flex !important;
+  gap: 16px !important;
+  justify-content: flex-end !important;
+  margin-top: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.minimal-modal-actions .minimal-button {
+  min-width: 100px !important;
+  height: 40px !important;
+  font-size: 14px !important;
+  width: auto !important;
+}
+
+/* Messages */
+.minimal-message {
+  color: #CCCCCC !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  text-align: center !important;
+  margin: 0 !important;
+  padding: 12px !important;
+  border: 1px solid #333333 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.minimal-message.success {
+  color: #4CAF50 !important;
+  border-color: #4CAF50 !important;
+}
+
+.minimal-message.error {
+  color: #F44336 !important;
+  border-color: #F44336 !important;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .minimal-login-container {
+    padding: 16px !important;
+  }
+  
+  .minimal-brand h1 {
+    font-size: 28px !important;
+  }
+  
+  .minimal-modal {
+    padding: 24px !important;
+  }
+  
+  .minimal-modal-actions {
+    flex-direction: column !important;
+  }
+  
+  .minimal-modal-actions .minimal-button {
+    width: 100% !important;
+  }
+}
+
+/* Focus States for Accessibility */
+.minimal-button:focus-visible,
+.minimal-input:focus-visible,
+.minimal-link:focus-visible,
+.minimal-close-button:focus-visible {
+  outline: 2px solid #FFD600 !important;
+  outline-offset: 2px !important;
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .minimal-input {
+    border-color: #FFFFFF !important;
+  }
+  
+  .minimal-link {
+    color: #FFFFFF !important;
+  }
+  
+  .minimal-button-secondary {
+    border-color: #FFFFFF !important;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .minimal-input,
+  .minimal-button,
+  .minimal-link,
+  .minimal-close-button {
+    transition: none !important;
+  }
+}
+
+/* Override any existing auth styles */
+.minimal-login-container .auth-container,
+.minimal-login-container .auth-left,
+.minimal-login-container .auth-right,
+.minimal-login-container .login-form,
+.minimal-login-container .login-input,
+.minimal-login-container .login-button,
+.minimal-login-container .gradient-btn {
+  all: unset !important;
+}
+
+/* Ensure no global styles interfere */
+.minimal-login-container h1,
+.minimal-login-container h2,
+.minimal-login-container p,
+.minimal-login-container input,
+.minimal-login-container button,
+.minimal-login-container form,
+.minimal-login-container div {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Final override - nuclear option to ensure our styles take precedence */
+.minimal-login-container * {
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Completely hide any potential header/navigation when on login page */
+.minimal-login-container ~ *,
+.minimal-login-container + * {
+  display: none !important;
+}
+
+/* Ensure the container is the only visible element */
+body:has(.minimal-login-container) > *:not(.minimal-login-container) {
+  display: none !important;
+}
+
+.minimal-login-container {
+  isolation: isolate !important;
+}

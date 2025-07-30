@@ -3,22 +3,48 @@
 
 // Environment-based API configuration
 const getApiBaseUrl = () => {
-  // Check for environment variable first
+  // Check for environment variable first (highest priority)
   if (process.env.REACT_APP_API_BASE_URL) {
+    console.log('🔧 Using API URL from environment:', process.env.REACT_APP_API_BASE_URL);
     return process.env.REACT_APP_API_BASE_URL;
   }
   
   // Production check - if we're on action-labs.ai, use the same domain for API
   if (window.location.hostname.includes('action-labs.ai')) {
+    console.log('🌍 Production mode detected, using same domain for API');
     return ''; // Same domain, Vercel handles routing - no need for full URL
   }
   
-  // Default to the local MongoDB backend for development
-  return 'http://localhost:10000';
+  // Auto-detect for LAN access if running on IP address
+  if (window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    const lanApiUrl = `http://${window.location.hostname}:10000`;
+    console.log('📡 LAN access detected, using:', lanApiUrl);
+    return lanApiUrl;
+  }
+  
+  // If running on localhost, check if we can reach the configured LAN backend
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // First try localhost backend
+    console.log('🏠 Localhost detected, using localhost backend');
+    return 'http://localhost:10000';
+  }
+  
+  // Default to the configured LAN IP backend for development
+  const defaultUrl = 'http://192.168.100.63:10000';
+  console.log('🏠 Using default development API URL:', defaultUrl);
+  return defaultUrl;
 };
 
 // Export the base API URL
 export const API_BASE_URL = getApiBaseUrl();
+
+// Log the final API configuration
+console.log('⚙️ API Configuration:', {
+  baseUrl: API_BASE_URL,
+  currentHost: window.location.hostname,
+  environment: process.env.NODE_ENV,
+  envVariable: process.env.REACT_APP_API_BASE_URL || 'not set'
+});
 
 // API endpoint configurations
 export const API_ENDPOINTS = {
@@ -86,6 +112,14 @@ export const API_ENDPOINTS = {
   PINECONE_STORE: `${API_BASE_URL}/store_data`,
   PINECONE_QUERY: `${API_BASE_URL}/query`,
   
+  // AI Brains System
+  BRAINS: `${API_BASE_URL}/api/brains`,
+  BRAIN_BY_ID: (id) => `${API_BASE_URL}/api/brains/${id}`,
+  BRAIN_DOCUMENTS: (id) => `${API_BASE_URL}/api/brains/${id}/documents`,
+  BRAIN_UPLOAD: (id) => `${API_BASE_URL}/api/brains/${id}/upload`,
+  BRAIN_CHAT: (id) => `${API_BASE_URL}/api/brains/${id}/chat`,
+  BRAIN_AGENTS: (id) => `${API_BASE_URL}/api/brains/${id}/agents`,
+  
   // File uploads
   UPLOAD: `${API_BASE_URL}/upload`,
   
@@ -112,16 +146,28 @@ export const apiCall = async (url, options = {}) => {
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
     const contentType = response.headers.get('content-type');
+    let responseData;
+    
     if (contentType && contentType.includes('application/json')) {
-      return await response.json();
+      responseData = await response.json();
+    } else {
+      responseData = await response.text();
     }
     
-    return await response.text();
+    if (!response.ok) {
+      // If we have JSON error response, throw it with the error details
+      if (typeof responseData === 'object' && responseData.error) {
+        const error = new Error(JSON.stringify(responseData));
+        error.status = response.status;
+        error.errorData = responseData;
+        throw error;
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    }
+    
+    return responseData;
   } catch (error) {
     console.error('API call failed:', error);
     throw error;

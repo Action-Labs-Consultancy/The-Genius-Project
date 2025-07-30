@@ -1,0 +1,15 @@
+# Getting Started with the Project Management Website
+
+Welcome to our AI-powered project management system. Here’s a quick overview to help you get started:
+
+## What You Can Do:
+- **Create Projects:** Organize your work by creating projects for each client or campaign.
+- **Add Workflows:** Within each project, you can add workflows like strategy, design, publishing, etc.
+- **Assign Tasks:** Add tasks under workflows and assign them to teammates.
+- **Track Progress:** View task status updates, performance metrics, and event logs.
+- **Use Brains:** Attach an AI “brain” to your project that can answer questions, summarize campaigns, and retrieve documents.
+
+## Key Pages:
+- **Dashboard:** Shows an overview of your projects and tasks.
+- **Brains Page:** Where you create AI brains for semantic memory.
+- **Workflow Canvas:** A visual interface to connect and organize your tasks.

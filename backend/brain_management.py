@@ -133,10 +133,11 @@ def log_brain_activity(action, brain_id, brain_name, user_id=None, details=None)
 def get_brains():
     """Get all brains with document counts."""
     try:
-        if mongo is None or mongo.db is None:
+        if mongo is None:
             return create_error_response('Database not available', 500)
             
-        brains = list(mongo.db.brains.find())
+        brains_collection = mongo.get_collection('brains')
+        brains = list(brains_collection.find())
         
         # Convert ObjectId to string and add document counts
         for brain in brains:
@@ -198,10 +199,11 @@ def create_brain():
         }
         
         # Create brain in MongoDB
-        if mongo is None or mongo.db is None:
+        if mongo is None:
             return create_error_response('Database not available', 500)
             
-        result = mongo.db.brains.insert_one(brain_data)
+        brains_collection = mongo.get_collection('brains')
+        result = brains_collection.insert_one(brain_data)
         brain_id = str(result.inserted_id)
         
         # Store brain prompt in Pinecone for RAG if provided
@@ -244,7 +246,8 @@ def get_brain(brain_id):
     """Get a specific brain by ID."""
     try:
         mongo = get_mongo()
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         
         if not brain:
             return create_error_response('Brain not found', 404)
@@ -289,7 +292,8 @@ def update_brain(brain_id):
         
         # Update brain in MongoDB
         mongo = get_mongo()
-        result = mongo.db.brains.update_one(
+        brains_collection = mongo.get_collection('brains')
+        result = brains_collection.update_one(
             {'_id': ObjectId(brain_id)},
             {'$set': update_data}
         )
@@ -332,7 +336,8 @@ def delete_brain(brain_id):
         mongo = get_mongo()
         
         # Check if brain exists
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         if not brain:
             return create_error_response('Brain not found', 404)
         
@@ -344,7 +349,7 @@ def delete_brain(brain_id):
             print(f"Warning: Failed to delete brain vectors from Pinecone: {e}")
         
         # Delete brain from MongoDB
-        result = mongo.db.brains.delete_one({'_id': ObjectId(brain_id)})
+        result = brains_collection.delete_one({'_id': ObjectId(brain_id)})
         
         if result.deleted_count == 0:
             return create_error_response('Brain not found', 404)
@@ -363,7 +368,8 @@ def upload_brain_document(brain_id):
     try:
         # Check if brain exists
         mongo = get_mongo()
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         if not brain:
             return create_error_response('Brain not found', 404)
         
@@ -447,7 +453,7 @@ def upload_brain_document(brain_id):
         }
         
         # Update brain's knowledge base in MongoDB
-        result = mongo.db.brains.update_one(
+        result = brains_collection.update_one(
             {'_id': ObjectId(brain_id)},
             {
                 '$push': {'knowledge_base': document_record},
@@ -496,7 +502,8 @@ def chat_with_brain(brain_id):
         
         # Get brain information
         mongo = get_mongo()
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         
         if not brain:
             return create_error_response('Brain not found', 404)
@@ -508,7 +515,7 @@ def chat_with_brain(brain_id):
         ai_response = generate_brain_response(brain_id, message, brain_prompt)
         
         # Update usage stats
-        mongo.db.brains.update_one(
+        brains_collection.update_one(
             {'_id': ObjectId(brain_id)},
             {
                 '$inc': {
@@ -539,7 +546,8 @@ def get_brain_documents(brain_id):
     """Get all documents in a brain's knowledge base."""
     try:
         mongo = get_mongo()
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         
         if not brain:
             return create_error_response('Brain not found', 404)
@@ -569,7 +577,8 @@ def delete_brain_document(brain_id, document_id):
     """Delete a specific document from a brain's knowledge base."""
     try:
         mongo = get_mongo()
-        brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+        brains_collection = mongo.get_collection('brains')
+        brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
         
         if not brain:
             return create_error_response('Brain not found', 404)
@@ -611,7 +620,7 @@ def delete_brain_document(brain_id, document_id):
             print(f"Warning: Failed to delete file: {e}")
         
         # Remove document from brain's knowledge base
-        result = mongo.db.brains.update_one(
+        result = brains_collection.update_one(
             {'_id': ObjectId(brain_id)},
             {
                 '$pull': {'knowledge_base': {'id': document_id}},

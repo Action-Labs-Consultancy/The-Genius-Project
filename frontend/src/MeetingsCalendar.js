@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import modernStyles from './MeetingSchedulerModern.module.css';
+import { API_BASE_URL } from './config/api';
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8); // 8am to 7pm
 const TIME_LABELS = HOURS.map(h => (h < 10 ? `0${h}:00` : `${h}:00`));
@@ -34,7 +35,7 @@ export default function MeetingsCalendar({ currentUser, refreshTrigger }) {
     setLoading(true);
     setError(null);
     
-    fetch(`/api/meetings?user_id=${currentUser.id}`)
+    fetch(`${API_BASE_URL}/api/meetings?user_id=${currentUser.id}`)
       .then(res => {
         if (!res.ok) {
           console.error('Error response:', res.status, res.statusText);

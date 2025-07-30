@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
 export default function TikTokAuthCallback() {
   const [loading, setLoading] = useState(true);
@@ -20,7 +21,7 @@ export default function TikTokAuthCallback() {
     }
 
     // Call backend to exchange code for access token and get analysis
-    fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:10000'}/api/tiktok/analyze?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+    fetch(`${API_BASE_URL}/api/tiktok/analyze?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
       .then(res => res.json())
       .then(data => {
         if (data.error) {

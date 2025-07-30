@@ -54,7 +54,7 @@ use_mongodb = True  # Force MongoDB usage
 def ensure_mongodb_connection():
     """Ensure MongoDB connection is established"""
     global mongo
-    if mongodb_uri and (not mongo.db or not mongo.client):
+    if mongodb_uri and (mongo.db is None or not mongo.client):
         try:
             result = mongo.connect(mongodb_uri)
             if result:
@@ -66,7 +66,7 @@ def ensure_mongodb_connection():
         except Exception as e:
             print(f"[DATABASE] MongoDB connection error: {e}")
             return False
-    return bool(mongo.db)
+    return mongo.db is not None
 
 # Initial connection attempt
 if mongodb_uri:
@@ -92,7 +92,7 @@ def find_available_port(start_port=5000, max_port=9000):
     for port in range(start_port, max_port):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('localhost', port))
+                s.bind(('0.0.0.0', port))
                 return port
         except OSError:
             continue
@@ -101,13 +101,14 @@ def find_available_port(start_port=5000, max_port=9000):
 # ─── Flask setup ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
 
-# CORS configuration for LAN access - allow any device on the network
+# CORS configuration for LAN access - NUCLEAR WAR MODE
 CORS(app, 
-     origins="*",  # Allow all origins for development
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-     expose_headers=["Content-Length", "X-JSON"],
-     supports_credentials=True
+     origins="*",  # Allow ALL origins
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+     allow_headers="*",  # Allow ALL headers
+     expose_headers="*",  # Expose ALL headers
+     supports_credentials=True,
+     vary_header=False
 )
 
 bcrypt = Bcrypt(app)
@@ -174,11 +175,27 @@ except ImportError as e:
 # Register marketing lab routes
 try:
     from marketing_lab_routes import marketing_lab_routes
-    app.register_blueprint(marketing_lab_routes)
-    print("[MARKETING LAB] Marketing AI Tasks Lab routes registered successfully")
+    app.register_blueprint(marketing_lab_routes, url_prefix='/api/marketing-lab')
+    print(f"[MARKETING LAB] Routes registered at /api/marketing-lab with {len(marketing_lab_routes.deferred_functions)} endpoints")
 except ImportError as e:
     print(f"Warning: Could not import marketing_lab_routes: {e}")
     print("Marketing Lab features will be unavailable")
+except Exception as e:
+    print(f"Error registering marketing lab routes: {e}")
+    import traceback
+    traceback.print_exc()
+except ImportError as e:
+    print(f"Warning: Could not import marketing_lab_routes: {e}")
+    print("Marketing Lab features will be unavailable")
+
+# Register brain routes
+try:
+    from brain_routes import brain_routes
+    app.register_blueprint(brain_routes)
+    print("[BRAIN ROUTES] Basic brain routes registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import brain_routes: {e}")
+    print("Basic brain features will be unavailable")
 
 # Register enhanced brain routes with full Pinecone/MongoDB integration
 try:
@@ -189,6 +206,15 @@ except ImportError as e:
     print(f"Warning: Could not import enhanced_brain_routes: {e}")
     print("Enhanced brain features will be unavailable")
 
+# Register feature request routes
+try:
+    from feature_request_routes import feature_request_routes
+    app.register_blueprint(feature_request_routes)
+    print("[FEATURE REQUESTS] Feature request management routes registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import feature_request_routes: {e}")
+    print("Feature request management features will be unavailable")
+
 # Generate a secure random key if not set in environment
 if not os.environ.get('SECRET_KEY'):
     print("[WARNING] Using auto-generated SECRET_KEY. For production, set SECRET_KEY in environment variables.")
@@ -196,6 +222,15 @@ if not os.environ.get('SECRET_KEY'):
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
 app.config['SECRET_KEY'] = SECRET_KEY
+
+# Session configuration for better cookie handling
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # For cross-origin requests
+app.config['SESSION_COOKIE_NAME'] = 'genius_session'
+app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow any domain (important for IP addresses)
+
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 # Initialize SocketIO
@@ -237,13 +272,41 @@ def after_request(response):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Handle exceptions globally."""
-    # Log the error
-    app.logger.error(f"Error: {str(e)}")
+    """Handle exceptions globally with better error information."""
+    # Log the error with more context
+    error_msg = str(e)
+    app.logger.error(f"Error: {error_msg}")
+    
+    # Log request context for debugging
+    try:
+        app.logger.error(f"Request URL: {request.url}")
+        app.logger.error(f"Request method: {request.method}")
+    except:
+        pass
+    
     traceback.print_exc()
     
-    # Return a generic error response
-    return jsonify({'error': 'Internal server error'}), 500
+    # Provide more specific error responses for common issues
+    if "405 Method Not Allowed" in error_msg:
+        return jsonify({
+            'error': 'Method not allowed for this endpoint',
+            'message': 'Check the HTTP method and URL path',
+            'details': error_msg
+        }), 405
+    
+    if "400 Bad Request" in error_msg:
+        return jsonify({
+            'error': 'Bad request format',
+            'message': 'Please check your request format and try again',
+            'details': error_msg
+        }), 400
+    
+    # Return a generic error response for other cases
+    return jsonify({
+        'error': 'Internal server error',
+        'message': 'An unexpected error occurred',
+        'details': error_msg if app.debug else 'Error details hidden in production'
+    }), 500
 
 # ─── Socket Event Handlers ─────────────────────────────────────────────────
 
@@ -803,6 +866,7 @@ def get_accessible_clients():
 def login():
     """Handle user login."""
     try:
+        from flask import session
         data = request.get_json() or {}
         email = data.get('email')
         password = data.get('password')
@@ -827,19 +891,29 @@ def login():
                 # Check if user needs password reset (newly approved user)
                 needs_password_reset = user.get('needs_password_reset', False)
                 
+                # Create session data
+                user_session_data = {
+                    'id': str(user['_id']),
+                    'name': user.get('name', ''),
+                    'email': user.get('email', ''),
+                    'userType': user.get('role', 'employee'),
+                    'role': user.get('role', 'employee'),
+                    'department': user.get('department', ''),
+                    'is_admin': user.get('is_admin', False),
+                    'needs_password_reset': needs_password_reset
+                }
+                
+                # Store user in session
+                session['user'] = user_session_data
+                session.permanent = True
+                
+                print(f"[DEBUG] Session created for user: {email}")
+                
                 return jsonify({
                     'message': 'Login successful',
                     'is_admin': user.get('is_admin', False),
                     'needs_password_reset': needs_password_reset,
-                    'user': {
-                        'id': str(user['_id']),
-                        'name': user.get('name', ''),
-                        'email': user.get('email', ''),
-                        'userType': user.get('role', 'employee'),
-                        'department': user.get('department', ''),
-                        'is_admin': user.get('is_admin', False),
-                        'needs_password_reset': needs_password_reset
-                    }
+                    'user': user_session_data
                 })
             
             print(f"[WARNING] Failed login attempt for: {email}")
@@ -1696,15 +1770,8 @@ def get_channel_members(channel_id):
         user_collection = mongo.get_collection('users')
         member_objs = []
         for m in members:
-            user = user_collection.find_one({'_id': m}) if isinstance(m, str) else user_collection.find_one({'_id': str(m)})
-            if user:
-                member_objs.append({
-                    'id': str(user['_id']),
-                    'name': user.get('name', ''),
-                    'email': user.get('email', ''),
-                    'user_type': user.get('user_type', 'employee'),
-                    'department': user.get('department', ''),
-                })
+            # Process member data here if needed
+            member_objs.append(m)
         return jsonify(member_objs)
     except Exception as e:
         print(f"Error in get_channel_members: {e}")
@@ -1822,7 +1889,7 @@ def handle_meetings():
                     dm_channel = MongoChannel.create_channel(dm_name, True, member_ids, organizer_id)
                 
                 channel_id = dm_channel.get('_id')
-                # Send notification message about meeting invitation
+                               # Send notification message about meeting invitation
                 MongoMessage.create_message(
                     channel_id=channel_id,
                     user_id='system',
@@ -2273,10 +2340,11 @@ def debug_status():
                 mongo_status = "connected"
                 
                 # Count brains
-                brain_count = mongo.db.brains.count_documents({})
+                brains_collection = mongo.get_collection('brains')
+                brain_count = brains_collection.count_documents({})
                 
                 # Get sample brains
-                sample_brains = list(mongo.db.brains.find({}, {'name': 1, '_id': 1}).limit(3))
+                sample_brains = list(brains_collection.find({}, {'name': 1, '_id': 1}).limit(3))
                 for brain in sample_brains:
                     brain['_id'] = str(brain['_id'])
         except Exception as e:
@@ -2307,7 +2375,6 @@ def debug_status():
             'diagnosis': {
                 'message': 'If brains are not visible across LAN, ensure all devices use the same MongoDB URI and can access this backend server',
                 'access_urls': [
-                    f"http://localhost:{os.getenv('PORT', '5000')}/api/brains",
                     f"http://{local_ip}:{os.getenv('PORT', '5000')}/api/brains"
                 ]
             }
@@ -2338,7 +2405,8 @@ def debug_brains():
             }), 500
         
         # Get all brains with details
-        brains = list(mongo.db.brains.find({}))
+        brains_collection = mongo.get_collection('brains')
+        brains = list(brains_collection.find({}))
         for brain in brains:
             brain['_id'] = str(brain['_id'])
             
@@ -2381,8 +2449,9 @@ def debug_lan_connectivity():
         brains_sample = []
         if mongo.db:
             try:
-                brain_count = mongo.db.brains.count_documents({})
-                brains_sample = list(mongo.db.brains.find({}, {'name': 1, 'created_at': 1}).limit(3))
+                brains_collection = mongo.get_collection('brains')
+                brain_count = brains_collection.count_documents({})
+                brains_sample = list(brains_collection.find({}, {'name': 1, 'created_at': 1}).limit(3))
                 for brain in brains_sample:
                     brain['_id'] = str(brain['_id'])
             except Exception as e:
@@ -2394,36 +2463,101 @@ def debug_lan_connectivity():
             'local_ip': local_ip,
             'server_port': os.getenv('PORT', 10000),
             'accessible_urls': [
-                f"http://localhost:{os.getenv('PORT', 10000)}",
-                f"http://{local_ip}:{os.getenv('PORT', 10000)}",
-                f"http://127.0.0.1:{os.getenv('PORT', 10000)}"
+                f"http://{local_ip}:{os.getenv('PORT', 10000)}"
             ]
         }
         
         return jsonify({
-            'success': True,            "timestamp": datetime.now().isoformat(),
-            "network_info": network_info,
-            "database_info": {
-                "mongodb_connected": bool(mongo.db),
-                "brains_sample": brains_sample
+            'success': True,
+            'timestamp': datetime.now().isoformat(),
+            'network_info': network_info,
+            'database_info': {
+                'mongodb_connected': bool(mongo.db),
+                'brains_sample': brains_sample
             },
-            "message": "LAN connectivity debug information"
+            'message': 'LAN connectivity debug information'
         })
         
     except Exception as e:
         return jsonify({
-            "success": False,
-            "error": str(e),
-            "message": "LAN connectivity debug failed"
+            'success': False,
+            'error': str(e),
+            'message': 'LAN connectivity debug failed'
         }), 500
+
+# Network connectivity test endpoint
+@app.route('/network-test', methods=['GET'])
+def network_test():
+    """Simple network connectivity test for LAN devices"""
+    import socket
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    
+    return jsonify({
+        'success': True,
+        'message': 'Network test successful - LAN access is working!',
+        'server_info': {
+            'hostname': hostname,
+            'server_ip': local_ip,
+            'client_ip': request.remote_addr,
+            'timestamp': datetime.now().isoformat(),
+            'user_agent': request.headers.get('User-Agent', 'Unknown')
+        },
+        'test_endpoints': {
+            'agents': f'http://192.168.100.63:10000/api/brains/68824a796a891c1979852a61/agents',
+            'brains': f'http://192.168.100.63:10000/api/brains',
+            'health': f'http://192.168.100.63:10000/health'
+        }
+    })
 
 # ─── Main Application Entry Point ──────────────────────────────────────────
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     print("[FLASK] Starting Genius Project Backend...")
     
     # Get port from environment or use default 10000
-    port = int(os.getenv("PORT", 10000))
+    port = int(os.getenv('PORT', 10000))
     print(f"[FLASK] Starting on port {port}")
-    
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    print(f"[FLASK] Binding to ALL interfaces (0.0.0.0:{port})")
+    print(f"[FLASK] LAN Access URL: http://192.168.100.63:{port}")
+
+# ─── Authentication Routes ──────────────────────────────────────────────────────────
+@app.route('/api/users/current', methods=['GET'])
+def get_current_user():
+    """Get current user from session or return anonymous user for marketing lab."""
+    try:
+        from flask import session
+        user = session.get('user')
+        if user:
+            return jsonify(user)
+        else:
+            # Return anonymous user for marketing lab access
+            anonymous_user = {
+                'id': 'anonymous',
+                'name': 'Marketing Lab User',
+                'email': 'anonymous@marketing-lab.local',
+                'userType': 'guest',
+                'role': 'guest',
+                'department': 'Marketing Lab',
+                'is_admin': False,
+                'needs_password_reset': False,
+                'is_anonymous': True
+            }
+            return jsonify(anonymous_user)
+    except Exception as e:
+        print(f"[ERROR] Get current user error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    """Handle user logout."""
+    try:
+        from flask import session
+        session.clear()
+        return jsonify({'message': 'Logout successful'})
+    except Exception as e:
+        print(f"[ERROR] Logout error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)

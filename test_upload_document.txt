@@ -1,0 +1,10 @@
+This is a test document for agent upload functionality.
+
+The document contains some sample text that should be processed and stored by the agent's document management system.
+
+Key points:
+- Document upload should work
+- Text extraction should be successful
+- The file should be stored and indexed properly
+
+This test will verify that the upload endpoint is working correctly.

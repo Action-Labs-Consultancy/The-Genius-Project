@@ -1,0 +1,271 @@
+/* Admin Feature Request Card Styles */
+
+.admin-feature-request-card {
+  background: #2a2a2a;
+  border: 2px solid #444;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-bottom: 20px;
+}
+
+.admin-feature-request-card:hover {
+  border-color: #666;
+}
+
+.admin-feature-request-card.selected {
+  border-color: #FFD600;
+  box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.2);
+}
+
+.admin-card-header {
+  background: #333;
+  padding: 16px 20px;
+  border-bottom: 1px solid #444;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.selection-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+
+.selection-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #666;
+  border-radius: 4px;
+  background: transparent;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.selection-checkbox input[type="checkbox"]:checked + .checkbox-custom {
+  background: #FFD600;
+  border-color: #FFD600;
+}
+
+.selection-checkbox input[type="checkbox"]:checked + .checkbox-custom::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #000;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.admin-meta {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex: 1;
+}
+
+.admin-meta > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.admin-meta strong {
+  color: #FFD600;
+  font-size: 1.1rem;
+  margin-top: 2px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-action-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #666;
+  border-radius: 6px;
+  background: #444;
+  color: #ccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+}
+
+.admin-action-btn:hover {
+  background: #555;
+  border-color: #777;
+}
+
+.status-btn:hover {
+  border-color: #FFD600;
+  color: #FFD600;
+}
+
+.delete-btn:hover {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.status-update-panel {
+  background: #333;
+  border-bottom: 1px solid #444;
+  padding: 20px;
+}
+
+.status-update-form {
+  max-width: 600px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  color: #FFD600;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.status-select,
+.admin-comment-input {
+  padding: 10px 12px;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.status-select:focus,
+.admin-comment-input:focus {
+  outline: none;
+  border-color: #FFD600;
+  box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.1);
+}
+
+.admin-comment-input {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.admin-comment-input::placeholder {
+  color: #888;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  min-width: 100px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #FFD600 0%, #FFA500 100%);
+  color: #000;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #444;
+  color: #fff;
+  border: 1px solid #666;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #555;
+  border-color: #777;
+}
+
+/* Admin card content inherits styling from FeatureRequestCard */
+
+.admin-comment-display {
+  background: rgba(255, 214, 0, 0.05);
+  border-top: 1px solid #444;
+  padding: 16px 20px;
+}
+
+.admin-comment-header {
+  color: #FFD600;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.admin-comment-content {
+  color: #ccc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .admin-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .admin-meta {
+    justify-content: space-around;
+    gap: 12px;
+  }
+  
+  .admin-actions {
+    justify-content: center;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .btn {
+    width: 100%;
+  }
+}

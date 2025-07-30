@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './LeaveBoard.css';
 import { Users, Search, Filter, CheckCircle, XCircle, Clock, Eye, MessageSquare, X, Plus, Calendar } from 'lucide-react';
 import { calculateWorkingDays, isWeekend, isPublicHoliday } from './utils';
+import { API_BASE_URL } from '../../config/api';
 
 const ManageTeamView = ({ 
   allRequests, 
@@ -30,16 +31,7 @@ const ManageTeamView = ({
   const [searchDropdownVisible, setSearchDropdownVisible] = useState(false);
   const [teamMembers, setTeamMembers] = useState(initialTeamMembers);
 
-  // Only show if user is HR
-  if (!isHR) {
-    return (
-      <div className="access-denied">
-        <h3>Access Denied</h3>
-        <p>You don't have permission to view this page.</p>
-      </div>
-    );
-  }
-
+  // Fetch team members if user is HR
   useEffect(() => {
     async function fetchTeamMembers() {
       if (isHR) {
@@ -56,6 +48,16 @@ const ManageTeamView = ({
     }
     fetchTeamMembers();
   }, [isHR]);
+
+  // Only show if user is HR
+  if (!isHR) {
+    return (
+      <div className="access-denied">
+        <h3>Access Denied</h3>
+        <p>You don't have permission to view this page.</p>
+      </div>
+    );
+  }
 
   const filteredRequests = allRequests?.filter(request => {
     const matchesSearch = !searchTerm || 

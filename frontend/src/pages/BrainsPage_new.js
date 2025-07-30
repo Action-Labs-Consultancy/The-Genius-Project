@@ -9,6 +9,7 @@ import {
   Trash2,
   X
 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 import BrainDetailView from '../components/BrainDetailView';
 import './BrainsPage.css';
 
@@ -34,7 +35,7 @@ const BrainsPage = ({ user }) => {
   const loadBrains = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:10000/api/brains');
+      const response = await fetch(`${API_BASE_URL}/api/brains`);
       
       if (response.ok) {
         const result = await response.json();
@@ -59,7 +60,7 @@ const BrainsPage = ({ user }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:10000/api/brains', {
+      const response = await fetch(`${API_BASE_URL}/api/brains`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +100,7 @@ const BrainsPage = ({ user }) => {
     }
 
     try {
-      const response = await fetch(`http://localhost:10000/api/brains/${brainId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/brains/${brainId}`, {
         method: 'DELETE'
       });
 

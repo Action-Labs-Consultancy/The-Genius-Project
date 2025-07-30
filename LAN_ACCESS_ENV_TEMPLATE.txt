@@ -1,0 +1,17 @@
+
+# ===========================================
+# Environment Configuration for LAN Access
+# ===========================================
+
+# MongoDB Connection (Current)
+MONGODB_URI=mongodb+srv://rhasan:GlassDoor2025@cluster0.tj04exd.mongodb.net/genius_db?retryWrites=true&w=majority&appName=Cluster0
+
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=10000
+
+# CORS Origins (for production, specify exact domains)
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://192.168.100.63:3000
+
+# Frontend Environment Variable (add to frontend/.env or set when running)
+REACT_APP_API_URL=http://192.168.100.63:10000

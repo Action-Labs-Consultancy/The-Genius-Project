@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 
-const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
+const NodeSettingsPanel = ({ node, onUpdateNode, onClose, embedded = false }) => {
   const [config, setConfig] = useState(node.data.config || {});
   const [label, setLabel] = useState(node.data.label || '');
 
@@ -260,6 +260,161 @@ const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
           </div>
         );
         
+      case 'brain':
+        return (
+          <>
+            <div className="field-group">
+              <label>Brain Name</label>
+              <input
+                type="text"
+                value={config.name || ''}
+                onChange={(e) => handleConfigChange('name', e.target.value)}
+                placeholder="AI Brain Name"
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>AI Model</label>
+              <select
+                value={config.model || 'gpt-3.5-turbo'}
+                onChange={(e) => handleConfigChange('model', e.target.value)}
+              >
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="gpt-4">GPT-4</option>
+                <option value="claude-3-haiku">Claude 3 Haiku</option>
+                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+              </select>
+            </div>
+            
+            <div className="field-group">
+              <label>Temperature</label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={config.temperature || 0.7}
+                onChange={(e) => handleConfigChange('temperature', parseFloat(e.target.value))}
+              />
+              <div className="help-text">Controls creativity (0 = focused, 1 = creative)</div>
+            </div>
+            
+            <div className="field-group">
+              <label>Memory Namespace</label>
+              <input
+                type="text"
+                value={config.memoryNamespace || ''}
+                onChange={(e) => handleConfigChange('memoryNamespace', e.target.value)}
+                placeholder="default"
+              />
+              <div className="help-text">Pinecone namespace for storing memories</div>
+            </div>
+            
+            <div className="field-group">
+              <label>System Prompt</label>
+              <textarea
+                value={config.systemPrompt || ''}
+                onChange={(e) => handleConfigChange('systemPrompt', e.target.value)}
+                placeholder="You are a helpful AI assistant."
+                rows={4}
+              />
+            </div>
+          </>
+        );
+        
+      case 'agent':
+        return (
+          <>
+            <div className="field-group">
+              <label>Agent Name</label>
+              <input
+                type="text"
+                value={config.name || ''}
+                onChange={(e) => handleConfigChange('name', e.target.value)}
+                placeholder="AI Agent Name"
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>Agent Role</label>
+              <input
+                type="text"
+                value={config.role || ''}
+                onChange={(e) => handleConfigChange('role', e.target.value)}
+                placeholder="assistant, analyst, researcher, etc."
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>AI Model</label>
+              <select
+                value={config.model || 'gpt-3.5-turbo'}
+                onChange={(e) => handleConfigChange('model', e.target.value)}
+              >
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="gpt-4">GPT-4</option>
+                <option value="claude-3-haiku">Claude 3 Haiku</option>
+                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+              </select>
+            </div>
+            
+            <div className="field-group">
+              <label>Temperature</label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={config.temperature || 0.7}
+                onChange={(e) => handleConfigChange('temperature', parseFloat(e.target.value))}
+              />
+            </div>
+            
+            <div className="field-group">
+              <label>Memory Namespace</label>
+              <input
+                type="text"
+                value={config.memoryNamespace || ''}
+                onChange={(e) => handleConfigChange('memoryNamespace', e.target.value)}
+                placeholder="agent_default"
+              />
+              <div className="help-text">Pinecone namespace for agent memory</div>
+            </div>
+            
+            <div className="field-group">
+              <label>Available Tools (JSON Array)</label>
+              <textarea
+                value={JSON.stringify(config.tools || [], null, 2)}
+                onChange={(e) => {
+                  try {
+                    handleConfigChange('tools', JSON.parse(e.target.value));
+                  } catch (err) {
+                    // Invalid JSON, keep as string for now
+                  }
+                }}
+                placeholder='["web_search", "calculator", "file_handler"]'
+                rows={3}
+              />
+            </div>
+          </>
+        );
+        
+      case 'webhook':
+        return (
+          <div className="field-group">
+            <label>Webhook URL Pattern</label>
+            <input
+              type="text"
+              value={config.pattern || ''}
+              onChange={(e) => handleConfigChange('pattern', e.target.value)}
+              placeholder="/webhook/trigger"
+            />
+            <div className="help-text">
+              In demo mode, webhook completion is simulated
+            </div>
+          </div>
+        );
+        
       default:
         return (
           <div className="help-text">
@@ -270,13 +425,15 @@ const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
   };
 
   return (
-    <div className="node-settings-panel">
-      <div className="panel-header">
-        <h3>Node Settings</h3>
-        <button onClick={onClose} className="close-btn">
-          <X size={16} />
-        </button>
-      </div>
+    <div className={`node-settings-panel ${embedded ? 'embedded' : ''}`}>
+      {!embedded && (
+        <div className="panel-header">
+          <h3>Node Settings</h3>
+          <button onClick={onClose} className="close-btn">
+            <X size={16} />
+          </button>
+        </div>
+      )}
       
       <div className="panel-content">
         <div className="field-group">
@@ -292,7 +449,9 @@ const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
         <div className="field-group">
           <label>Node Type</label>
           <div className="node-type-display">
-            {node.data.nodeType}
+            <span className="node-type-badge" style={{ background: node.data.color }}>
+              {node.data.nodeType}
+            </span>
           </div>
         </div>
         
@@ -302,6 +461,24 @@ const NodeSettingsPanel = ({ node, onUpdateNode, onClose }) => {
             {node.id}
           </div>
         </div>
+
+        {/* Execution Status */}
+        {node.data.executionStatus && node.data.executionStatus !== 'idle' && (
+          <div className="field-group">
+            <label>Execution Status</label>
+            <div className={`execution-status ${node.data.executionStatus}`}>
+              {node.data.executionStatus === 'running' && '🔄 Running'}
+              {node.data.executionStatus === 'success' && '✅ Success'}
+              {node.data.executionStatus === 'error' && '❌ Error'}
+              {node.data.executionStatus === 'pending' && '⏳ Pending'}
+            </div>
+            {node.data.executionError && (
+              <div className="error-message">
+                {node.data.executionError}
+              </div>
+            )}
+          </div>
+        )}
         
         <hr />
         

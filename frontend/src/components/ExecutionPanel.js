@@ -1,7 +1,15 @@
 import React from 'react';
-import { X, Play, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { X, Play, CheckCircle, XCircle, Clock, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
 
-const ExecutionPanel = ({ isExecuting, executionResult, onClose }) => {
+const ExecutionPanel = ({ 
+  isExecuting, 
+  executionResult, 
+  executionLogs, 
+  onClose, 
+  isBottomPanel = false,
+  showExecutionPanel = true,
+  onToggle 
+}) => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'success':
@@ -27,98 +35,106 @@ const ExecutionPanel = ({ isExecuting, executionResult, onClose }) => {
   };
 
   return (
-    <div className="execution-panel">
+    <div className={`execution-panel ${isBottomPanel ? 'bottom-panel' : ''} ${!showExecutionPanel ? 'collapsed' : ''}`}>
       <div className="panel-header">
         <h3>
           <Play size={16} />
-          Workflow Execution
+          Execution Logs {isBottomPanel ? '- Live Updates' : ''}
+          {isExecuting && <span className="executing-indicator">⚡ Running</span>}
         </h3>
-        <button onClick={onClose} className="close-btn">
-          <X size={16} />
-        </button>
+        <div className="panel-controls">
+          {isBottomPanel && onToggle && (
+            <button onClick={onToggle} className="toggle-btn" title="Toggle panel">
+              {showExecutionPanel ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="close-btn">
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="panel-content">
-        {isExecuting && (
-          <div className="execution-status executing">
-            <div className="status-indicator pulsing"></div>
-            <span>Executing workflow...</span>
-          </div>
-        )}
+      {showExecutionPanel && (
+        <div className="panel-content">
+          {isExecuting && (
+            <div className="execution-status executing">
+              <div className="status-indicator pulsing"></div>
+              <span>Executing workflow...</span>
+            </div>
+          )}
 
-        {executionResult && (
-          <>
-            <div className={`execution-summary ${executionResult.status}`}>
-              {getStatusIcon(executionResult.status)}
-              <div>
-                <strong>Status: {executionResult.status}</strong>
-                {executionResult.iterations && (
-                  <div className="execution-meta">
-                    Processed {executionResult.iterations} nodes
+          {executionLogs && executionLogs.length > 0 && (
+            <div className="execution-log">
+              <div className="log-entries">
+                {executionLogs.map((entry, index) => (
+                  <div key={index} className={`log-entry ${entry.status || entry.level}`}>
+                    <div className="log-header">
+                      <div className="log-title">
+                        {getStatusIcon(entry.status || entry.level)}
+                        <span className="node-type">{entry.node_type || entry.level}</span>
+                        <span className="node-id">{entry.node_id || 'System'}</span>
+                      </div>
+                      <div className="log-timestamp">
+                        {formatTimestamp(entry.timestamp)}
+                      </div>
+                    </div>
+
+                    <div className="log-message">
+                      <span>{entry.message || entry.output}</span>
+                    </div>
+
+                    {entry.output && typeof entry.output === 'object' && (
+                      <div className="log-output">
+                        <strong>Output:</strong>
+                        <pre>{formatOutput(entry.output)}</pre>
+                      </div>
+                    )}
+
+                    {entry.error && (
+                      <div className="log-error">
+                        <strong>Error:</strong>
+                        <span>{entry.error}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             </div>
+          )}
 
-            {executionResult.error && (
-              <div className="error-message">
-                <XCircle size={16} />
-                <span>{executionResult.error}</span>
-              </div>
-            )}
-
-            {executionResult.execution_log && (
-              <div className="execution-log">
-                <h4>Execution Log</h4>
-                <div className="log-entries">
-                  {executionResult.execution_log.map((entry, index) => (
-                    <div key={index} className={`log-entry ${entry.status}`}>
-                      <div className="log-header">
-                        <div className="log-title">
-                          {getStatusIcon(entry.status)}
-                          <span className="node-type">{entry.node_type}</span>
-                          <span className="node-id">{entry.node_id}</span>
-                        </div>
-                        <div className="log-timestamp">
-                          {formatTimestamp(entry.timestamp)}
-                        </div>
-                      </div>
-
-                      {entry.output && (
-                        <div className="log-output">
-                          <strong>Output:</strong>
-                          <pre>{formatOutput(entry.output)}</pre>
-                        </div>
-                      )}
-
-                      {entry.error && (
-                        <div className="log-error">
-                          <strong>Error:</strong>
-                          <span>{entry.error}</span>
-                        </div>
-                      )}
+          {executionResult && (
+            <>
+              <div className={`execution-summary ${executionResult.status}`}>
+                {getStatusIcon(executionResult.status)}
+                <div>
+                  <strong>Status: {executionResult.status}</strong>
+                  {executionResult.iterations && (
+                    <div className="execution-meta">
+                      Processed {executionResult.iterations} nodes
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
-            )}
 
-            {executionResult.final_context && (
-              <div className="final-context">
-                <h4>Final Context</h4>
-                <pre>{JSON.stringify(executionResult.final_context, null, 2)}</pre>
-              </div>
-            )}
-          </>
-        )}
+              {executionResult.error && (
+                <div className="error-message">
+                  <XCircle size={16} />
+                  <span>{executionResult.error}</span>
+                </div>
+              )}
+            </>
+          )}
 
-        {!isExecuting && !executionResult && (
-          <div className="no-execution">
-            <AlertCircle size={48} />
-            <p>No execution data available</p>
-          </div>
-        )}
-      </div>
+          {!isExecuting && !executionResult && (!executionLogs || executionLogs.length === 0) && (
+            <div className="no-execution">
+              <AlertCircle size={32} />
+              <p>No execution logs yet. Run a workflow to see logs here.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -24,7 +24,7 @@ const Sidebar = ({ user }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'workflow', label: 'Workflow Builder', icon: Workflow, path: '/workflow' },
-    { id: 'ai-brains', label: 'AI Brains', icon: Brain, path: '/ai-brains' },
+    { id: 'brains', label: 'AI Brains', icon: Brain, path: '/brains' },
     { id: 'clients', label: 'Clients', icon: Building2, path: '/clients' },
     { id: 'projects', label: 'Projects', icon: FolderOpen, path: '/projects' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }

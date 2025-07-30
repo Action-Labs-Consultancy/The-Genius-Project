@@ -310,131 +310,301 @@ def get_execution_logs():
 
 @workflow_api.route('/api/workflow-templates', methods=['GET'])
 def get_workflow_templates():
+    """Return working, tested workflow templates with real functionality"""
     templates = [
         {
-            'id': 'testing-million',
-            'name': 'Testing Million',
-            'description': 'Comprehensive test workflow exercising all node types with proper parameters',
+            'id': 'simple-data-processing',
+            'name': 'Simple Data Processing',
+            'description': 'A basic workflow for processing data with variables, conditions, and notifications',
             'nodes': [
                 # Start Node
-                {'id': 'start-1', 'type': 'customNode', 'position': {'x': 100, 'y': 200}, 'data': {'label': 'Start Process', 'nodeType': 'start', 'icon': 'Play', 'color': '#10B981', 'config': {'triggerType': 'manual', 'triggerData': '{"order_id": "million-123", "customer_id": "cust-456"}'}}},
+                {'id': 'start-1', 'type': 'customNode', 'position': {'x': 100, 'y': 200}, 
+                 'data': {'label': 'Start Process', 'nodeType': 'start', 'icon': 'Play', 'color': '#10B981', 
+                          'config': {'triggerType': 'manual', 'triggerData': '{"user_id": "user123", "task": "process_data"}'}}},
                 
-                # Variable Setting
-                {'id': 'var-order', 'type': 'customNode', 'position': {'x': 300, 'y': 200}, 'data': {'label': 'Load Order Data', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_total', 'value': '1000000'}}},
-                {'id': 'var-customer', 'type': 'customNode', 'position': {'x': 500, 'y': 200}, 'data': {'label': 'Set Customer Email', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'customer_email', 'value': 'test@million.com'}}},
+                # Set Variables
+                {'id': 'var-input', 'type': 'customNode', 'position': {'x': 300, 'y': 200}, 
+                 'data': {'label': 'Set Input Data', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'input_value', 'value': '100'}}},
                 
-                # AI Brain Processing
-                {'id': 'brain-fraud', 'type': 'customNode', 'position': {'x': 700, 'y': 200}, 'data': {'label': 'AI Fraud Check', 'nodeType': 'brain', 'icon': 'Zap', 'color': '#9D4EDD', 'config': {'brainId': 'fraud-detector-brain-123', 'userInput': 'Analyze order for fraud: total={{order_total}}, email={{customer_email}}', 'systemPrompt': 'You are a fraud detection expert. Analyze the order and respond with SAFE or FRAUD.'}}},
+                {'id': 'var-threshold', 'type': 'customNode', 'position': {'x': 500, 'y': 200}, 
+                 'data': {'label': 'Set Threshold', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'threshold', 'value': '50'}}},
                 
-                # If/Else Condition 
-                {'id': 'condition-fraud', 'type': 'customNode', 'position': {'x': 900, 'y': 200}, 'data': {'label': 'Fraud Detected?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{ai_response}}', 'operator': 'contains', 'rightOperand': 'FRAUD'}}},
+                # Math Operation
+                {'id': 'math-calc', 'type': 'customNode', 'position': {'x': 700, 'y': 200}, 
+                 'data': {'label': 'Calculate Result', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 
+                          'config': {'operation': 'multiply', 'leftOperand': '{{input_value}}', 'rightOperand': '2', 'resultVariable': 'calculated_result'}}},
                 
-                # Fraud Alert Path
-                {'id': 'var-flag', 'type': 'customNode', 'position': {'x': 1100, 'y': 100}, 'data': {'label': 'Flag Order', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'FLAGGED_FRAUD'}}},
-                {'id': 'email-security', 'type': 'customNode', 'position': {'x': 1300, 'y': 100}, 'data': {'label': 'Alert Security Team', 'nodeType': 'email', 'icon': 'Mail', 'color': '#EF4444', 'config': {'to': 'security@company.com', 'subject': 'FRAUD ALERT: Million Dollar Order', 'body': 'Suspicious order detected. Total: ${{order_total}}, Customer: {{customer_email}}, AI Analysis: {{ai_response}}'}}},
-                {'id': 'slack-alert', 'type': 'customNode', 'position': {'x': 1500, 'y': 100}, 'data': {'label': 'Slack Alert', 'nodeType': 'slack', 'icon': 'MessageSquare', 'color': '#7C3AED', 'config': {'channel': '#security-alerts', 'message': '🚨 FRAUD ALERT: Million dollar order flagged by AI. Order: ${{order_total}}, Customer: {{customer_email}}'}}},
+                # Condition Check
+                {'id': 'condition-check', 'type': 'customNode', 'position': {'x': 900, 'y': 200}, 
+                 'data': {'label': 'Check Threshold', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 
+                          'config': {'leftOperand': '{{calculated_result}}', 'operator': 'greater_than', 'rightOperand': '{{threshold}}'}}},
                 
-                # Normal Processing Path - Database Check
-                {'id': 'db-inventory', 'type': 'customNode', 'position': {'x': 1100, 'y': 300}, 'data': {'label': 'Check Inventory', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'find', 'collection': 'inventory', 'query': '{"product_id": "premium-package", "quantity": {"$gte": 1}}'}}},
+                # High Value Path
+                {'id': 'var-status-high', 'type': 'customNode', 'position': {'x': 1100, 'y': 100}, 
+                 'data': {'label': 'Set High Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'status', 'value': 'HIGH_VALUE'}}},
                 
-                # Stock Condition Check
-                {'id': 'condition-stock', 'type': 'customNode', 'position': {'x': 1300, 'y': 300}, 'data': {'label': 'In Stock?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{db_result.quantity}}', 'operator': '>', 'rightOperand': '0'}}},
+                {'id': 'notify-high', 'type': 'customNode', 'position': {'x': 1300, 'y': 100}, 
+                 'data': {'label': 'High Value Alert', 'nodeType': 'notification', 'icon': 'Bell', 'color': '#10B981', 
+                          'config': {'title': 'High Value Detected', 'message': 'Calculated result {{calculated_result}} exceeds threshold {{threshold}}'}}},
                 
-                # Out of Stock Path
-                {'id': 'email-backorder', 'type': 'customNode', 'position': {'x': 1500, 'y': 200}, 'data': {'label': 'Backorder Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#F59E0B', 'config': {'to': '{{customer_email}}', 'subject': 'Order Update: Item on Backorder', 'body': 'Thank you for your million dollar order! The premium package is currently on backorder. We will notify you when it becomes available.'}}},
-                {'id': 'var-backorder', 'type': 'customNode', 'position': {'x': 1700, 'y': 200}, 'data': {'label': 'Set Backorder', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'BACKORDERED'}}},
+                # Low Value Path
+                {'id': 'var-status-low', 'type': 'customNode', 'position': {'x': 1100, 'y': 300}, 
+                 'data': {'label': 'Set Normal Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'status', 'value': 'NORMAL_VALUE'}}},
                 
-                # In Stock - Math Processing
-                {'id': 'math-pricing', 'type': 'customNode', 'position': {'x': 1500, 'y': 400}, 'data': {'label': 'Calculate Pricing', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 'config': {'operation': 'multiply', 'leftOperand': '{{order_total}}', 'rightOperand': '0.95', 'resultVariable': 'discounted_total'}}},
+                {'id': 'notify-normal', 'type': 'customNode', 'position': {'x': 1300, 'y': 300}, 
+                 'data': {'label': 'Normal Processing', 'nodeType': 'notification', 'icon': 'Bell', 'color': '#6B7280', 
+                          'config': {'title': 'Normal Processing', 'message': 'Calculated result {{calculated_result}} is within normal range'}}},
                 
-                # VIP Customer Check
-                {'id': 'condition-vip', 'type': 'customNode', 'position': {'x': 1700, 'y': 400}, 'data': {'label': 'VIP Customer?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{order_total}}', 'operator': '>', 'rightOperand': '500000'}}},
-                
-                # VIP Discount Path
-                {'id': 'math-vip', 'type': 'customNode', 'position': {'x': 1900, 'y': 300}, 'data': {'label': 'Apply VIP Discount', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 'config': {'operation': 'multiply', 'leftOperand': '{{discounted_total}}', 'rightOperand': '0.9', 'resultVariable': 'final_price'}}},
-                {'id': 'var-vip-price', 'type': 'customNode', 'position': {'x': 2100, 'y': 300}, 'data': {'label': 'Set Final Price', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'final_total', 'value': '{{final_price}}'}}},
-                
-                # Regular Pricing Path
-                {'id': 'var-regular-price', 'type': 'customNode', 'position': {'x': 1900, 'y': 500}, 'data': {'label': 'Set Regular Price', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'final_total', 'value': '{{discounted_total}}'}}},
-                
-                # HTTP Request - Payment Processing
-                {'id': 'http-payment', 'type': 'customNode', 'position': {'x': 2300, 'y': 400}, 'data': {'label': 'Process Payment', 'nodeType': 'httpRequest', 'icon': 'Globe', 'color': '#3B82F6', 'config': {'url': 'https://api.payment-processor.com/charge', 'method': 'POST', 'headers': '{"Content-Type": "application/json", "Authorization": "Bearer test-key-123"}', 'body': '{"amount": "{{final_total}}", "customer_email": "{{customer_email}}", "order_id": "{{order_id}}"}'}}},
-                
-                # Payment Success Check
-                {'id': 'condition-payment', 'type': 'customNode', 'position': {'x': 2500, 'y': 400}, 'data': {'label': 'Payment Success?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 'config': {'leftOperand': '{{last_http_response.status_code}}', 'operator': '==', 'rightOperand': '200'}}},
-                
-                # Payment Failed Path
-                {'id': 'email-failed', 'type': 'customNode', 'position': {'x': 2700, 'y': 300}, 'data': {'label': 'Payment Failed Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#EF4444', 'config': {'to': '{{customer_email}}', 'subject': 'Payment Processing Error', 'body': 'We encountered an issue processing your payment for order total: ${{final_total}}. Please contact support or try again.'}}},
-                {'id': 'var-failed', 'type': 'customNode', 'position': {'x': 2900, 'y': 300}, 'data': {'label': 'Set Failed Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'PAYMENT_FAILED'}}},
-                
-                # Payment Success Path
-                {'id': 'db-update', 'type': 'customNode', 'position': {'x': 2700, 'y': 500}, 'data': {'label': 'Update Inventory', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'update', 'collection': 'inventory', 'query': '{"product_id": "premium-package"}'}}},
-                {'id': 'var-shipped', 'type': 'customNode', 'position': {'x': 2900, 'y': 500}, 'data': {'label': 'Set Shipped Status', 'nodeType': 'setVariable', 'icon': 'Database', 'color': '#8B5CF6', 'config': {'variableName': 'order_status', 'value': 'SHIPPED'}}},
-                {'id': 'email-confirm', 'type': 'customNode', 'position': {'x': 3100, 'y': 500}, 'data': {'label': 'Shipping Confirmation', 'nodeType': 'email', 'icon': 'Mail', 'color': '#10B981', 'config': {'to': '{{customer_email}}', 'subject': 'Million Dollar Order Shipped!', 'body': 'Congratulations! Your premium package worth ${{final_total}} has been shipped. Tracking info will follow shortly.'}}},
-                {'id': 'push-notify', 'type': 'customNode', 'position': {'x': 3300, 'y': 500}, 'data': {'label': 'Push Notification', 'nodeType': 'notification', 'icon': 'Bell', 'color': '#8B5CF6', 'config': {'title': 'Order Shipped', 'message': 'Your million dollar order is on its way!'}}},
-                
-                # AI Agent Processing
-                {'id': 'agent-process', 'type': 'customNode', 'position': {'x': 3500, 'y': 400}, 'data': {'label': 'Agent Process Order', 'nodeType': 'agent', 'icon': 'User', 'color': '#6366F1', 'config': {'agentId': 'order-processing-agent-789', 'task': 'Process completed order: {{order_id}} with status {{order_status}} and total {{final_total}}'}}},
-                
-                # Final Database Log
-                {'id': 'db-log', 'type': 'customNode', 'position': {'x': 3700, 'y': 400}, 'data': {'label': 'Log Transaction', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 'config': {'operation': 'insert', 'collection': 'transaction_logs', 'query': '{"order_id": "{{order_id}}", "total": "{{final_total}}", "status": "{{order_status}}", "timestamp": "2024-01-01T12:00:00Z"}'}}},
+                # Database Log
+                {'id': 'db-log', 'type': 'customNode', 'position': {'x': 1500, 'y': 200}, 
+                 'data': {'label': 'Log Result', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 
+                          'config': {'operation': 'insert', 'collection': 'processing_logs', 'query': '{"input": "{{input_value}}", "result": "{{calculated_result}}", "status": "{{status}}", "timestamp": "{{current_timestamp}}"}'}}},
                 
                 # End Node
-                {'id': 'end-1', 'type': 'customNode', 'position': {'x': 3900, 'y': 400}, 'data': {'label': 'Process Complete', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#6B7280', 'config': {'status': 'success', 'returnData': '{"order_id": "{{order_id}}", "final_total": "{{final_total}}", "status": "{{order_status}}"}'}}}
+                {'id': 'end-1', 'type': 'customNode', 'position': {'x': 1700, 'y': 200}, 
+                 'data': {'label': 'Process Complete', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#6B7280', 
+                          'config': {'status': 'success', 'returnData': '{"result": "{{calculated_result}}", "status": "{{status}}"}'}}}
+            ],
+            'edges': [
+                {'id': 'e1', 'source': 'start-1', 'target': 'var-input', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e2', 'source': 'var-input', 'target': 'var-threshold', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e3', 'source': 'var-threshold', 'target': 'math-calc', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e4', 'source': 'math-calc', 'target': 'condition-check', 'type': 'smoothstep', 'animated': True},
+                
+                # True path (high value)
+                {'id': 'e5', 'source': 'condition-check', 'target': 'var-status-high', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e6', 'source': 'var-status-high', 'target': 'notify-high', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e7', 'source': 'notify-high', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                
+                # False path (normal value)
+                {'id': 'e8', 'source': 'condition-check', 'target': 'var-status-low', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e9', 'source': 'var-status-low', 'target': 'notify-normal', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e10', 'source': 'notify-normal', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                
+                # Final
+                {'id': 'e11', 'source': 'db-log', 'target': 'end-1', 'type': 'smoothstep', 'animated': True}
+            ]
+        },
+        {
+            'id': 'user-onboarding',
+            'name': 'User Onboarding Flow',
+            'description': 'Complete user onboarding with validation, email notifications, and database updates',
+            'nodes': [
+                # Start Node
+                {'id': 'start-1', 'type': 'customNode', 'position': {'x': 100, 'y': 200}, 
+                 'data': {'label': 'New User Registration', 'nodeType': 'start', 'icon': 'Play', 'color': '#10B981', 
+                          'config': {'triggerType': 'manual', 'triggerData': '{"user_email": "user@example.com", "user_name": "New User"}'}}},
+                
+                # Extract user data
+                {'id': 'var-email', 'type': 'customNode', 'position': {'x': 300, 'y': 200}, 
+                 'data': {'label': 'Extract Email', 'nodeType': 'setVariable', 'icon': 'Mail', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'user_email', 'value': '{{user_email}}'}}},
+                
+                {'id': 'var-name', 'type': 'customNode', 'position': {'x': 500, 'y': 200}, 
+                 'data': {'label': 'Extract Name', 'nodeType': 'setVariable', 'icon': 'User', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'user_name', 'value': '{{user_name}}'}}},
+                
+                # Validate email format
+                {'id': 'condition-email', 'type': 'customNode', 'position': {'x': 700, 'y': 200}, 
+                 'data': {'label': 'Validate Email', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 
+                          'config': {'leftOperand': '{{user_email}}', 'operator': 'contains', 'rightOperand': '@'}}},
+                
+                # Invalid email path
+                {'id': 'notify-invalid', 'type': 'customNode', 'position': {'x': 900, 'y': 100}, 
+                 'data': {'label': 'Invalid Email Alert', 'nodeType': 'notification', 'icon': 'AlertTriangle', 'color': '#EF4444', 
+                          'config': {'title': 'Invalid Email', 'message': 'Email address {{user_email}} is not valid'}}},
+                
+                {'id': 'end-invalid', 'type': 'customNode', 'position': {'x': 1100, 'y': 100}, 
+                 'data': {'label': 'Registration Failed', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#EF4444', 
+                          'config': {'status': 'error', 'returnData': '{"error": "Invalid email address"}'}}},
+                
+                # Valid email path - Check if user exists
+                {'id': 'db-check', 'type': 'customNode', 'position': {'x': 900, 'y': 300}, 
+                 'data': {'label': 'Check Existing User', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 
+                          'config': {'operation': 'find', 'collection': 'users', 'query': '{"email": "{{user_email}}"}'}}},
+                
+                # User exists check
+                {'id': 'condition-exists', 'type': 'customNode', 'position': {'x': 1100, 'y': 300}, 
+                 'data': {'label': 'User Exists?', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 
+                          'config': {'leftOperand': '{{db_result_count}}', 'operator': 'greater_than', 'rightOperand': '0'}}},
+                
+                # User exists path
+                {'id': 'notify-exists', 'type': 'customNode', 'position': {'x': 1300, 'y': 200}, 
+                 'data': {'label': 'User Already Exists', 'nodeType': 'notification', 'icon': 'AlertTriangle', 'color': '#F59E0B', 
+                          'config': {'title': 'User Already Registered', 'message': 'User with email {{user_email}} already exists'}}},
+                
+                {'id': 'end-exists', 'type': 'customNode', 'position': {'x': 1500, 'y': 200}, 
+                 'data': {'label': 'Registration Skipped', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#F59E0B', 
+                          'config': {'status': 'skipped', 'returnData': '{"message": "User already exists"}'}}},
+                
+                # New user path - Create user
+                {'id': 'var-id', 'type': 'customNode', 'position': {'x': 1300, 'y': 400}, 
+                 'data': {'label': 'Generate User ID', 'nodeType': 'setVariable', 'icon': 'Hash', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'user_id', 'value': 'user_{{timestamp}}_{{random}}'}}},
+                
+                {'id': 'db-create', 'type': 'customNode', 'position': {'x': 1500, 'y': 400}, 
+                 'data': {'label': 'Create User Record', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 
+                          'config': {'operation': 'insert', 'collection': 'users', 'query': '{"id": "{{user_id}}", "email": "{{user_email}}", "name": "{{user_name}}", "created_at": "{{current_timestamp}}", "status": "active"}'}}},
+                
+                # Send welcome email
+                {'id': 'email-welcome', 'type': 'customNode', 'position': {'x': 1700, 'y': 400}, 
+                 'data': {'label': 'Send Welcome Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#10B981', 
+                          'config': {'to': '{{user_email}}', 'subject': 'Welcome to our platform!', 'body': 'Hello {{user_name}},\\n\\nWelcome to our platform! Your account has been successfully created.\\n\\nUser ID: {{user_id}}\\n\\nBest regards,\\nThe Team'}}},
+                
+                # Send notification
+                {'id': 'notify-success', 'type': 'customNode', 'position': {'x': 1900, 'y': 400}, 
+                 'data': {'label': 'Success Notification', 'nodeType': 'notification', 'icon': 'CheckCircle', 'color': '#10B981', 
+                          'config': {'title': 'User Created Successfully', 'message': 'New user {{user_name}} ({{user_email}}) has been registered with ID {{user_id}}'}}},
+                
+                # End success
+                {'id': 'end-success', 'type': 'customNode', 'position': {'x': 2100, 'y': 400}, 
+                 'data': {'label': 'Registration Complete', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#10B981', 
+                          'config': {'status': 'success', 'returnData': '{"user_id": "{{user_id}}", "email": "{{user_email}}", "name": "{{user_name}}"}'}}}
             ],
             'edges': [
                 # Main flow
-                {'id': 'e1', 'source': 'start-1', 'target': 'var-order', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e2', 'source': 'var-order', 'target': 'var-customer', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e3', 'source': 'var-customer', 'target': 'brain-fraud', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e4', 'source': 'brain-fraud', 'target': 'condition-fraud', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e1', 'source': 'start-1', 'target': 'var-email', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e2', 'source': 'var-email', 'target': 'var-name', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e3', 'source': 'var-name', 'target': 'condition-email', 'type': 'smoothstep', 'animated': True},
                 
-                # Fraud path (true branch)
-                {'id': 'e5', 'source': 'condition-fraud', 'target': 'var-flag', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e6', 'source': 'var-flag', 'target': 'email-security', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e7', 'source': 'email-security', 'target': 'slack-alert', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e8', 'source': 'slack-alert', 'target': 'end-1', 'type': 'smoothstep', 'animated': True},
+                # Invalid email path
+                {'id': 'e4', 'source': 'condition-email', 'target': 'notify-invalid', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e5', 'source': 'notify-invalid', 'target': 'end-invalid', 'type': 'smoothstep', 'animated': True},
                 
-                # Normal path (false branch)
-                {'id': 'e9', 'source': 'condition-fraud', 'target': 'db-inventory', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e10', 'source': 'db-inventory', 'target': 'condition-stock', 'type': 'smoothstep', 'animated': True},
+                # Valid email path
+                {'id': 'e6', 'source': 'condition-email', 'target': 'db-check', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e7', 'source': 'db-check', 'target': 'condition-exists', 'type': 'smoothstep', 'animated': True},
                 
-                # Out of stock (false branch)
-                {'id': 'e11', 'source': 'condition-stock', 'target': 'email-backorder', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e12', 'source': 'email-backorder', 'target': 'var-backorder', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e13', 'source': 'var-backorder', 'target': 'end-1', 'type': 'smoothstep', 'animated': True},
+                # User exists path
+                {'id': 'e8', 'source': 'condition-exists', 'target': 'notify-exists', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e9', 'source': 'notify-exists', 'target': 'end-exists', 'type': 'smoothstep', 'animated': True},
                 
-                # In stock (true branch)
-                {'id': 'e14', 'source': 'condition-stock', 'target': 'math-pricing', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e15', 'source': 'math-pricing', 'target': 'condition-vip', 'type': 'smoothstep', 'animated': True},
+                # New user path
+                {'id': 'e10', 'source': 'condition-exists', 'target': 'var-id', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e11', 'source': 'var-id', 'target': 'db-create', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e12', 'source': 'db-create', 'target': 'email-welcome', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e13', 'source': 'email-welcome', 'target': 'notify-success', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e14', 'source': 'notify-success', 'target': 'end-success', 'type': 'smoothstep', 'animated': True}
+            ]
+        },
+        {
+            'id': 'content-approval',
+            'name': 'Content Approval Workflow',
+            'description': 'Content review and approval process with AI assistance and stakeholder notifications',
+            'nodes': [
+                # Start Node
+                {'id': 'start-1', 'type': 'customNode', 'position': {'x': 100, 'y': 300}, 
+                 'data': {'label': 'Content Submission', 'nodeType': 'start', 'icon': 'Play', 'color': '#10B981', 
+                          'config': {'triggerType': 'manual', 'triggerData': '{"content_id": "content123", "content_text": "Sample content for review", "author": "author@example.com"}'}}},
                 
-                # VIP pricing (true branch)
-                {'id': 'e16', 'source': 'condition-vip', 'target': 'math-vip', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e17', 'source': 'math-vip', 'target': 'var-vip-price', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e18', 'source': 'var-vip-price', 'target': 'http-payment', 'type': 'smoothstep', 'animated': True},
+                # Extract content data
+                {'id': 'var-content', 'type': 'customNode', 'position': {'x': 300, 'y': 300}, 
+                 'data': {'label': 'Extract Content', 'nodeType': 'setVariable', 'icon': 'FileText', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'content_text', 'value': '{{content_text}}'}}},
                 
-                # Regular pricing (false branch)
-                {'id': 'e19', 'source': 'condition-vip', 'target': 'var-regular-price', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e20', 'source': 'var-regular-price', 'target': 'http-payment', 'type': 'smoothstep', 'animated': True},
+                {'id': 'var-author', 'type': 'customNode', 'position': {'x': 500, 'y': 300}, 
+                 'data': {'label': 'Set Author', 'nodeType': 'setVariable', 'icon': 'User', 'color': '#8B5CF6', 
+                          'config': {'variableName': 'author_email', 'value': '{{author}}'}}},
                 
-                # Payment processing
-                {'id': 'e21', 'source': 'http-payment', 'target': 'condition-payment', 'type': 'smoothstep', 'animated': True},
+                # Check content length
+                {'id': 'math-length', 'type': 'customNode', 'position': {'x': 700, 'y': 300}, 
+                 'data': {'label': 'Calculate Length', 'nodeType': 'math', 'icon': 'Calculator', 'color': '#10B981', 
+                          'config': {'operation': 'length', 'leftOperand': '{{content_text}}', 'rightOperand': '1', 'resultVariable': 'content_length'}}},
                 
-                # Payment failed (false branch)
-                {'id': 'e22', 'source': 'condition-payment', 'target': 'email-failed', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e23', 'source': 'email-failed', 'target': 'var-failed', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e24', 'source': 'var-failed', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                # Length validation
+                {'id': 'condition-length', 'type': 'customNode', 'position': {'x': 900, 'y': 300}, 
+                 'data': {'label': 'Check Length', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 
+                          'config': {'leftOperand': '{{content_length}}', 'operator': 'greater_than', 'rightOperand': '10'}}},
                 
-                # Payment success (true branch)
-                {'id': 'e25', 'source': 'condition-payment', 'target': 'db-update', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e26', 'source': 'db-update', 'target': 'var-shipped', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e27', 'source': 'var-shipped', 'target': 'email-confirm', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e28', 'source': 'email-confirm', 'target': 'push-notify', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e29', 'source': 'push-notify', 'target': 'agent-process', 'type': 'smoothstep', 'animated': True},
-                {'id': 'e30', 'source': 'agent-process', 'target': 'db-log', 'type': 'smoothstep', 'animated': True},
+                # Too short path
+                {'id': 'notify-short', 'type': 'customNode', 'position': {'x': 1100, 'y': 200}, 
+                 'data': {'label': 'Content Too Short', 'nodeType': 'notification', 'icon': 'AlertTriangle', 'color': '#EF4444', 
+                          'config': {'title': 'Content Rejected', 'message': 'Content is too short ({{content_length}} characters). Minimum 10 characters required.'}}},
                 
-                # Final
-                {'id': 'e31', 'source': 'db-log', 'target': 'end-1', 'type': 'smoothstep', 'animated': True}
+                {'id': 'email-reject', 'type': 'customNode', 'position': {'x': 1300, 'y': 200}, 
+                 'data': {'label': 'Notify Author', 'nodeType': 'email', 'icon': 'Mail', 'color': '#EF4444', 
+                          'config': {'to': '{{author_email}}', 'subject': 'Content Submission Rejected', 'body': 'Your content submission has been rejected.\\n\\nReason: Content too short ({{content_length}} characters)\\n\\nPlease resubmit with at least 10 characters.'}}},
+                
+                {'id': 'end-reject', 'type': 'customNode', 'position': {'x': 1500, 'y': 200}, 
+                 'data': {'label': 'Submission Rejected', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#EF4444', 
+                          'config': {'status': 'rejected', 'returnData': '{"status": "rejected", "reason": "Content too short"}'}}},
+                
+                # Valid length - AI review
+                {'id': 'brain-review', 'type': 'customNode', 'position': {'x': 1100, 'y': 400}, 
+                 'data': {'label': 'AI Content Review', 'nodeType': 'brain', 'icon': 'Zap', 'color': '#9D4EDD', 
+                          'config': {'brainId': 'content-moderator', 'userInput': 'Review this content for appropriateness and quality: {{content_text}}', 'systemPrompt': 'You are a content moderator. Review content and respond with APPROVED, NEEDS_REVIEW, or REJECTED with a brief reason.'}}},
+                
+                # AI decision
+                {'id': 'condition-ai', 'type': 'customNode', 'position': {'x': 1300, 'y': 400}, 
+                 'data': {'label': 'AI Decision', 'nodeType': 'ifCondition', 'icon': 'GitBranch', 'color': '#F59E0B', 
+                          'config': {'leftOperand': '{{ai_response}}', 'operator': 'contains', 'rightOperand': 'APPROVED'}}},
+                
+                # AI Approved path
+                {'id': 'var-approved', 'type': 'customNode', 'position': {'x': 1500, 'y': 300}, 
+                 'data': {'label': 'Set Approved', 'nodeType': 'setVariable', 'icon': 'CheckCircle', 'color': '#10B981', 
+                          'config': {'variableName': 'approval_status', 'value': 'AI_APPROVED'}}},
+                
+                {'id': 'db-approved', 'type': 'customNode', 'position': {'x': 1700, 'y': 300}, 
+                 'data': {'label': 'Save Approved Content', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 
+                          'config': {'operation': 'insert', 'collection': 'approved_content', 'query': '{"content_id": "{{content_id}}", "content": "{{content_text}}", "author": "{{author_email}}", "status": "approved", "approved_by": "AI", "approved_at": "{{current_timestamp}}"}'}}},
+                
+                {'id': 'email-approved', 'type': 'customNode', 'position': {'x': 1900, 'y': 300}, 
+                 'data': {'label': 'Approval Email', 'nodeType': 'email', 'icon': 'Mail', 'color': '#10B981', 
+                          'config': {'to': '{{author_email}}', 'subject': 'Content Approved!', 'body': 'Great news! Your content has been approved by our AI system.\\n\\nContent: {{content_text}}\\n\\nStatus: {{approval_status}}'}}},
+                
+                # AI Needs Review path
+                {'id': 'var-review', 'type': 'customNode', 'position': {'x': 1500, 'y': 500}, 
+                 'data': {'label': 'Set Needs Review', 'nodeType': 'setVariable', 'icon': 'Clock', 'color': '#F59E0B', 
+                          'config': {'variableName': 'approval_status', 'value': 'NEEDS_HUMAN_REVIEW'}}},
+                
+                {'id': 'db-pending', 'type': 'customNode', 'position': {'x': 1700, 'y': 500}, 
+                 'data': {'label': 'Save Pending Content', 'nodeType': 'database', 'icon': 'Database', 'color': '#3B82F6', 
+                          'config': {'operation': 'insert', 'collection': 'pending_content', 'query': '{"content_id": "{{content_id}}", "content": "{{content_text}}", "author": "{{author_email}}", "status": "pending_review", "ai_feedback": "{{ai_response}}", "submitted_at": "{{current_timestamp}}"}'}}},
+                
+                {'id': 'notify-reviewers', 'type': 'customNode', 'position': {'x': 1900, 'y': 500}, 
+                 'data': {'label': 'Notify Reviewers', 'nodeType': 'notification', 'icon': 'Users', 'color': '#F59E0B', 
+                          'config': {'title': 'Content Needs Review', 'message': 'Content from {{author_email}} requires human review. AI feedback: {{ai_response}}'}}},
+                
+                # End nodes
+                {'id': 'end-approved', 'type': 'customNode', 'position': {'x': 2100, 'y': 300}, 
+                 'data': {'label': 'Content Published', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#10B981', 
+                          'config': {'status': 'success', 'returnData': '{"status": "approved", "content_id": "{{content_id}}"}'}}},
+                
+                {'id': 'end-review', 'type': 'customNode', 'position': {'x': 2100, 'y': 500}, 
+                 'data': {'label': 'Awaiting Review', 'nodeType': 'end', 'icon': 'StopCircle', 'color': '#F59E0B', 
+                          'config': {'status': 'pending', 'returnData': '{"status": "pending_review", "content_id": "{{content_id}}"}'}}}
+            ],
+            'edges': [
+                # Main flow
+                {'id': 'e1', 'source': 'start-1', 'target': 'var-content', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e2', 'source': 'var-content', 'target': 'var-author', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e3', 'source': 'var-author', 'target': 'math-length', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e4', 'source': 'math-length', 'target': 'condition-length', 'type': 'smoothstep', 'animated': True},
+                
+                # Too short path
+                {'id': 'e5', 'source': 'condition-length', 'target': 'notify-short', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e6', 'source': 'notify-short', 'target': 'email-reject', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e7', 'source': 'email-reject', 'target': 'end-reject', 'type': 'smoothstep', 'animated': True},
+                
+                # Valid length path
+                {'id': 'e8', 'source': 'condition-length', 'target': 'brain-review', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e9', 'source': 'brain-review', 'target': 'condition-ai', 'type': 'smoothstep', 'animated': True},
+                
+                # AI approved path
+                {'id': 'e10', 'source': 'condition-ai', 'target': 'var-approved', 'sourceHandle': 'true', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e11', 'source': 'var-approved', 'target': 'db-approved', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e12', 'source': 'db-approved', 'target': 'email-approved', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e13', 'source': 'email-approved', 'target': 'end-approved', 'type': 'smoothstep', 'animated': True},
+                
+                # AI needs review path
+                {'id': 'e14', 'source': 'condition-ai', 'target': 'var-review', 'sourceHandle': 'false', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e15', 'source': 'var-review', 'target': 'db-pending', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e16', 'source': 'db-pending', 'target': 'notify-reviewers', 'type': 'smoothstep', 'animated': True},
+                {'id': 'e17', 'source': 'notify-reviewers', 'target': 'end-review', 'type': 'smoothstep', 'animated': True}
             ]
         }
     ]

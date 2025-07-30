@@ -1,0 +1,277 @@
+/* ================================================
+   ULTRA AGGRESSIVE LOGIN PAGE OVERRIDE - NUCLEAR OPTION
+   ================================================ */
+
+/* COMPLETE PAGE TAKEOVER - Override ALL global styles */
+body, html, #root, * {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  text-decoration: none !important;
+  list-style: none !important;
+}
+
+/* Force body/html to black when login is present */
+body:has(.minimal-login-container),
+html:has(.minimal-login-container),
+#root:has(.minimal-login-container) {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  background: #000000 !important;
+  overflow: hidden !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Hide everything else on the page when login is shown */
+body:has(.minimal-login-container) > *:not(.minimal-login-container) {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Force the login container to take over completely */
+.minimal-login-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  background: #000000 !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  isolation: isolate !important;
+}
+
+/* Aggressive reset for all child elements */
+.minimal-login-container,
+.minimal-login-container * {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Force all elements inside to ignore any external styles */
+.minimal-login-container * {
+  all: revert !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Then re-apply our specific styles with maximum specificity */
+.minimal-login-container .minimal-login-content {
+  width: 100% !important;
+  max-width: 400px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 40px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.minimal-login-container .minimal-brand h1 {
+  font-size: 32px !important;
+  font-weight: 300 !important;
+  color: #FFD600 !important;
+  text-align: center !important;
+  letter-spacing: -0.5px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.minimal-login-container .minimal-login-form {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+.minimal-login-container .minimal-input {
+  width: 100% !important;
+  height: 50px !important;
+  background: transparent !important;
+  border: 1px solid #333333 !important;
+  border-radius: 0 !important;
+  color: #FFFFFF !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  padding: 0 16px !important;
+  transition: border-color 0.2s ease !important;
+  outline: none !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.minimal-login-container .minimal-input::placeholder {
+  color: #666666 !important;
+  font-weight: 300 !important;
+  opacity: 1 !important;
+}
+
+.minimal-login-container .minimal-input:focus {
+  border-color: #FFD600 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.minimal-login-container .minimal-button {
+  height: 50px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease, opacity 0.2s ease !important;
+  outline: none !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+}
+
+.minimal-login-container .minimal-button-primary {
+  background: #FFD600 !important;
+  color: #000000 !important;
+  width: 100% !important;
+  border: 1px solid #FFD600 !important;
+}
+
+.minimal-login-container .minimal-button-primary:hover:not(:disabled) {
+  background: #E6C200 !important;
+  border-color: #E6C200 !important;
+}
+
+.minimal-login-container .minimal-links {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin-top: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.minimal-login-container .minimal-link {
+  background: none !important;
+  border: none !important;
+  color: #666666 !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+  cursor: pointer !important;
+  transition: color 0.2s ease !important;
+  text-decoration: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 8px !important;
+}
+
+.minimal-login-container .minimal-link:hover:not(:disabled) {
+  color: #FFD600 !important;
+}
+
+/* Modal styles with maximum specificity */
+.minimal-login-container .minimal-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 1000000 !important;
+  padding: 20px !important;
+}
+
+.minimal-login-container .minimal-modal {
+  background: #000000 !important;
+  border: 1px solid #333333 !important;
+  width: 100% !important;
+  max-width: 400px !important;
+  padding: 32px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.minimal-login-container .minimal-modal-header h2 {
+  font-size: 24px !important;
+  font-weight: 300 !important;
+  color: #FFD600 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.minimal-login-container .minimal-close-button {
+  background: none !important;
+  border: none !important;
+  color: #666666 !important;
+  font-size: 24px !important;
+  font-weight: 300 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: color 0.2s ease !important;
+  outline: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.minimal-login-container .minimal-close-button:hover:not(:disabled) {
+  color: #FFD600 !important;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .minimal-login-container {
+    padding: 16px !important;
+  }
+  
+  .minimal-login-container .minimal-brand h1 {
+    font-size: 28px !important;
+  }
+}

@@ -1,0 +1,19 @@
+# What is a Brain?
+
+A "brain" in our system is an AI assistant that understands your project.
+
+## Why Create a Brain?
+Brains help you:
+- Ask questions like “What was the last approved design?” or “Summarize the launch brief.”
+- Search your uploaded documents and task history using AI.
+- Get smart recommendations and performance insights.
+
+## What is the Brain Prompt?
+
+When creating a brain, you’ll see a box labeled **“Brain Prompt”**. This is where you describe what the AI should do.
+
+### Examples:
+- “You are a content reviewer. Help me analyze and improve marketing copy.”
+- “You help manage timelines and summarize campaign status updates.”
+
+This prompt helps shape the AI’s personality and focus — so make it as clear and helpful as possible.

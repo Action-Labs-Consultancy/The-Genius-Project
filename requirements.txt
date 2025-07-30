@@ -15,3 +15,12 @@ gunicorn==21.2.0
 dnspython==2.3.0
 requests==2.31.0
 slack-sdk==3.23.0
+# Document processing libraries
+PyMuPDF==1.23.14
+python-docx==1.1.0
+# LangChain libraries for embeddings
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-pinecone==0.0.2
+langchain-core==0.1.0
+sentence-transformers==2.2.2

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/LlamaRAGChat.css';
+import { API_BASE_URL } from './config/api';
 
 const LlamaRAGChat = ({ userId, className = '', onClose = null, isModal = false }) => {
   const [messages, setMessages] = useState([]);
@@ -12,7 +13,7 @@ const LlamaRAGChat = ({ userId, className = '', onClose = null, isModal = false 
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef(null);
-  const RAG_API_URL = 'http://localhost:10000';
+  const RAG_API_URL = API_BASE_URL;
 
   // Initialize chat history and current chat on mount
   useEffect(() => {

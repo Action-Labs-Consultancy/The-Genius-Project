@@ -48,6 +48,29 @@ def store_text_in_pinecone(texts: List[str], metadata_list: List[Dict[str, Any]]
 def query_pinecone(question: str, brain_id: Optional[str] = None) -> str:
     """Query Pinecone for relevant documents."""
     try:
+        # PINECONE DEBUG - STEP 4
+        print('[DEBUG-PINECONE] Starting query:', question[:50] + '...')
+        print('[DEBUG-PINECONE] Brain ID:', brain_id)
+        print('[DEBUG-PINECONE] OPENAI_API_KEY exists:', bool(os.environ.get("OPENAI_API_KEY")))
+        print('[DEBUG-PINECONE] PINECONE_INDEX_NAME:', os.environ.get("PINECONE_INDEX_NAME", "NOT_SET"))
+        print('[DEBUG-PINECONE] PINECONE_API_KEY exists:', bool(os.environ.get("PINECONE_API_KEY")))
+        print('[DEBUG-PINECONE] PINECONE_ENVIRONMENT:', os.environ.get("PINECONE_ENVIRONMENT", "NOT_SET"))
+        
+        # Test Pinecone connection
+        try:
+            from pinecone import Pinecone
+            pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY", ""))
+            index_name = os.environ.get("PINECONE_INDEX_NAME", "")
+            if index_name:
+                index = pc.Index(index_name)
+                stats = index.describe_index_stats()
+                print('[DEBUG-PINECONE] Connection successful, stats:', stats)
+            else:
+                print('[DEBUG-PINECONE] No index name provided')
+        except Exception as pinecone_error:
+            print('[DEBUG-PINECONE-ERROR] Connection failed:', str(pinecone_error))
+            print('[DEBUG-PINECONE-ENV] API Key prefix:', os.environ.get("PINECONE_API_KEY", "NOT_SET")[:10] + "...")
+        
         # Check for required environment variables
         if not os.environ.get("OPENAI_API_KEY"):
             return "OpenAI API key not configured"
@@ -139,17 +162,76 @@ def generate_brain_response(brain_id: str, user_message: str, brain_prompt: str)
         print(f"Error generating brain response: {e}")
         return f"I apologize, but I encountered an error processing your request: {str(e)}"
 
+def store_text_in_pinecone(text: str, metadata: Dict[str, Any], namespace: str = "default") -> bool:
+    """Store a single text with metadata in Pinecone."""
+    try:
+        # Check for required environment variables
+        if not os.environ.get("OPENAI_API_KEY"):
+            print("Warning: OPENAI_API_KEY not found")
+            return False
+        
+        if not os.environ.get("PINECONE_INDEX_NAME"):
+            print("Warning: PINECONE_INDEX_NAME not found")
+            return False
+
+        # Initialize embeddings
+        embeddings = OpenAIEmbeddings(api_key=os.environ["OPENAI_API_KEY"])
+
+        # Create document with unique ID
+        doc_id = metadata.get('id', str(uuid.uuid4()))
+        metadata['id'] = doc_id
+        document = Document(page_content=text, metadata=metadata)
+
+        # Initialize Pinecone vector store
+        vector_store = PineconeVectorStore(
+            index_name=os.environ["PINECONE_INDEX_NAME"],
+            embedding=embeddings,
+            namespace=namespace
+        )
+
+        # Add document to Pinecone
+        vector_store.add_documents([document])
+        print(f"Successfully stored document in Pinecone namespace '{namespace}'")
+        return True
+        
+    except Exception as e:
+        print(f"Error storing data in Pinecone: {e}")
+        return False
+
+def delete_vectors_by_metadata(filter_metadata: Dict[str, Any], namespace: str = "default") -> bool:
+    """Delete vectors from Pinecone based on metadata filter."""
+    try:
+        from pinecone import Pinecone
+        
+        # Initialize Pinecone client
+        pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+        index = pc.Index(os.environ.get("PINECONE_INDEX_NAME"))
+        
+        # Delete vectors with metadata filter
+        index.delete(filter=filter_metadata, namespace=namespace)
+        print(f"Successfully deleted vectors with filter {filter_metadata} from namespace '{namespace}'")
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting vectors by metadata: {e}")
+        return False
+
 def chunk_document_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
-    """Split document text into chunks for embedding."""
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-        separators=["\n\n", "\n", ". ", " ", ""]
-    )
-    
-    chunks = text_splitter.split_text(text)
-    return chunks
+    """Split document text into chunks for vector storage."""
+    try:
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+            separators=["\n\n", "\n", " ", ""]
+        )
+        
+        chunks = text_splitter.split_text(text)
+        return chunks
+        
+    except Exception as e:
+        print(f"Error chunking document text: {e}")
+        return [text]  # Return original text as single chunk if splitting fails
 
 def delete_brain_vectors(brain_id: str) -> bool:
     """Delete all vectors associated with a brain from Pinecone."""

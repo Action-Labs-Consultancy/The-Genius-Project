@@ -26,6 +26,16 @@ const getModules = (user) => {
   }
   baseModules.push({ id: 'equipment-request', title: 'Request Equipment', icon: '📋' });
 
+  // Add feature request modules
+  baseModules.push(
+    { id: 'submit-request', title: 'Submit Request', icon: '💡' }
+  );
+
+  // Add admin feature request dashboard
+  if (user?.is_admin || user?.role === 'admin') {
+    baseModules.push({ id: 'ice-box', title: 'Ice Box 🧊', icon: '🧊' });
+  }
+
   return baseModules;
 };
 
@@ -82,6 +92,12 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       if (typeof onNavigate === 'function') onNavigate('/equipment');
     } else if (id === 'equipment-request') {
       if (typeof onNavigate === 'function') onNavigate('/equipment-request');
+    } else if (id === 'submit-request') {
+      if (typeof onNavigate === 'function') onNavigate('/submit-request');
+    } else if (id === 'ice-box') {
+      if (typeof onNavigate === 'function') onNavigate('/ice-box');
+    } else if (id === 'admin/requests') {
+      if (typeof onNavigate === 'function') onNavigate('/admin/requests');
     } else {
       onNavigate(`/${id}`);
     }

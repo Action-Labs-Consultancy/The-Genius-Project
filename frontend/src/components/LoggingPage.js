@@ -13,6 +13,7 @@ import {
   Info,
   Eye
 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 import './LoggingPage.css';
 
 const LoggingPage = () => {
@@ -41,7 +42,7 @@ const LoggingPage = () => {
   const loadLogs = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:10000/api/logs');
+      const response = await fetch(`${API_BASE_URL}/api/logs`);
       if (response.ok) {
         const data = await response.json();
         setLogs(data);

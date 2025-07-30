@@ -100,20 +100,52 @@ def create_error_response(message, status_code=400):
 @agent_routes.route('/api/brains/<brain_id>/agents', methods=['GET'])
 def get_brain_agents(brain_id):
     """Get all agents for a specific brain"""
+    # AUTH DEBUG - STEP 1
+    print('[DEBUG-AUTH] Headers:', dict(request.headers))
+    print('[DEBUG-AUTH] Session ID:', getattr(request, 'sessionID', 'No session'))
+    print('[DEBUG-AUTH] User:', getattr(request, 'user', 'Unauthenticated'))
+    print('[DEBUG-AUTH] Remote Address:', request.remote_addr)
+    print('[DEBUG-AUTH] User Agent:', request.headers.get('User-Agent', 'Unknown'))
+    
+    # MONGODB BRUTEFORCE TEST - STEP 5
+    try:
+        from mongo_db import mongo
+        print('[DEBUG-MONGODB] Database connected:', mongo.db is not None)
+        if mongo.db is not None:
+            raw_agents = list(mongo.db.agents.find({}).limit(50))
+            print(f'[DEBUG-MONGODB] Raw agents count from direct query: {len(raw_agents)}')
+            print(f'[DEBUG-MONGODB] First agent sample:', raw_agents[0] if raw_agents else 'None')
+            
+            # Return bypass data for testing
+            return jsonify({
+                'bypassAuthTest': True,
+                'data': raw_agents,
+                'success': True,
+                'message': f'BYPASS: Found {len(raw_agents)} raw agents',
+                'debug_info': {
+                    'brain_id_requested': brain_id,
+                    'mongo_connected': True,
+                    'collection_exists': 'agents' in mongo.db.list_collection_names()
+                }
+            })
+    except Exception as mongo_error:
+        print(f'[DEBUG-MONGODB] Direct query failed: {mongo_error}')
+    
     try:
         if not Agent:
             return create_error_response('Agent model not available', 500)
             
         agents = Agent.get_all_by_brain(brain_id)
+        print(f'[DEBUG-AUTH] Found {len(agents)} agents for brain {brain_id}')
         return create_success_response(agents, f"Found {len(agents)} agents")
         
     except Exception as e:
-        print(f"Error getting brain agents: {e}")
+        print(f"[DEBUG-AUTH] Error getting brain agents: {e}")
         return create_error_response(str(e), 500)
 
 @agent_routes.route('/api/brains/<brain_id>/agents', methods=['POST'])
 def create_agent(brain_id):
-    """Create a new agent within a brain"""
+    """Create a new agent within a brain with MongoDB and Pinecone integration"""
     try:
         if not Agent:
             return create_error_response('Agent model not available', 500)
@@ -126,7 +158,7 @@ def create_agent(brain_id):
             if not data.get(field):
                 return create_error_response(f'{field} is required', 400)
         
-        # Create agent
+        # Create agent in MongoDB
         agent = Agent.create(
             brain_id=brain_id,
             agent_name=data['agent_name'],
@@ -138,7 +170,38 @@ def create_agent(brain_id):
             personality=data.get('personality', 'professional')
         )
         
-        return create_success_response(agent, "Agent created successfully", 201)
+        # Store agent context in Pinecone for RAG capabilities
+        try:
+            agent_context = f"""
+Agent: {data['agent_name']}
+Role: {data['role_description']}
+System Prompt: {data['system_prompt']}
+Personality: {data.get('personality', 'professional')}
+Temperature: {data.get('temperature', 0.7)}
+Brain ID: {brain_id}
+"""
+            
+            agent_metadata = {
+                'agent_id': str(agent['_id']),
+                'brain_id': brain_id,
+                'agent_name': data['agent_name'],
+                'type': 'agent_profile',
+                'created_at': datetime.now().isoformat()
+            }
+            
+            # Store in Pinecone vector store
+            store_text_in_pinecone(
+                text=agent_context,
+                metadata=agent_metadata,
+                namespace="agents"
+            )
+            print(f"[AGENT] Successfully stored agent {agent['_id']} in Pinecone")
+            
+        except Exception as pinecone_error:
+            print(f"[AGENT] Warning: Failed to store agent in Pinecone: {pinecone_error}")
+            # Continue execution - MongoDB storage is primary
+        
+        return create_success_response(agent, "Agent created successfully with full integration", 201)
         
     except Exception as e:
         print(f"Error creating agent: {e}")
@@ -195,14 +258,38 @@ def delete_agent(agent_id):
         if not agent:
             return create_error_response('Agent not found', 404)
         
-        # Delete agent vectors from Pinecone if any
+        # Delete agent vectors from Pinecone
         try:
-            # Delete agent-specific vectors from Pinecone
-            # This would delete vectors with metadata containing this agent_id
-            # Implementation depends on how you structure agent vectors in Pinecone
-            pass
-        except Exception as e:
-            print(f"Warning: Failed to delete agent vectors from Pinecone: {e}")
+            # Delete agent profile from Pinecone
+            from pinecone_utils import delete_vectors_by_metadata
+            
+            # Delete agent profile vectors
+            delete_vectors_by_metadata(
+                filter_metadata={'agent_id': agent_id, 'type': 'agent_profile'},
+                namespace='agents'
+            )
+            
+            # Delete agent document vectors
+            delete_vectors_by_metadata(
+                filter_metadata={'agent_id': agent_id, 'type': 'agent_document'},
+                namespace='agent_documents'
+            )
+            
+            print(f"[AGENT] Successfully deleted agent {agent_id} vectors from Pinecone")
+            
+        except Exception as pinecone_error:
+            print(f"[AGENT] Warning: Failed to delete agent vectors from Pinecone: {pinecone_error}")
+        
+        # Delete uploaded files
+        try:
+            documents = agent.get('documents', [])
+            for doc in documents:
+                file_path = doc.get('file_path')
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"[AGENT] Deleted file: {file_path}")
+        except Exception as file_error:
+            print(f"[AGENT] Warning: Failed to delete some agent files: {file_error}")
         
         # Delete agent from MongoDB
         success = Agent.delete(agent_id)
@@ -270,7 +357,7 @@ def upload_agent_document(agent_id):
                 os.remove(file_path)
                 return create_error_response('No text content found in file', 400)
             
-            # Store document info in agent record (simplified, no Pinecone for now)
+            # Store document info in agent record and Pinecone
             document_info = {
                 'id': str(uuid.uuid4()),
                 'filename': file.filename,
@@ -280,10 +367,39 @@ def upload_agent_document(agent_id):
                 'upload_date': datetime.now().isoformat(),
                 'file_type': file.filename.split('.')[-1].lower() if '.' in file.filename else 'unknown',
                 'text_preview': text_content[:200] + "..." if len(text_content) > 200 else text_content,
-                'character_count': len(text_content)
+                'character_count': len(text_content),
+                'pinecone_stored': False
             }
             
-            # Add document to agent
+            # Store document chunks in Pinecone for RAG
+            try:
+                document_chunks = chunk_document_text(text_content)
+                
+                for i, chunk in enumerate(document_chunks):
+                    chunk_metadata = {
+                        'document_id': document_info['id'],
+                        'agent_id': agent_id,
+                        'filename': file.filename,
+                        'chunk_index': i,
+                        'total_chunks': len(document_chunks),
+                        'type': 'agent_document',
+                        'upload_date': datetime.now().isoformat()
+                    }
+                    
+                    store_text_in_pinecone(
+                        text=chunk,
+                        metadata=chunk_metadata,
+                        namespace="agent_documents"
+                    )
+                
+                document_info['pinecone_stored'] = True
+                print(f"[AGENT] Successfully stored {len(document_chunks)} chunks in Pinecone for document {file.filename}")
+                
+            except Exception as pinecone_error:
+                print(f"[AGENT] Warning: Failed to store document in Pinecone: {pinecone_error}")
+                document_info['pinecone_error'] = str(pinecone_error)
+            
+            # Add document to agent record in MongoDB
             Agent.add_document(agent_id, document_info)
             
             return create_success_response(

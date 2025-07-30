@@ -7,20 +7,28 @@ import {
   Bot, 
   ArrowRight,
   Trash2,
-  X
+  X,
+  List,
+  Grid,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import BrainDetailView from '../components/BrainDetailView';
 import { useNotification } from '../components/ModernNotification';
 import { useConfirm } from '../components/ModernConfirm';
+import { API_BASE_URL } from '../config/api';
 import './BrainsPage.css';
 
 const BrainsPage = ({ user }) => {
   const [brains, setBrains] = useState([]);
+  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedBrain, setSelectedBrain] = useState(null);
   const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'detail'
+  const [displayMode, setDisplayMode] = useState('grid'); // 'grid' or 'dropdown'
+  const [expandedBrains, setExpandedBrains] = useState(new Set());
 
   // Modern notification hooks
   const { notification, showNotification, NotificationComponent } = useNotification();
@@ -35,12 +43,13 @@ const BrainsPage = ({ user }) => {
 
   useEffect(() => {
     loadBrains();
+    loadAllAgents();
   }, []);
 
   const loadBrains = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:10000/api/brains');
+      const response = await fetch(`${API_BASE_URL}/api/brains`);
       
       if (response.ok) {
         const result = await response.json();
@@ -58,6 +67,40 @@ const BrainsPage = ({ user }) => {
     }
   };
 
+  const loadAllAgents = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/brains`);
+      if (response.ok) {
+        const result = await response.json();
+        const brainsData = result.success ? result.data : result.brains || [];
+        
+        // Get agents from all brains
+        const allAgents = [];
+        for (const brain of brainsData) {
+          try {
+            const agentResponse = await fetch(`${API_BASE_URL}/api/brains/${brain._id}/agents`);
+            if (agentResponse.ok) {
+              const agentResult = await agentResponse.json();
+              const agents = agentResult.data || agentResult;
+              agents.forEach(agent => {
+                allAgents.push({
+                  ...agent,
+                  brainId: brain._id,
+                  brainName: brain.name
+                });
+              });
+            }
+          } catch (err) {
+            console.warn(`Failed to load agents for brain ${brain.name}:`, err);
+          }
+        }
+        setAgents(allAgents);
+      }
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+    }
+  };
+
   const createBrain = async () => {
     try {
       if (!newBrain.name.trim() || !newBrain.description.trim()) {
@@ -70,7 +113,7 @@ const BrainsPage = ({ user }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:10000/api/brains', {
+      const response = await fetch(`${API_BASE_URL}/api/brains`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +176,7 @@ const BrainsPage = ({ user }) => {
     }
 
     try {
-      const response = await fetch(`http://localhost:10000/api/brains/${brainId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/brains/${brainId}`, {
         method: 'DELETE'
       });
 
@@ -175,6 +218,31 @@ const BrainsPage = ({ user }) => {
     setSelectedBrain(null);
     setViewMode('overview');
     loadBrains(); // Refresh the brains list
+    loadAllAgents(); // Refresh the agents list
+  };
+
+  const toggleBrainExpansion = (brainId) => {
+    const newExpanded = new Set(expandedBrains);
+    if (newExpanded.has(brainId)) {
+      newExpanded.delete(brainId);
+    } else {
+      newExpanded.add(brainId);
+    }
+    setExpandedBrains(newExpanded);
+  };
+
+  const getAgentsForBrain = (brainId) => {
+    return agents.filter(agent => agent.brainId === brainId);
+  };
+
+  const toggleExpandBrain = (brainId) => {
+    const newExpandedBrains = new Set(expandedBrains);
+    if (newExpandedBrains.has(brainId)) {
+      newExpandedBrains.delete(brainId);
+    } else {
+      newExpandedBrains.add(brainId);
+    }
+    setExpandedBrains(newExpandedBrains);
   };
 
   const filteredBrains = brains.filter(brain =>
@@ -239,87 +307,190 @@ const BrainsPage = ({ user }) => {
         </div>
       </div>
 
-      {/* Brains Grid */}
-      <div className="brains-container">
-        {filteredBrains.length === 0 ? (
-          <div className="empty-state">
-            <Brain className="empty-icon" />
-            <h3 className="empty-title">
-              {searchTerm ? 'No brains found' : 'No brains created yet'}
-            </h3>
-            <p className="empty-description">
-              {searchTerm 
-                ? 'Try adjusting your search terms to find the brain you\'re looking for'
-                : 'Create your first AI brain to start building intelligent agent systems'
-              }
-            </p>
-            {!searchTerm && (
-              <button 
-                className="create-first-brain-btn"
-                onClick={() => setShowCreateModal(true)}
-              >
-                <Plus size={18} />
-                Create Your First Brain
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="brains-grid">
-            {filteredBrains.map((brain) => (
-              <div key={brain._id} className="brain-card">
-                <div className="brain-header">
-                  <div className="brain-title">
-                    <Brain size={24} className="brain-icon" />
-                    <div className="brain-info">
-                      <h3 className="brain-name">{brain.name}</h3>
-                      <p className="brain-purpose">{brain.purpose || 'General purpose brain'}</p>
+      {/* View Mode Toggle */}
+      <div className="view-mode-toggle">
+        <button 
+          className={`toggle-btn ${displayMode === 'grid' ? 'active' : ''}`}
+          onClick={() => setDisplayMode('grid')}
+          title="Grid View"
+        >
+          <Grid size={16} />
+        </button>
+        <button 
+          className={`toggle-btn ${displayMode === 'dropdown' ? 'active' : ''}`}
+          onClick={() => setDisplayMode('dropdown')}
+          title="Dropdown View"
+        >
+          <List size={16} />
+        </button>
+      </div>
+
+      {/* Brains List (Dropdown View) */}
+      {displayMode === 'dropdown' && (
+        <div className="brains-list">
+          {filteredBrains.length === 0 ? (
+            <div className="empty-state">
+              <Brain className="empty-icon" />
+              <h3 className="empty-title">
+                {searchTerm ? 'No brains found' : 'No brains created yet'}
+              </h3>
+              <p className="empty-description">
+                {searchTerm 
+                  ? 'Try adjusting your search terms to find the brain you\'re looking for'
+                  : 'Create your first AI brain to start building intelligent agent systems'
+                }
+              </p>
+              {!searchTerm && (
+                <button 
+                  className="create-first-brain-btn"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <Plus size={18} />
+                  Create Your First Brain
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="brains-accordion">
+              {filteredBrains.map((brain) => (
+                <div key={brain._id} className="brain-accordion-item">
+                  <div className="brain-accordion-header" onClick={() => toggleExpandBrain(brain._id)}>
+                    <div className="brain-title">
+                      <Brain size={24} className="brain-icon" />
+                      <div className="brain-info">
+                        <h3 className="brain-name">{brain.name}</h3>
+                        <p className="brain-purpose">{brain.purpose || 'General purpose brain'}</p>
+                      </div>
+                    </div>
+                    <div className="accordion-toggle">
+                      {expandedBrains.has(brain._id) ? (
+                        <ChevronDown size={16} />
+                      ) : (
+                        <ChevronRight size={16} />
+                      )}
                     </div>
                   </div>
-                  <div className="brain-actions">
+
+                  {expandedBrains.has(brain._id) && (
+                    <div className="brain-accordion-content">
+                      <div className="brain-description">
+                        <p>{brain.description}</p>
+                      </div>
+
+                      <div className="brain-stats">
+                        <div className="stat-item">
+                          <Users size={16} />
+                          <span>{brain.agent_count || 0} agents</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="status-badge active">Active</span>
+                        </div>
+                      </div>
+
+                      <div className="brain-footer">
+                        <div className="brain-created">
+                          Created {new Date(brain.created_at).toLocaleDateString()}
+                        </div>
+                        <button 
+                          className="enter-brain-btn"
+                          onClick={() => handleBrainSelect(brain)}
+                        >
+                          Enter Brain
+                          <ArrowRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Brains Grid (Grid View) */}
+      {displayMode === 'grid' && (
+        <div className="brains-container">
+          {filteredBrains.length === 0 ? (
+            <div className="empty-state">
+              <Brain className="empty-icon" />
+              <h3 className="empty-title">
+                {searchTerm ? 'No brains found' : 'No brains created yet'}
+              </h3>
+              <p className="empty-description">
+                {searchTerm 
+                  ? 'Try adjusting your search terms to find the brain you\'re looking for'
+                  : 'Create your first AI brain to start building intelligent agent systems'
+                }
+              </p>
+              {!searchTerm && (
+                <button 
+                  className="create-first-brain-btn"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <Plus size={18} />
+                  Create Your First Brain
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="brains-grid">
+              {filteredBrains.map((brain) => (
+                <div key={brain._id} className="brain-card">
+                  <div className="brain-header">
+                    <div className="brain-title">
+                      <Brain size={24} className="brain-icon" />
+                      <div className="brain-info">
+                        <h3 className="brain-name">{brain.name}</h3>
+                        <p className="brain-purpose">{brain.purpose || 'General purpose brain'}</p>
+                      </div>
+                    </div>
+                    <div className="brain-actions">
+                      <button 
+                        className="action-btn delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteBrain(brain._id);
+                        }}
+                        title="Delete brain"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="brain-description">
+                    <p>{brain.description}</p>
+                  </div>
+
+                  <div className="brain-stats">
+                    <div className="stat-item">
+                      <Users size={16} />
+                      <span>{brain.agent_count || 0} agents</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="status-badge active">Active</span>
+                    </div>
+                  </div>
+
+                  <div className="brain-footer">
+                    <div className="brain-created">
+                      Created {new Date(brain.created_at).toLocaleDateString()}
+                    </div>
                     <button 
-                      className="action-btn delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteBrain(brain._id);
-                      }}
-                      title="Delete brain"
+                      className="enter-brain-btn"
+                      onClick={() => handleBrainSelect(brain)}
                     >
-                      <Trash2 size={16} />
+                      Enter Brain
+                      <ArrowRight size={16} />
                     </button>
                   </div>
                 </div>
-
-                <div className="brain-description">
-                  <p>{brain.description}</p>
-                </div>
-
-                <div className="brain-stats">
-                  <div className="stat-item">
-                    <Users size={16} />
-                    <span>{brain.agent_count || 0} agents</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="status-badge active">Active</span>
-                  </div>
-                </div>
-
-                <div className="brain-footer">
-                  <div className="brain-created">
-                    Created {new Date(brain.created_at).toLocaleDateString()}
-                  </div>
-                  <button 
-                    className="enter-brain-btn"
-                    onClick={() => handleBrainSelect(brain)}
-                  >
-                    Enter Brain
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Brain Modal */}
       {showCreateModal && (

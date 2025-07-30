@@ -513,6 +513,15 @@ def upload_document(brain_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@brain_routes.route('/api/brains/chat', methods=['POST'])
+def chat_without_brain_id():
+    """Handle malformed brain chat requests without brain_id"""
+    return jsonify({
+        'success': False,
+        'error': 'Brain ID is required',
+        'message': 'Please specify a brain ID in the URL: /api/brains/<brain_id>/chat'
+    }), 400
+
 @brain_routes.route('/api/brains/<brain_id>/chat', methods=['POST'])
 def chat_with_brain(brain_id):
     """Chat with a brain using RAG (Retrieval Augmented Generation)."""

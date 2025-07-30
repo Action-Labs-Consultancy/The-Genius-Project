@@ -16,9 +16,10 @@ class Brain:
     def get_all():
         """Get all brains"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None or not mongo.is_connected():
                 raise Exception("Database not available")
-            brains = list(mongo.db.brains.find())
+            brains_collection = mongo.get_collection('brains')
+            brains = list(brains_collection.find())
             for brain in brains:
                 brain['_id'] = str(brain['_id'])
             return brains
@@ -29,8 +30,10 @@ class Brain:
     def create(name, description, system_prompt, user_id=None):
         """Create a new brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None or not mongo.is_connected():
                 raise Exception("Database not available")
+            
+            brains_collection = mongo.get_collection('brains')
             
             brain = {
                 'name': name,
@@ -42,7 +45,7 @@ class Brain:
                 'updated_at': datetime.now()
             }
             
-            result = mongo.db.brains.insert_one(brain)
+            result = brains_collection.insert_one(brain)
             brain['_id'] = str(result.inserted_id)
             
             return brain
@@ -53,11 +56,15 @@ class Brain:
     def get_by_id(brain_id):
         """Get a brain by ID"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None:
                 raise Exception("Database not available")
-            brain = mongo.db.brains.find_one({'_id': ObjectId(brain_id)})
+            brains_collection = mongo.get_collection('brains')
+            brain = brains_collection.find_one({'_id': ObjectId(brain_id)})
             if brain:
                 brain['_id'] = str(brain['_id'])
+            return brain
+        except Exception as e:
+            raise Exception(f"Failed to get brain: {str(e)}")
             return brain
         except Exception as e:
             raise Exception(f"Failed to get brain: {str(e)}")
@@ -66,9 +73,10 @@ class Brain:
     def update(brain_id, name=None, description=None, system_prompt=None):
         """Update a brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None:
                 raise Exception("Database not available")
             
+            brains_collection = mongo.get_collection('brains')
             update_data = {'updated_at': datetime.now()}
             if name is not None:
                 update_data['name'] = name
@@ -77,7 +85,7 @@ class Brain:
             if system_prompt is not None:
                 update_data['system_prompt'] = system_prompt
             
-            result = mongo.db.brains.update_one(
+            result = brains_collection.update_one(
                 {'_id': ObjectId(brain_id)},
                 {'$set': update_data}
             )
@@ -89,9 +97,10 @@ class Brain:
     def delete(brain_id):
         """Delete a brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None:
                 raise Exception("Database not available")
-            result = mongo.db.brains.delete_one({'_id': ObjectId(brain_id)})
+            brains_collection = mongo.get_collection('brains')
+            result = brains_collection.delete_one({'_id': ObjectId(brain_id)})
             return result.deleted_count > 0
         except Exception as e:
             raise Exception(f"Failed to delete brain: {str(e)}")
@@ -100,9 +109,10 @@ class Brain:
     def increment_agent_count(brain_id):
         """Increment agent count for a brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None:
                 raise Exception("Database not available")
-            result = mongo.db.brains.update_one(
+            brains_collection = mongo.get_collection('brains')
+            result = brains_collection.update_one(
                 {'_id': ObjectId(brain_id)},
                 {
                     '$inc': {'agent_count': 1},
@@ -117,9 +127,10 @@ class Brain:
     def decrement_agent_count(brain_id):
         """Decrement agent count for a brain"""
         try:
-            if mongo is None or mongo.db is None:
+            if mongo is None:
                 raise Exception("Database not available")
-            result = mongo.db.brains.update_one(
+            brains_collection = mongo.get_collection('brains')
+            result = brains_collection.update_one(
                 {'_id': ObjectId(brain_id)},
                 {
                     '$inc': {'agent_count': -1},

@@ -79,37 +79,45 @@
   margin: 0 auto;
 }
 
-.search-input {
-  width: 100%;
-  padding: 1.25rem 1.5rem 1.25rem 3.5rem;
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 2rem;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  color: #ffffff;
-  font-size: 1.1rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  color: #cccccc;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
   font-weight: 500;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: rgba(255, 214, 0, 0.5);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(255, 214, 0, 0.1);
+.toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
-.search-input::placeholder {
-  color: #888888;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #666666;
-  width: 1.4rem;
-  height: 1.4rem;
+.toggle-btn.active {
+  background: linear-gradient(145deg, #FFD600, #FFC107);
+  color: #111111;
+  border-color: #FFD600;
+  box-shadow: 0 2px 8px rgba(255, 214, 0, 0.3);
 }
 
 /* Brains Container */
@@ -201,14 +209,12 @@
   gap: 0.5rem;
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateY(5px);
-  position: relative;
-  z-index: 1;
+  transform: translateX(10px);
 }
 
 .brain-card:hover .brain-actions {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 .action-btn {
@@ -222,14 +228,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
 }
 
 .action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .action-btn.delete-btn {
@@ -621,4 +624,128 @@
 
 .modal-body::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Brains Accordion (Dropdown View) */
+.brains-accordion {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.brain-accordion-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.brain-accordion-item:hover {
+  border-color: rgba(255, 214, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(255, 214, 0, 0.1);
+}
+
+.brain-accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.brain-accordion-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.brain-accordion-content {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.accordion-toggle {
+  color: #FFD600;
+  transition: transform 0.3s ease;
+}
+
+.brain-accordion-item .brain-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brain-accordion-item .brain-icon {
+  color: #FFD600;
+  flex-shrink: 0;
+}
+
+.brain-accordion-item .brain-info h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.brain-accordion-item .brain-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #cccccc;
+  font-weight: 500;
+}
+
+.brain-accordion-item .brain-description {
+  margin-bottom: 1rem;
+}
+
+.brain-accordion-item .brain-description p {
+  color: #dddddd;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.brain-accordion-item .brain-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.brain-accordion-item .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #cccccc;
+  font-size: 0.9rem;
+}
+
+.brain-accordion-item .brain-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brain-accordion-item .brain-created {
+  color: #888888;
+  font-size: 0.85rem;
+}
+
+.brain-accordion-item .enter-brain-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(145deg, #FFD600, #FFC107);
+  color: #111111;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.brain-accordion-item .enter-brain-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 214, 0, 0.4);
 }

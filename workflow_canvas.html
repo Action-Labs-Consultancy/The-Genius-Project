@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functional Workflow Canvas</title>
+    <style>
+        /* Global Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Canvas Container */
+        .workflow-canvas {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            height: 500px;
+            overflow: hidden;
+        }
+
+        /* Canvas Title */
+        .canvas-title {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+        }
+
+        /* Workflow Elements */
+        .workflow-element {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            font-size: 14px;
+            text-align: center;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .workflow-element:hover {
+            transform: scale(1.1);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+
+        .workflow-element.dragging {
+            opacity: 0.8;
+            transform: scale(1.05);
+            z-index: 20;
+        }
+
+        /* Enhanced Workflow Automation Features */
+        .workflow-element.connected {
+            border: 3px solid #4CAF50;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .workflow-element.active {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+        }
+
+        /* Element Shapes and Colors */
+        .client {
+            width: 120px;
+            height: 60px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border-radius: 10px;
+            top: 100px;
+            left: 50px;
+        }
+
+        .request {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #a55eea, #8854d0);
+            border-radius: 10px;
+            top: 80px;
+            left: 220px;
+        }
+
+        .department {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #26de81, #20bf6b);
+            border-radius: 10px;
+            top: 80px;
+            left: 350px;
+        }
+
+        .task {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, #fed330, #f7b731);
+            border-radius: 50%;
+            top: 75px;
+            left: 480px;
+            color: #333;
+        }
+
+        .card-details {
+            width: 100px;
+            height: 70px;
+            background: linear-gradient(135deg, #f7b731, #fa8231);
+            border-radius: 10px;
+            top: 85px;
+            left: 620px;
+            color: #333;
+        }
+
+        .phase {
+            width: 90px;
+            height: 70px;
+            background: linear-gradient(135deg, #45aaf2, #2d98da);
+            border-radius: 10px;
+            top: 85px;
+            left: 770px;
+        }
+
+        .result {
+            width: 0;
+            height: 0;
+            border-left: 40px solid transparent;
+            border-right: 40px solid transparent;
+            border-bottom: 70px solid #fd9644;
+            top: 85px;
+            left: 920px;
+            background: none !important;
+            border-radius: 0 !important;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 15px;
+            color: white;
+            font-size: 12px;
+        }
+
+        /* Flow Arrows */
+        .flow-arrow {
+            position: absolute;
+            width: 40px;
+            height: 3px;
+            background: linear-gradient(90deg, #333, #666);
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.7;
+        }
+
+        .flow-arrow::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: -4px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid #666;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+
+        .arrow1 { left: 170px; top: 120px; }
+        .arrow2 { left: 300px; top: 120px; }
+        .arrow3 { left: 430px; top: 120px; }
+        .arrow4 { left: 570px; top: 120px; }
+        .arrow5 { left: 720px; top: 120px; }
+        .arrow6 { left: 860px; top: 120px; }
+
+        /* Node Connection Points */
+        .workflow-element::before,
+        .workflow-element::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border: 2px solid white;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .workflow-element::before {
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .workflow-element::after {
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .workflow-element:hover::before,
+        .workflow-element:hover::after {
+            opacity: 1;
+        }
+
+        /* Popup */
+        .popup {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 250px;
+            z-index: 30;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .popup.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .popup h3 {
+            margin-bottom: 8px;
+            color: #4CAF50;
+            font-size: 16px;
+        }
+
+        .popup p {
+            line-height: 1.4;
+            margin: 0;
+        }
+
+        .popup .popup-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .popup-btn {
+            padding: 4px 8px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .popup-btn:hover {
+            background: #45a049;
+        }
+
+        /* Workflow Controls */
+        .workflow-controls {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .control-btn.active {
+            background: #2196F3;
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .status-pending { background: #ff9800; color: white; }
+        .status-running { background: #4CAF50; color: white; }
+        .status-completed { background: #2196F3; color: white; }
+        .status-error { background: #f44336; color: white; }
+
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .workflow-canvas {
+                padding: 20px;
+                height: auto;
+                min-height: 400px;
+            }
+
+            .workflow-element {
+                font-size: 11px;
+                position: relative;
+                margin: 10px;
+                display: inline-block;
+            }
+
+            .client, .request, .department, .task, .card-details, .phase {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin: 10px;
+                display: inline-block;
+            }
+
+            .result {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin: 10px;
+                display: inline-block;
+            }
+
+            .flow-arrow {
+                display: none;
+            }
+
+            .instructions {
+                position: relative;
+                bottom: auto;
+                left: auto;
+                transform: none;
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="workflow-canvas" id="canvas">
+        <h1 class="canvas-title">Interactive Workflow Canvas</h1>
+        
+        <!-- Workflow Elements -->
+        <div class="workflow-element client" id="client" data-title="Client" data-description="Initiates the process and defines project requirements. The starting point for all workflow activities." data-status="pending" data-node-type="trigger">
+            <div class="status-indicator status-pending">1</div>
+            Client
+        </div>
+
+        <div class="workflow-element request" id="request" data-title="Request" data-description="Defines user needs and specific requirements. Contains detailed specifications and expectations for the project." data-status="pending" data-node-type="processor">
+            <div class="status-indicator status-pending">2</div>
+            Request
+        </div>
+
+        <div class="workflow-element department" id="department" data-title="Department" data-description="Assigns appropriate team or department to handle the request. Routes work to specialized teams based on requirements." data-status="pending" data-node-type="router">
+            <div class="status-indicator status-pending">3</div>
+            Department
+        </div>
+
+        <div class="workflow-element task" id="task" data-title="Task" data-description="Breaks down work into specific, actionable tasks. Each task has clear objectives and deliverables." data-status="pending" data-node-type="processor">
+            <div class="status-indicator status-pending">4</div>
+            Task
+        </div>
+
+        <div class="workflow-element card-details" id="card-details" data-title="Card Details" data-description="Contains detailed task information, specifications, and progress tracking. Maintains all relevant documentation." data-status="pending" data-node-type="storage">
+            <div class="status-indicator status-pending">5</div>
+            Card Details
+        </div>
+
+        <div class="workflow-element phase" id="phase" data-title="Phase" data-description="Represents project phases or milestones. Tracks progress through different stages of completion." data-status="pending" data-node-type="processor">
+            <div class="status-indicator status-pending">6</div>
+            Phase
+        </div>
+
+        <div class="workflow-element result" id="result" data-title="Result" data-description="Final outcome or deliverable of the workflow process. Represents completed work and achievements." data-status="pending" data-node-type="output">
+            <div class="status-indicator status-pending">7</div>
+            Result
+        </div>
+
+        <!-- Flow Arrows -->
+        <div class="flow-arrow arrow1"></div>
+        <div class="flow-arrow arrow2"></div>
+        <div class="flow-arrow arrow3"></div>
+        <div class="flow-arrow arrow4"></div>
+        <div class="flow-arrow arrow5"></div>
+        <div class="flow-arrow arrow6"></div>
+
+        <!-- Popup for element descriptions -->
+        <div class="popup" id="popup">
+            <h3 id="popup-title"></h3>
+            <p id="popup-description"></p>
+            <div class="popup-actions">
+                <button class="popup-btn" onclick="configureNode()">⚙️ Configure</button>
+                <button class="popup-btn" onclick="executeNode()">▶ Execute</button>
+                <button class="popup-btn" onclick="viewLogs()">📋 Logs</button>
+            </div>
+        </div>
+
+        <!-- Workflow Controls -->
+        <div class="workflow-controls">
+            <button class="control-btn" id="play-btn" onclick="executeWorkflow()">▶ Execute</button>
+            <button class="control-btn" id="reset-btn" onclick="resetWorkflow()">⟲ Reset</button>
+            <button class="control-btn" id="save-btn" onclick="saveWorkflow()">💾 Save</button>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            Click elements to view details • Drag to rearrange • Hover for interactive effects
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentPopup = null;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+        let currentElement = null;
+
+        // Enhanced workflow automation functionality
+        let workflowState = {
+            isExecuting: false,
+            currentStep: 0,
+            totalSteps: 7,
+            executionId: null
+        };
+
+        // Initialize the workflow canvas
+        function initializeCanvas() {
+            const elements = document.querySelectorAll('.workflow-element');
+            const popup = document.getElementById('popup');
+
+            elements.forEach(element => {
+                // Click event for popup
+                element.addEventListener('click', (e) => {
+                    if (!isDragging) {
+                        showPopup(element, e);
+                    }
+                });
+
+                // Mouse down for dragging
+                element.addEventListener('mousedown', (e) => {
+                    startDrag(element, e);
+                });
+
+                // Hover effects
+                element.addEventListener('mouseenter', () => {
+                    if (!isDragging) {
+                        element.style.transform = 'scale(1.1)';
+                    }
+                });
+
+                element.addEventListener('mouseleave', () => {
+                    if (!isDragging) {
+                        element.style.transform = 'scale(1)';
+                    }
+                });
+            });
+
+            // Global mouse events for dragging
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+
+            // Click outside to hide popup
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.workflow-element') && !e.target.closest('.popup')) {
+                    hidePopup();
+                }
+            });
+
+            console.log('🎨 Workflow canvas initialized successfully!');
+        }
+
+        // Show popup with element information
+        function showPopup(element, event) {
+            const popup = document.getElementById('popup');
+            const popupTitle = document.getElementById('popup-title');
+            const popupDescription = document.getElementById('popup-description');
+
+            // Get element data
+            const title = element.dataset.title;
+            const description = element.dataset.description;
+
+            // Set popup content
+            popupTitle.textContent = title;
+            popupDescription.textContent = description;
+
+            // Position popup near the clicked element
+            const rect = element.getBoundingClientRect();
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            let popupX = rect.left - canvasRect.left + rect.width / 2;
+            let popupY = rect.top - canvasRect.top - 100;
+
+            // Adjust position if popup would be outside canvas
+            if (popupX + 250 > canvasRect.width) {
+                popupX = canvasRect.width - 270;
+            }
+            if (popupX < 20) {
+                popupX = 20;
+            }
+            if (popupY < 20) {
+                popupY = rect.bottom - canvasRect.top + 20;
+            }
+
+            popup.style.left = popupX + 'px';
+            popup.style.top = popupY + 'px';
+            popup.classList.add('show');
+
+            currentPopup = popup;
+            
+            console.log(`📋 Showing popup for: ${title}`);
+        }
+
+        // Hide popup
+        function hidePopup() {
+            const popup = document.getElementById('popup');
+            popup.classList.remove('show');
+            currentPopup = null;
+        }
+
+        // Start dragging an element
+        function startDrag(element, event) {
+            isDragging = true;
+            currentElement = element;
+            
+            // Calculate offset from mouse to element top-left
+            const rect = element.getBoundingClientRect();
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            dragOffset.x = event.clientX - rect.left;
+            dragOffset.y = event.clientY - rect.top;
+
+            // Add dragging class
+            element.classList.add('dragging');
+            
+            // Hide popup when dragging starts
+            hidePopup();
+
+            event.preventDefault();
+            console.log(`🎯 Started dragging: ${element.dataset.title}`);
+        }
+
+        // Drag the element
+        function drag(event) {
+            if (!isDragging || !currentElement) return;
+
+            const canvas = document.getElementById('canvas');
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            // Calculate new position
+            let newX = event.clientX - canvasRect.left - dragOffset.x;
+            let newY = event.clientY - canvasRect.top - dragOffset.y;
+
+            // Constrain to canvas bounds
+            const elementRect = currentElement.getBoundingClientRect();
+            newX = Math.max(0, Math.min(newX, canvasRect.width - elementRect.width));
+            newY = Math.max(60, Math.min(newY, canvasRect.height - elementRect.height - 50));
+
+            // Apply new position
+            currentElement.style.left = newX + 'px';
+            currentElement.style.top = newY + 'px';
+        }
+
+        // Stop dragging
+        function stopDrag() {
+            if (isDragging && currentElement) {
+                currentElement.classList.remove('dragging');
+                currentElement.style.transform = 'scale(1)';
+                
+                console.log(`✅ Finished dragging: ${currentElement.dataset.title}`);
+                
+                // Small delay before allowing clicks again
+                setTimeout(() => {
+                    isDragging = false;
+                    currentElement = null;
+                }, 100);
+            }
+        }
+
+        // Enhanced workflow automation functions
+        function executeWorkflow() {
+            if (workflowState.isExecuting) {
+                console.log('⏸️ Workflow already executing');
+                return;
+            }
+
+            console.log('🚀 Starting workflow execution...');
+            workflowState.isExecuting = true;
+            workflowState.currentStep = 0;
+            workflowState.executionId = 'exec_' + Date.now();
+
+            const playBtn = document.getElementById('play-btn');
+            playBtn.textContent = '⏸️ Running';
+            playBtn.classList.add('active');
+
+            // Execute nodes sequentially
+            executeNextNode();
+        }
+
+        function executeNextNode() {
+            const elements = document.querySelectorAll('.workflow-element');
+            
+            if (workflowState.currentStep < elements.length) {
+                const currentElement = elements[workflowState.currentStep];
+                
+                // Update status to running
+                updateNodeStatus(currentElement, 'running');
+                currentElement.classList.add('active');
+                
+                console.log(`🔄 Executing: ${currentElement.dataset.title}`);
+                
+                // Simulate node execution (replace with actual API calls)
+                setTimeout(() => {
+                    // Update status to completed
+                    updateNodeStatus(currentElement, 'completed');
+                    currentElement.classList.remove('active');
+                    currentElement.classList.add('connected');
+                    
+                    workflowState.currentStep++;
+                    executeNextNode();
+                }, 1500);
+            } else {
+                // Workflow completed
+                console.log('✅ Workflow execution completed!');
+                workflowState.isExecuting = false;
+                
+                const playBtn = document.getElementById('play-btn');
+                playBtn.textContent = '▶ Execute';
+                playBtn.classList.remove('active');
+            }
+        }
+
+        function resetWorkflow() {
+            console.log('🔄 Resetting workflow...');
+            
+            workflowState.isExecuting = false;
+            workflowState.currentStep = 0;
+            
+            const elements = document.querySelectorAll('.workflow-element');
+            elements.forEach((element, index) => {
+                updateNodeStatus(element, 'pending');
+                element.classList.remove('active', 'connected');
+            });
+            
+            const playBtn = document.getElementById('play-btn');
+            playBtn.textContent = '▶ Execute';
+            playBtn.classList.remove('active');
+            
+            hidePopup();
+        }
+
+        function saveWorkflow() {
+            console.log('💾 Saving workflow configuration...');
+            
+            const workflowConfig = {
+                id: 'workflow_' + Date.now(),
+                name: 'Custom Business Process',
+                nodes: [],
+                edges: []
+            };
+            
+            const elements = document.querySelectorAll('.workflow-element');
+            elements.forEach((element, index) => {
+                const rect = element.getBoundingClientRect();
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                
+                workflowConfig.nodes.push({
+                    id: element.id,
+                    type: element.dataset.nodeType,
+                    position: {
+                        x: rect.left - canvasRect.left,
+                        y: rect.top - canvasRect.top
+                    },
+                    data: {
+                        label: element.dataset.title,
+                        description: element.dataset.description,
+                        status: element.dataset.status
+                    }
+                });
+                
+                // Add edge to next node (if not last)
+                if (index < elements.length - 1) {
+                    workflowConfig.edges.push({
+                        id: `e${index}`,
+                        source: element.id,
+                        target: elements[index + 1].id,
+                        type: 'smoothstep'
+                    });
+                }
+            });
+            
+            // Save to backend (you can integrate with your workflow API)
+            fetch('/api/workflows', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(workflowConfig)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Workflow saved successfully:', data);
+                alert('Workflow saved successfully!');
+            })
+            .catch(error => {
+                console.error('❌ Error saving workflow:', error);
+                alert('Error saving workflow. Saved to local storage instead.');
+                localStorage.setItem('workflow_config', JSON.stringify(workflowConfig));
+            });
+        }
+
+        function updateNodeStatus(element, status) {
+            element.dataset.status = status;
+            const indicator = element.querySelector('.status-indicator');
+            if (indicator) {
+                indicator.className = `status-indicator status-${status}`;
+            }
+        }
+
+        // Enhanced popup functionality
+        function configureNode() {
+            const activeElement = document.querySelector('.workflow-element:hover') || currentElement;
+            if (activeElement) {
+                console.log(`⚙️ Configuring node: ${activeElement.dataset.title}`);
+                alert(`Configuration panel for ${activeElement.dataset.title} would open here.\n\nNode Type: ${activeElement.dataset.nodeType}\nStatus: ${activeElement.dataset.status}`);
+            }
+        }
+
+        function executeNode() {
+            const activeElement = document.querySelector('.workflow-element:hover') || currentElement;
+            if (activeElement) {
+                console.log(`▶ Executing single node: ${activeElement.dataset.title}`);
+                updateNodeStatus(activeElement, 'running');
+                activeElement.classList.add('active');
+                
+                setTimeout(() => {
+                    updateNodeStatus(activeElement, 'completed');
+                    activeElement.classList.remove('active');
+                    activeElement.classList.add('connected');
+                }, 1000);
+            }
+        }
+
+        function viewLogs() {
+            const activeElement = document.querySelector('.workflow-element:hover') || currentElement;
+            if (activeElement) {
+                console.log(`📋 Viewing logs for: ${activeElement.dataset.title}`);
+                const logData = {
+                    nodeId: activeElement.id,
+                    nodeType: activeElement.dataset.nodeType,
+                    status: activeElement.dataset.status,
+                    executionTime: new Date().toISOString(),
+                    logs: [
+                        `[INFO] Node ${activeElement.dataset.title} initialized`,
+                        `[INFO] Processing ${activeElement.dataset.nodeType} node`,
+                        `[SUCCESS] Node execution completed`
+                    ]
+                };
+                
+                alert(`Execution Logs for ${activeElement.dataset.title}:\n\n${logData.logs.join('\n')}\n\nStatus: ${logData.status}\nType: ${logData.nodeType}`);
+            }
+        }
+
+        // Integration with existing workflow backend
+        function integrateWithBackend() {
+            // Check if backend is available
+            fetch('/api/workflow-templates')
+                .then(response => response.json())
+                .then(templates => {
+                    console.log('🔗 Backend integration successful');
+                    console.log(`📋 Found ${templates.length} workflow templates`);
+                })
+                .catch(error => {
+                    console.log('⚠️ Backend not available, running in standalone mode');
+                });
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCanvas();
+            testFunctionality();
+            integrateWithBackend();
+            
+            // Welcome message
+            setTimeout(() => {
+                console.log('🚀 Welcome to the Enhanced Workflow Canvas!');
+                console.log('💡 Try clicking on elements to see details');
+                console.log('🎯 Drag elements to rearrange the workflow');
+                console.log('▶️ Use Execute button to run the workflow');
+                console.log('💾 Save your workflow configuration');
+            }, 1000);
+        });
+
+        // Handle window resize for responsiveness
+        window.addEventListener('resize', () => {
+            hidePopup();
+            console.log('📱 Canvas adapted to new screen size');
+        });
+    </script>
+</body>
+</html>
