@@ -202,6 +202,12 @@ const MarketingLabPage = ({ user }) => {
         if (result.success) {
           setRecommendations(result.data);
         }
+      } else if (response.status === 429) {
+        console.log('Rate limited - will retry recommendations later');
+        // Don't show error to user, just silently fail for rate limiting
+        return;
+      } else {
+        console.error('Failed to fetch recommendations:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch recommendations:', error);
@@ -210,11 +216,15 @@ const MarketingLabPage = ({ user }) => {
     }
   };
 
-  // Fetch recommendations when key data changes
+  // Fetch recommendations when key data changes (with debouncing)
   useEffect(() => {
-    if (taskData.platform && taskData.target_audience && taskData.campaign_name) {
-      fetchRecommendations();
-    }
+    const timer = setTimeout(() => {
+      if (taskData.platform && taskData.target_audience && taskData.campaign_name && taskData.description) {
+        fetchRecommendations();
+      }
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timer);
   }, [taskData.platform, taskData.target_audience, taskData.campaign_name, taskData.description]);
 
   const executeTask = async () => {
@@ -1116,32 +1126,53 @@ const MarketingLabPage = ({ user }) => {
                 })}
               </div>
 
-              {/* Final Output */}
+              {/* Final Output - Improved Clean Display */}
               {execution?.final_output && (
                 <div className="final-output-card">
                   <div className="final-header">
-                    <FileText size={24} />
-                    <div>
-                      <h2>Final Marketing Asset</h2>
-                      <p>Quality-verified content ready for {taskData.platform}</p>
+                    <div className="header-left">
+                      <FileText size={28} />
+                      <div>
+                        <h2>Generated Marketing Content</h2>
+                        <p>Custom content created for your campaign • Ready to use</p>
+                      </div>
                     </div>
+                    {execution.agent_count && (
+                      <div className="agent-badge">
+                        {execution.agent_count} AI Agents Collaborated
+                      </div>
+                    )}
                   </div>
                   
-                  <div className="final-content">
-                    <pre className="final-text">{parseContent(execution.final_output).content}</pre>
+                  {/* Main Content Display */}
+                  <div className="content-display-area">
+                    <div className="content-header">
+                      <h3>📝 Your Content</h3>
+                      <span className="content-meta">
+                        Platform: {taskData.platform} • Audience: {taskData.target_audience} • Tone: {taskData.tone}
+                      </span>
+                    </div>
+                    
+                    <div className="generated-content">
+                      {parseContent(execution.final_output).content}
+                    </div>
                   </div>
 
-                  {/* Performance Optimization Box */}
+                  {/* Performance Insights Section */}
                   {parseContent(execution.final_output).performance && (
-                    <div className="performance-optimization">
-                      <div className="performance-title">
-                        📈 Performance Optimization
+                    <div className="performance-insights">
+                      <div className="insights-header">
+                        <TrendingUp size={20} />
+                        <h3>Performance Optimization Insights</h3>
                       </div>
-                      <pre className="performance-content">{parseContent(execution.final_output).performance.replace('📈 PERFORMANCE OPTIMIZATION:', '').trim()}</pre>
+                      <div className="insights-content">
+                        {parseContent(execution.final_output).performance.replace('📈 PERFORMANCE OPTIMIZATION:', '').trim()}
+                      </div>
                     </div>
                   )}
                   
-                  <div className="final-actions">
+                  {/* Action Buttons */}
+                  <div className="content-actions">
                     <button 
                       className="action-btn primary"
                       onClick={() => copyToClipboard(parseContent(execution.final_output).content)}
@@ -1151,17 +1182,17 @@ const MarketingLabPage = ({ user }) => {
                     </button>
                     <button 
                       className="action-btn secondary"
-                      onClick={() => downloadAsText(execution.final_output, `${taskData.campaign_name.replace(/\s+/g, '_')}_content.txt`)}
+                      onClick={() => downloadAsText(execution.final_output, `${taskData.campaign_name.replace(/\s+/g, '_')}_marketing_content.txt`)}
                     >
                       <Download size={16} />
-                      Download Full
+                      Download
                     </button>
                     <button 
                       className="action-btn chat-btn"
                       onClick={openAgentChat}
                     >
                       <MessageSquare size={16} />
-                      Chat with Agent
+                      Refine with AI
                     </button>
                     <button 
                       className="action-btn secondary"
@@ -1169,7 +1200,7 @@ const MarketingLabPage = ({ user }) => {
                       disabled={isExecuting}
                     >
                       <RefreshCw size={16} />
-                      Re-run with same inputs
+                      Generate New Version
                     </button>
                   </div>
                 </div>
