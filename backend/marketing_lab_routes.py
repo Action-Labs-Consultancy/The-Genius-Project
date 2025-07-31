@@ -1599,7 +1599,7 @@ Be specific to these inputs. Reference the actual campaign details. Make it clea
                         
                         if ai_content and len(ai_content) > 150:  # Lower threshold for faster acceptance
                             # Parse into structured recommendations with campaign-specific data
-                            structured_recommendations = parse_campaign_specific_recommendations(
+                            structured_recommendations = parse_intelligent_ai_recommendations(
                                 ai_content, platform, audience, campaign, description
                             )
                             
