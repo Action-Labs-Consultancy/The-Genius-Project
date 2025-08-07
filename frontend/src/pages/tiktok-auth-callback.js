@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../config/api';
 export default function TikTokAuthCallback() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
+  const [status, setStatus] = useState('Connecting to TikTok...');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,31 +20,86 @@ export default function TikTokAuthCallback() {
       return;
     }
 
-    // Call backend to exchange code for access token and get analysis
-    fetch(`${API_BASE_URL}/api/tiktok/analyze?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+    // Check if this is for social media connection or analysis
+    const isForSocialMedia = state && state.includes('social-media');
+
+    if (isForSocialMedia) {
+      // Handle social media connection
+      setStatus('Connecting your TikTok account...');
+      
+      fetch('/api/social-media/connect/tiktok', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          auth_code: code,
+          state: state,
+          username: 'tiktok_connected_user',
+          access_token: 'real_token_from_oauth',
+          auto_publish: true
+        })
+      })
       .then(res => res.json())
       .then(data => {
-        if (data.error) {
-          setError(data.error);
+        if (data.success) {
+          setStatus('TikTok connected successfully! Redirecting...');
+          // Notify parent window and close popup
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'OAUTH_SUCCESS',
+              platform: 'tiktok',
+              authCode: code
+            }, window.location.origin);
+            window.close();
+          } else {
+            // Regular redirect for non-popup
+            setTimeout(() => navigate('/clients'), 2000);
+          }
         } else {
-          setAnalysis(data.analysis);
-          // Redirect back to the exact same page where TikTok connect was clicked
-          setTimeout(() => {
-            if (state && state.startsWith('http')) {
-              // Extract the path from the full URL and navigate to it
-              const url = new URL(state);
-              navigate(url.pathname);
-            } else {
-              navigate('/insights');
-            }
-          }, 3000);
+          setError(data.error || 'Failed to connect TikTok account');
         }
       })
       .catch(err => {
-        console.error('TikTok API error:', err);
+        console.error('TikTok connection error:', err);
         setError('Failed to connect to TikTok.');
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'OAUTH_ERROR',
+            error: 'Failed to connect TikTok account'
+          }, window.location.origin);
+          window.close();
+        }
       })
       .finally(() => setLoading(false));
+    } else {
+      // Handle TikTok analysis (original functionality)
+      setStatus('Analyzing your TikTok account...');
+      
+      fetch(`${API_BASE_URL}/api/tiktok/analyze?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            setError(data.error);
+          } else {
+            setStatus('Analysis complete! Redirecting...');
+            setTimeout(() => {
+              if (state && state.startsWith('http')) {
+                const url = new URL(state);
+                navigate(url.pathname);
+              } else {
+                navigate('/insights');
+              }
+            }, 3000);
+          }
+        })
+        .catch(err => {
+          console.error('TikTok API error:', err);
+          setError('Failed to connect to TikTok.');
+        })
+        .finally(() => setLoading(false));
+    }
   }, []);
 
   if (loading) {
@@ -59,8 +114,24 @@ export default function TikTokAuthCallback() {
         background: '#111',
         color: '#fff'
       }}>
-        <div style={{ fontSize: 24, marginBottom: 20 }}>🔗 Connecting to TikTok...</div>
+        <div style={{ fontSize: 24, marginBottom: 20 }}>🔗 {status}</div>
         <div style={{ fontSize: 16, color: '#888' }}>Please wait while we process your authorization.</div>
+        <div style={{ marginTop: 20 }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            border: '3px solid #333',
+            borderTop: '3px solid #25F4EE',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -110,32 +181,26 @@ export default function TikTokAuthCallback() {
     }}>
       <div style={{ fontSize: 24, marginBottom: 20, color: '#25F4EE' }}>✅ TikTok Connected Successfully!</div>
       
-      {analysis && (
-        <div style={{
-          background: '#222',
-          padding: 20,
-          borderRadius: 12,
-          marginBottom: 20,
-          maxWidth: 600
-        }}>
-          <h3 style={{ color: '#25F4EE', marginBottom: 16 }}>TikTok Account Analysis</h3>
-          <div style={{ fontSize: 14, color: '#ccc' }}>
-            <div>Account: {analysis.account}</div>
-            <div>Followers: {analysis.followers}</div>
-            <div>Avg Views: {analysis.avg_views}</div>
-            <div>Top Video: {analysis.top_video}</div>
-            <div>Engagement Rate: {analysis.engagement_rate}</div>
-            <div>Recent Growth: {analysis.recent_growth}</div>
-          </div>
+      <div style={{
+        background: 'linear-gradient(135deg, #25F4EE 0%, #FE2C55 100%)',
+        padding: 20,
+        borderRadius: 12,
+        marginBottom: 20,
+        maxWidth: 600,
+        textAlign: 'center'
+      }}>
+        <h3 style={{ color: 'white', marginBottom: 16, margin: 0 }}>🎉 Ready for Automated Publishing!</h3>
+        <div style={{ fontSize: 14, color: 'white', opacity: 0.9 }}>
+          Your TikTok account is now connected and ready for automated content publishing.
         </div>
-      )}
+      </div>
       
       <div style={{ fontSize: 16, color: '#888', marginBottom: 20 }}>
-        Redirecting you back to the original page...
+        {window.opener ? 'Closing popup...' : 'Redirecting you back...'}
       </div>
       
       <button 
-        onClick={() => window.location.href = '/'}
+        onClick={() => window.location.href = '/clients'}
         style={{
           background: '#25F4EE',
           color: '#000',
@@ -143,10 +208,11 @@ export default function TikTokAuthCallback() {
           borderRadius: 8,
           padding: '12px 24px',
           fontSize: 16,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          fontWeight: 'bold'
         }}
       >
-        Continue
+        Go to Clients
       </button>
     </div>
   );

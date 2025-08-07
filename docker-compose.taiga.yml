@@ -1,0 +1,223 @@
+version: '3.8'
+
+services:
+  taiga-db:
+    image: postgres:13
+    container_name: taiga-db
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    volumes:
+      - taiga_db_data:/var/lib/postgresql/data
+    networks:
+      - taiga
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taiga"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-back
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_HOST: taiga-db
+      TAIGA_SECRET_KEY: taiga-back-secret-key-should-be-changed
+      TAIGA_SITES_SCHEME: http
+      TAIGA_SITES_DOMAIN: localhost:9000
+      TAIGA_SUBPATH: ""
+      
+      # Email settings (optional)
+      EMAIL_BACKEND: console
+      DEFAULT_FROM_EMAIL: no-reply@localhost
+      
+      # Redis settings
+      CELERY_BROKER_URL: redis://taiga-redis:6379/0
+      
+      # Events settings
+      EVENTS_PUSH_BACKEND: taiga.events.backends.rabbitmq.EventsPushBackend
+      EVENTS_PUSH_BACKEND_URL: amqp://taiga:taiga@taiga-events-rabbitmq:5672/taiga
+      
+      # Debug mode
+      DEBUG: "True"
+      PUBLIC_REGISTER_ENABLED: "True"
+      
+      # Additional settings
+      ENABLE_TELEMETRY: "False"
+      GITHUB_IMPORTER_CLIENT_ID: ""
+      GITHUB_IMPORTER_CLIENT_SECRET: ""
+      
+    volumes:
+      - taiga_static_data:/taiga-back/static
+      - taiga_media_data:/taiga-back/media
+    networks:
+      - taiga
+    ports:
+      - "8001:8000"
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-redis:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/v1/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  taiga-async:
+    image: taigaio/taiga-back:latest
+    container_name: taiga-async
+    command: python manage.py runserver 0.0.0.0:8001
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_HOST: taiga-db
+      TAIGA_SECRET_KEY: taiga-back-secret-key-should-be-changed
+      TAIGA_SITES_SCHEME: http
+      TAIGA_SITES_DOMAIN: localhost:9000
+      TAIGA_SUBPATH: ""
+      
+      # Redis settings
+      CELERY_BROKER_URL: redis://taiga-redis:6379/0
+      
+      # Debug mode
+      DEBUG: "True"
+      
+      # Additional settings
+      ENABLE_TELEMETRY: "False"
+      
+    volumes:
+      - taiga_static_data:/taiga-back/static
+      - taiga_media_data:/taiga-back/media
+    networks:
+      - taiga
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-redis:
+        condition: service_started
+    restart: unless-stopped
+
+  taiga-async-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: taiga-async-rabbitmq
+    environment:
+      RABBITMQ_ERLANG_COOKIE: secret-erlang-cookie
+      RABBITMQ_DEFAULT_USER: taiga
+      RABBITMQ_DEFAULT_PASS: taiga
+      RABBITMQ_DEFAULT_VHOST: taiga
+    volumes:
+      - taiga_async_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - taiga
+    restart: unless-stopped
+
+  taiga-events-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: taiga-events-rabbitmq
+    environment:
+      RABBITMQ_ERLANG_COOKIE: secret-erlang-cookie
+      RABBITMQ_DEFAULT_USER: taiga
+      RABBITMQ_DEFAULT_PASS: taiga
+      RABBITMQ_DEFAULT_VHOST: taiga
+    volumes:
+      - taiga_events_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - taiga
+    restart: unless-stopped
+
+  taiga-events:
+    image: taigaio/taiga-events:latest
+    container_name: taiga-events
+    environment:
+      RABBITMQ_USER: taiga
+      RABBITMQ_PASS: taiga
+      RABBITMQ_HOST: taiga-events-rabbitmq
+      RABBITMQ_VHOST: taiga
+      RABBITMQ_PORT: 5672
+      TAIGA_SECRET_KEY: taiga-back-secret-key-should-be-changed
+    networks:
+      - taiga
+    ports:
+      - "8888:8888"
+    depends_on:
+      - taiga-events-rabbitmq
+    restart: unless-stopped
+
+  taiga-protected:
+    image: taigaio/taiga-protected:latest
+    container_name: taiga-protected
+    environment:
+      MAX_AGE: 360
+      SECRET_KEY: taiga-back-secret-key-should-be-changed
+    networks:
+      - taiga
+    restart: unless-stopped
+
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    container_name: taiga-front
+    environment:
+      TAIGA_URL: http://localhost:9000
+      TAIGA_WEBSOCKETS_URL: ws://localhost:8888
+      TAIGA_SUBPATH: ""
+      
+      # API URL
+      API: http://localhost:8001/api/v1/
+      
+      # Events settings
+      EVENTS_URL: ws://localhost:8888/events
+      
+      # Enable features
+      PUBLIC_REGISTER_ENABLED: "true"
+      DEBUG: "true"
+      DEFAULT_LANGUAGE: "en"
+      DEFAULT_THEME: "material-design"
+      
+    networks:
+      - taiga
+    ports:
+      - "9000:80"
+    depends_on:
+      - taiga-back
+      - taiga-events
+    restart: unless-stopped
+
+  taiga-redis:
+    image: redis:6-alpine
+    container_name: taiga-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - taiga_redis_data:/data
+    networks:
+      - taiga
+    restart: unless-stopped
+
+volumes:
+  taiga_db_data:
+    driver: local
+  taiga_static_data:
+    driver: local
+  taiga_media_data:
+    driver: local
+  taiga_redis_data:
+    driver: local
+  taiga_async_rabbitmq_data:
+    driver: local
+  taiga_events_rabbitmq_data:
+    driver: local
+
+networks:
+  taiga:
+    driver: bridge
+    name: taiga-network

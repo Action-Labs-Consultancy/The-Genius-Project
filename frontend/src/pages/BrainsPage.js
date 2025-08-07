@@ -11,13 +11,21 @@ import {
   List,
   Grid,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Workflow,
+  Zap
 } from 'lucide-react';
 import BrainDetailView from '../components/BrainDetailView';
 import { useNotification } from '../components/ModernNotification';
 import { useConfirm } from '../components/ModernConfirm';
+import { 
+  useMCABrainSystem, 
+  MCABrainCard, 
+  MCAWorkflowStatus 
+} from '../components/MCABrainIntegration';
 import { API_BASE_URL } from '../config/api';
 import './BrainsPage.css';
+import '../components/MCABrainIntegration.css';
 
 const BrainsPage = ({ user }) => {
   const [brains, setBrains] = useState([]);
@@ -29,6 +37,18 @@ const BrainsPage = ({ user }) => {
   const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'detail'
   const [displayMode, setDisplayMode] = useState('grid'); // 'grid' or 'dropdown'
   const [expandedBrains, setExpandedBrains] = useState(new Set());
+  const [mcaMode, setMcaMode] = useState(false); // Toggle MCA mode
+
+  // MCA Brain System Integration
+  const {
+    mcaBrains,
+    mcaSessions,
+    activeWorkflows,
+    initializeMCABrain,
+    createMCAAgentsFromBrainData,
+    executeMCAWorkflow,
+    getMCAAnalytics
+  } = useMCABrainSystem();
 
   // Modern notification hooks
   const { notification, showNotification, NotificationComponent } = useNotification();
@@ -45,6 +65,66 @@ const BrainsPage = ({ user }) => {
     loadBrains();
     loadAllAgents();
   }, []);
+
+  useEffect(() => {
+    // Initialize MCA brains when brains data changes
+    if (brains.length > 0) {
+      initializeMCABrains();
+    }
+  }, [brains]);
+
+  const initializeMCABrains = async () => {
+    for (const brain of brains) {
+      // Initialize MCA brain if not already done
+      if (!mcaBrains.has(brain._id)) {
+        const mcaBrain = initializeMCABrain(brain);
+        
+        // Load and create MCA agents for this brain
+        try {
+          const agentResponse = await fetch(`${API_BASE_URL}/api/brains/${brain._id}/agents`);
+          if (agentResponse.ok) {
+            const agentResult = await agentResponse.json();
+            const agentData = agentResult.data || agentResult || [];
+            
+            const brainWithAgents = { ...brain, agents: agentData };
+            createMCAAgentsFromBrainData(brainWithAgents, mcaBrain);
+          }
+        } catch (error) {
+          console.warn(`Failed to load agents for MCA brain ${brain.name}:`, error);
+        }
+      }
+    }
+  };
+
+  const handleMCAWorkflow = async (brainId, prompt) => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'MCA Workflow Started',
+        message: 'Executing Maker-Checker-Approver workflow...',
+        autoClose: true
+      });
+
+      const result = await executeMCAWorkflow(brainId, prompt);
+      
+      showNotification({
+        type: 'success',
+        title: 'MCA Workflow Completed',
+        message: 'Content has been successfully created and approved!',
+        autoClose: true
+      });
+
+      return result;
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'MCA Workflow Failed',
+        message: error.message || 'Workflow execution failed',
+        autoClose: true
+      });
+      throw error;
+    }
+  };
 
   const loadBrains = async () => {
     try {
@@ -279,19 +359,39 @@ const BrainsPage = ({ user }) => {
           <h1 className="page-title">
             <Brain size={32} />
             AI Brains
+            {mcaMode && <span className="mca-mode-indicator">MCA Mode</span>}
           </h1>
           <p className="page-subtitle">
             Create and manage AI brain systems with specialized agents
+            {mcaMode && " • Maker-Checker-Approver workflows enabled"}
           </p>
         </div>
-        <button 
-          className="create-brain-btn"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <Plus size={16} />
-          Create Brain
-        </button>
+        <div className="header-actions">
+          <button 
+            className={`mca-toggle-btn ${mcaMode ? 'active' : ''}`}
+            onClick={() => setMcaMode(!mcaMode)}
+            title="Toggle MCA Workflow Mode"
+          >
+            <Workflow size={16} />
+            {mcaMode ? 'Disable MCA' : 'Enable MCA'}
+          </button>
+          <button 
+            className="create-brain-btn"
+            onClick={() => setShowCreateModal(true)}
+          >
+            <Plus size={16} />
+            Create Brain
+          </button>
+        </div>
       </div>
+
+      {/* MCA Workflow Status */}
+      {mcaMode && (
+        <MCAWorkflowStatus 
+          activeWorkflows={activeWorkflows}
+          mcaSessions={mcaSessions}
+        />
+      )}
 
       {/* Search */}
       <div className="search-section">
@@ -433,7 +533,20 @@ const BrainsPage = ({ user }) => {
                 </button>
               )}
             </div>
+          ) : mcaMode ? (
+            // MCA Mode: Enhanced brain cards with workflow capabilities
+            <div className="brains-grid mca-enhanced">
+              {filteredBrains.map((brain) => (
+                <MCABrainCard
+                  key={brain._id}
+                  brain={brain}
+                  onExecuteWorkflow={handleMCAWorkflow}
+                  mcaAnalytics={getMCAAnalytics(brain._id)}
+                />
+              ))}
+            </div>
           ) : (
+            // Standard Mode: Original brain cards
             <div className="brains-grid">
               {filteredBrains.map((brain) => (
                 <div key={brain._id} className="brain-card">
@@ -446,6 +559,14 @@ const BrainsPage = ({ user }) => {
                       </div>
                     </div>
                     <div className="brain-actions">
+                      {mcaBrains.has(brain._id) && (
+                        <button 
+                          className="action-btn mca-ready-btn"
+                          title="MCA Ready"
+                        >
+                          <Zap size={16} />
+                        </button>
+                      )}
                       <button 
                         className="action-btn delete-btn"
                         onClick={(e) => {

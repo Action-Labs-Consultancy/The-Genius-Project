@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ad Sponsorship Timeline Demo</title>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module">
+        import React from 'https://esm.sh/react@18';
+        import ReactDOM from 'https://esm.sh/react-dom@18';
+        
+        // Simple demo version of the component for testing
+        const AdSponsorshipTimelineDemo = () => {
+            const [activeDays, setActiveDays] = React.useState(new Set());
+            const [scheduledAds, setScheduledAds] = React.useState({});
+            const [incomingRequests, setIncomingRequests] = React.useState([
+                {
+                    id: 1,
+                    title: "Summer Sale Campaign",
+                    brand: "Nike",
+                    product: "Air Jordan Sneakers",
+                    duration: "30 seconds",
+                    budget: "$2,500"
+                },
+                {
+                    id: 2,
+                    title: "Tech Review Sponsorship", 
+                    brand: "Apple",
+                    product: "iPhone 15 Pro",
+                    duration: "45 seconds",
+                    budget: "$3,800"
+                }
+            ]);
+
+            const draggedItem = React.useRef(null);
+            const dragOverDay = React.useRef(null);
+
+            const getWeekDays = () => {
+                const today = new Date();
+                const currentDay = today.getDay();
+                const monday = new Date(today);
+                monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+
+                const weekDays = [];
+                for (let i = 0; i < 7; i++) {
+                    const day = new Date(monday);
+                    day.setDate(monday.getDate() + i);
+                    weekDays.push({
+                        date: day,
+                        dayName: day.toLocaleDateString('en-US', { weekday: 'short' }),
+                        dayNumber: day.getDate().toString().padStart(2, '0'),
+                        fullDate: day.toISOString().split('T')[0]
+                    });
+                }
+                return weekDays;
+            };
+
+            const weekDays = getWeekDays();
+
+            const toggleDayActive = (dayKey) => {
+                const newActiveDays = new Set(activeDays);
+                if (newActiveDays.has(dayKey)) {
+                    newActiveDays.delete(dayKey);
+                    const newScheduledAds = { ...scheduledAds };
+                    delete newScheduledAds[dayKey];
+                    setScheduledAds(newScheduledAds);
+                } else {
+                    newActiveDays.add(dayKey);
+                }
+                setActiveDays(newActiveDays);
+            };
+
+            const handleDragStart = (e, request) => {
+                draggedItem.current = request;
+                e.dataTransfer.effectAllowed = 'move';
+                e.target.style.opacity = '0.5';
+            };
+
+            const handleDragEnd = (e) => {
+                e.target.style.opacity = '1';
+                draggedItem.current = null;
+                dragOverDay.current = null;
+            };
+
+            const handleDragOver = (e, dayKey) => {
+                e.preventDefault();
+                dragOverDay.current = dayKey;
+                
+                if (activeDays.has(dayKey)) {
+                    e.dataTransfer.dropEffect = 'move';
+                } else {
+                    e.dataTransfer.dropEffect = 'none';
+                }
+            };
+
+            const handleDrop = (e, dayKey) => {
+                e.preventDefault();
+                
+                if (!activeDays.has(dayKey) || !draggedItem.current) {
+                    return;
+                }
+
+                const newScheduledAds = { ...scheduledAds };
+                if (!newScheduledAds[dayKey]) {
+                    newScheduledAds[dayKey] = [];
+                }
+                newScheduledAds[dayKey].push(draggedItem.current);
+                setScheduledAds(newScheduledAds);
+
+                setIncomingRequests(prev => 
+                    prev.filter(request => request.id !== draggedItem.current.id)
+                );
+
+                draggedItem.current = null;
+                dragOverDay.current = null;
+            };
+
+            const removeAdFromDay = (dayKey, adId) => {
+                const newScheduledAds = { ...scheduledAds };
+                newScheduledAds[dayKey] = newScheduledAds[dayKey].filter(ad => ad.id !== adId);
+                
+                if (newScheduledAds[dayKey].length === 0) {
+                    delete newScheduledAds[dayKey];
+                }
+                
+                setScheduledAds(newScheduledAds);
+
+                const removedAd = scheduledAds[dayKey].find(ad => ad.id === adId);
+                if (removedAd) {
+                    setIncomingRequests(prev => [...prev, removedAd]);
+                }
+            };
+
+            return React.createElement('div', {
+                style: {
+                    padding: '24px',
+                    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                    minHeight: '100vh',
+                    fontFamily: 'Arial, sans-serif'
+                }
+            }, [
+                React.createElement('h1', {
+                    key: 'title',
+                    style: {
+                        textAlign: 'center',
+                        marginBottom: '32px',
+                        fontSize: '2.5rem',
+                        fontWeight: '700',
+                        color: '#2d3748'
+                    }
+                }, 'Ad Sponsorship Timeline Demo'),
+                
+                React.createElement('div', {
+                    key: 'instructions',
+                    style: {
+                        textAlign: 'center',
+                        marginBottom: '24px',
+                        padding: '16px',
+                        background: '#e8f4f8',
+                        borderRadius: '12px',
+                        color: '#2d3748'
+                    }
+                }, 'Click days to activate them, then drag sponsorship requests onto active days!'),
+
+                React.createElement('div', {
+                    key: 'container',
+                    style: {
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 350px',
+                        gap: '24px',
+                        maxWidth: '1400px',
+                        margin: '0 auto'
+                    }
+                }, [
+                    // Weekly calendar
+                    React.createElement('div', {
+                        key: 'calendar',
+                        style: {
+                            background: 'white',
+                            borderRadius: '16px',
+                            padding: '24px',
+                            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            key: 'week-grid',
+                            style: {
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(7, 1fr)',
+                                gap: '16px'
+                            }
+                        }, weekDays.map(day => {
+                            const dayKey = day.fullDate;
+                            const isActive = activeDays.has(dayKey);
+                            const isDragOver = dragOverDay.current === dayKey;
+                            const dayAds = scheduledAds[dayKey] || [];
+
+                            return React.createElement('div', {
+                                key: dayKey,
+                                style: {
+                                    border: `2px solid ${isActive ? '#3182ce' : '#e2e8f0'}`,
+                                    borderRadius: '12px',
+                                    background: isActive ? 'linear-gradient(135deg, #e6f3ff 0%, #f0f8ff 100%)' : 'white',
+                                    cursor: 'pointer',
+                                    minHeight: '200px',
+                                    overflow: 'hidden',
+                                    boxShadow: isDragOver && isActive ? '0 0 20px rgba(56, 161, 105, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)',
+                                    transform: isDragOver ? 'scale(1.02)' : 'none',
+                                    transition: 'all 0.3s ease'
+                                },
+                                onClick: () => toggleDayActive(dayKey),
+                                onDragOver: (e) => handleDragOver(e, dayKey),
+                                onDrop: (e) => handleDrop(e, dayKey)
+                            }, [
+                                React.createElement('div', {
+                                    key: 'header',
+                                    style: {
+                                        padding: '12px 16px',
+                                        borderBottom: '1px solid #e2e8f0',
+                                        background: 'rgba(255, 255, 255, 0.8)',
+                                        position: 'relative'
+                                    }
+                                }, [
+                                    React.createElement('div', {
+                                        key: 'name',
+                                        style: {
+                                            fontWeight: '600',
+                                            color: '#4a5568',
+                                            fontSize: '0.9rem',
+                                            textTransform: 'uppercase'
+                                        }
+                                    }, day.dayName),
+                                    React.createElement('div', {
+                                        key: 'number',
+                                        style: {
+                                            fontSize: '1.5rem',
+                                            fontWeight: '700',
+                                            color: '#2d3748',
+                                            marginTop: '4px'
+                                        }
+                                    }, day.dayNumber),
+                                    isActive && React.createElement('div', {
+                                        key: 'active-label',
+                                        style: {
+                                            position: 'absolute',
+                                            top: '8px',
+                                            right: '8px',
+                                            background: '#3182ce',
+                                            color: 'white',
+                                            fontSize: '0.7rem',
+                                            padding: '2px 8px',
+                                            borderRadius: '12px',
+                                            fontWeight: '600'
+                                        }
+                                    }, 'Active')
+                                ]),
+                                
+                                isActive ? React.createElement('div', {
+                                    key: 'content',
+                                    style: {
+                                        padding: '12px',
+                                        height: 'calc(100% - 70px)'
+                                    }
+                                }, dayAds.length === 0 ? 
+                                    React.createElement('div', {
+                                        style: {
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '2px dashed #cbd5e0',
+                                            borderRadius: '8px',
+                                            background: 'rgba(255, 255, 255, 0.5)',
+                                            color: '#718096',
+                                            fontSize: '0.9rem'
+                                        }
+                                    }, 'Drop sponsorship here') :
+                                    dayAds.map(ad => React.createElement('div', {
+                                        key: ad.id,
+                                        style: {
+                                            background: 'white',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            padding: '12px',
+                                            marginBottom: '8px',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'flex-start'
+                                        }
+                                    }, [
+                                        React.createElement('div', {
+                                            key: 'info',
+                                            style: { flex: 1 }
+                                        }, [
+                                            React.createElement('div', {
+                                                key: 'title',
+                                                style: {
+                                                    fontWeight: '600',
+                                                    color: '#2d3748',
+                                                    fontSize: '0.85rem',
+                                                    marginBottom: '4px'
+                                                }
+                                            }, ad.title),
+                                            React.createElement('div', {
+                                                key: 'brand',
+                                                style: {
+                                                    color: '#4a5568',
+                                                    fontSize: '0.8rem'
+                                                }
+                                            }, `${ad.brand} - ${ad.product}`)
+                                        ]),
+                                        React.createElement('button', {
+                                            key: 'remove',
+                                            style: {
+                                                background: '#fed7d7',
+                                                color: '#e53e3e',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '24px',
+                                                height: '24px',
+                                                cursor: 'pointer',
+                                                fontWeight: 'bold'
+                                            },
+                                            onClick: (e) => {
+                                                e.stopPropagation();
+                                                removeAdFromDay(dayKey, ad.id);
+                                            }
+                                        }, '×')
+                                    ]))
+                                ) : React.createElement('div', {
+                                    key: 'inactive',
+                                    style: {
+                                        height: 'calc(100% - 70px)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '12px',
+                                        color: '#a0aec0',
+                                        fontSize: '0.9rem',
+                                        fontStyle: 'italic'
+                                    }
+                                }, 'Click to activate')
+                            ]);
+                        }))
+                    ]),
+
+                    // Incoming requests panel
+                    React.createElement('div', {
+                        key: 'requests',
+                        style: {
+                            background: 'white',
+                            borderRadius: '16px',
+                            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxHeight: '80vh'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            key: 'panel-header',
+                            style: {
+                                padding: '20px',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                color: 'white',
+                                borderRadius: '16px 16px 0 0'
+                            }
+                        }, [
+                            React.createElement('h3', {
+                                key: 'title',
+                                style: { margin: '0 0 8px 0', fontWeight: '700' }
+                            }, 'Incoming Requests'),
+                            React.createElement('span', {
+                                key: 'count',
+                                style: {
+                                    background: 'rgba(255, 255, 255, 0.2)',
+                                    padding: '4px 12px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.85rem'
+                                }
+                            }, `${incomingRequests.length} pending`)
+                        ]),
+                        
+                        React.createElement('div', {
+                            key: 'requests-list',
+                            style: {
+                                flex: 1,
+                                padding: '16px',
+                                overflow: 'auto'
+                            }
+                        }, incomingRequests.length === 0 ? 
+                            React.createElement('div', {
+                                style: {
+                                    textAlign: 'center',
+                                    padding: '40px 20px',
+                                    color: '#718096'
+                                }
+                            }, [
+                                React.createElement('div', {
+                                    key: 'icon',
+                                    style: { fontSize: '3rem', marginBottom: '16px' }
+                                }, '📭'),
+                                React.createElement('p', {
+                                    key: 'text',
+                                    style: { fontWeight: '600', marginBottom: '8px' }
+                                }, 'No pending sponsorship requests')
+                            ]) :
+                            incomingRequests.map(request => React.createElement('div', {
+                                key: request.id,
+                                style: {
+                                    background: 'white',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '12px',
+                                    padding: '16px',
+                                    marginBottom: '12px',
+                                    cursor: 'grab',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)'
+                                },
+                                draggable: true,
+                                onDragStart: (e) => handleDragStart(e, request),
+                                onDragEnd: handleDragEnd
+                            }, [
+                                React.createElement('div', {
+                                    key: 'title',
+                                    style: {
+                                        fontWeight: '700',
+                                        color: '#2d3748',
+                                        marginBottom: '8px'
+                                    }
+                                }, request.title),
+                                React.createElement('div', {
+                                    key: 'brand',
+                                    style: {
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }
+                                }, request.brand),
+                                React.createElement('div', {
+                                    key: 'product',
+                                    style: {
+                                        color: '#718096',
+                                        fontSize: '0.85rem',
+                                        marginBottom: '12px'
+                                    }
+                                }, request.product),
+                                React.createElement('div', {
+                                    key: 'meta',
+                                    style: {
+                                        display: 'flex',
+                                        gap: '8px',
+                                        marginBottom: '12px'
+                                    }
+                                }, [
+                                    React.createElement('span', {
+                                        key: 'duration',
+                                        style: {
+                                            background: '#edf2f7',
+                                            color: '#4a5568',
+                                            fontSize: '0.8rem',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px'
+                                        }
+                                    }, request.duration),
+                                    React.createElement('span', {
+                                        key: 'budget',
+                                        style: {
+                                            background: '#edf2f7',
+                                            color: '#4a5568',
+                                            fontSize: '0.8rem',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px'
+                                        }
+                                    }, request.budget)
+                                ])
+                            ]))
+                        )
+                    ])
+                ])
+            ]);
+        };
+
+        ReactDOM.render(React.createElement(AdSponsorshipTimelineDemo), document.getElementById('root'));
+    </script>
+</body>
+</html>

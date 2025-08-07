@@ -5,7 +5,10 @@ import MeetingsCalendar from './MeetingsCalendar';
 const getModules = (user) => {
   const baseModules = [
     { id: 'brains', title: 'AI Brains', icon: '🧠' },
+    { id: 'mca-brains', title: 'MCA Brain System', icon: '🧬' },
     { id: 'marketing-lab', title: 'Marketing AI Lab', icon: '🚀' },
+    { id: 'n8n-automation', title: 'n8n Automation', icon: '⚡' },
+    { id: 'taiga-pm', title: 'Taiga PM', icon: '📋' },
     { id: 'chat', title: 'Chat', icon: '💬' },
     { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
     { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
@@ -46,6 +49,9 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   const [search, setSearch] = useState('');
 
   const MODULES = getModules(user);
+  
+  // Debug: Log all modules
+  console.log('Dashboard modules:', MODULES.map(m => m.title));
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -67,12 +73,24 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
   };
 
   const handleModuleClick = (id) => {
+    console.log('Module clicked:', id); // Debug log
     if (id === 'brains') {
       // Navigate to the new AI Brains page
       if (typeof onNavigate === 'function') onNavigate('/brains');
+    } else if (id === 'mca-brains') {
+      // Navigate to the MCA Brain System page
+      if (typeof onNavigate === 'function') onNavigate('/mca-brains');
     } else if (id === 'marketing-lab') {
       // Navigate to the Marketing AI Tasks Lab
       if (typeof onNavigate === 'function') onNavigate('/marketing-lab');
+    } else if (id === 'n8n-automation') {
+      // Open n8n automation platform in new tab
+      console.log('Opening n8n at http://localhost:5678');
+      window.open('http://localhost:5678', '_blank');
+    } else if (id === 'taiga-pm') {
+      // Open Taiga PM in new tab
+      console.log('Opening Taiga PM at http://localhost:9000');
+      window.open('http://localhost:9000', '_blank');
     } else if (id === 'llama-rag') {
       // Navigate to the RAG Chat page
       if (typeof onNavigate === 'function') onNavigate('/llama-rag');

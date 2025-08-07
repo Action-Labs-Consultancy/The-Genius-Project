@@ -206,6 +206,15 @@ except ImportError as e:
     print(f"Warning: Could not import enhanced_brain_routes: {e}")
     print("Enhanced brain features will be unavailable")
 
+# Register MCA Brain routes with MongoDB and Pinecone integration
+try:
+    from mca_routes import mca_routes
+    app.register_blueprint(mca_routes, url_prefix='/api')
+    print("[MCA BRAINS] MCA Brain management routes with MongoDB and Pinecone registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import MCA brain routes: {e}")
+    print("MCA Brain features will be unavailable")
+
 # Register feature request routes
 try:
     from feature_request_routes import feature_request_routes
@@ -214,6 +223,48 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import feature_request_routes: {e}")
     print("Feature request management features will be unavailable")
+
+# Register social media routes
+try:
+    from routes.social_routes import social_bp
+    app.register_blueprint(social_bp, url_prefix='/api/social')
+    print("[SOCIAL MEDIA] Social media OAuth and publishing routes registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import social_routes: {e}")
+    print("Social media integration features will be unavailable")
+
+# Register content routes  
+try:
+    from routes.content_routes import content_bp
+    app.register_blueprint(content_bp, url_prefix='/api')
+    print("[CONTENT] Content management routes registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import content_routes: {e}")
+    print("Content management features will be unavailable")
+
+# Register ads management routes - Use mock routes for development
+try:
+    # Force use of mock routes for now since MongoDB ads routes are having issues
+    from ads_mock_routes import ads_mock_bp
+    app.register_blueprint(ads_mock_bp)
+    print("[ADS] Using mock ads routes for development")
+except ImportError as e:
+    try:
+        from ads_routes import ads_routes
+        app.register_blueprint(ads_routes)
+        print("[ADS] Ads management and sponsorship timeline routes registered successfully")
+    except ImportError as e2:
+        print(f"Warning: Could not import any ads routes: {e2}")
+        print("Ads management features will be unavailable")
+
+# Register social media integration routes
+try:
+    from social_media_routes import social_media_bp
+    app.register_blueprint(social_media_bp)
+    print("[SOCIAL_MEDIA] Social media integration routes with TikTok API registered successfully")
+except ImportError as e:
+    print(f"Warning: Could not import social_media_routes: {e}")
+    print("Social media integration features will be unavailable")
 
 # Generate a secure random key if not set in environment
 if not os.environ.get('SECRET_KEY'):
@@ -2560,4 +2611,13 @@ def logout():
         return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
+    # Start the publishing scheduler for automated social media posting
+    try:
+        from services.scheduler import start_publishing_scheduler
+        start_publishing_scheduler()
+        print("[SCHEDULER] Publishing scheduler started successfully")
+    except ImportError as e:
+        print(f"Warning: Could not start publishing scheduler: {e}")
+        print("Automated publishing will be unavailable")
+    
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)

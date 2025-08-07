@@ -1,0 +1,388 @@
+/* MCA Brain Integration Styles */
+
+.mca-brain-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 24px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+}
+
+.mca-brain-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+}
+
+.brain-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.brain-card-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.mca-indicators {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mca-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+.success-rate {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.brain-card-content {
+  margin-bottom: 20px;
+}
+
+.brain-description {
+  margin: 0 0 16px 0;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.mca-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.brain-card-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.mca-workflow-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.mca-workflow-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.mca-workflow-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.workflow-prompt-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  color: white;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  backdrop-filter: blur(10px);
+}
+
+.workflow-prompt-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.workflow-prompt-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+.workflow-panel-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.execute-workflow-btn {
+  background: #2ecc71;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.execute-workflow-btn:hover:not(:disabled) {
+  background: #27ae60;
+  transform: translateY(-2px);
+}
+
+.execute-workflow-btn:disabled {
+  background: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* MCA Workflow Status Styles */
+.mca-workflow-status {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f1f3f4;
+}
+
+.status-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.4rem;
+}
+
+.toggle-details-btn {
+  background: #667eea;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-details-btn:hover {
+  background: #5a6fd8;
+  transform: translateY(-1px);
+}
+
+.status-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.status-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.status-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.status-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.workflow-details {
+  border-top: 1px solid #e9ecef;
+  padding-top: 20px;
+}
+
+.active-workflows, .session-history {
+  margin-bottom: 24px;
+}
+
+.active-workflows h4, .session-history h4 {
+  margin: 0 0 16px 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.workflow-item, .session-item {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+.workflow-item:hover, .session-item:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.workflow-info, .session-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.workflow-id, .session-status {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.workflow-status {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.workflow-status.running {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.workflow-status.completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.workflow-status.failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.session-time {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.workflow-prompt, .session-prompt {
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Enhanced Brain Grid for MCA */
+.brains-grid.mca-enhanced {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.brains-grid.mca-enhanced .brain-card {
+  position: relative;
+}
+
+.brains-grid.mca-enhanced .brain-card.mca-enabled {
+  border: 2px solid #667eea;
+}
+
+.brains-grid.mca-enhanced .brain-card.mca-enabled::before {
+  content: 'MCA Ready';
+  position: absolute;
+  top: -10px;
+  right: 16px;
+  background: #667eea;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .mca-brain-card {
+    padding: 16px;
+  }
+  
+  .mca-stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .status-overview {
+    grid-template-columns: 1fr;
+  }
+  
+  .workflow-info, .session-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* Animation for workflow execution */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.execute-workflow-btn.executing {
+  animation: pulse 1.5s infinite;
+  background: #f39c12;
+}
+
+.execute-workflow-btn.executing:hover {
+  background: #e67e22;
+}

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test n8n & Plane Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .button { 
+            padding: 15px 30px; 
+            margin: 10px; 
+            font-size: 16px; 
+            background: #FFD600; 
+            color: #111; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover { background: #E6C200; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Test Integration Links</h1>
+    
+    <p>Test the redirect functionality:</p>
+    
+    <button class="button" onclick="window.open('http://localhost:5678', '_blank')">
+        ⚡ Test n8n Automation
+    </button>
+    
+    <button class="button" onclick="window.open('https://app.plane.so', '_blank')">
+        📋 Test Plane Projects
+    </button>
+    
+    <hr>
+    <h2>Direct Links:</h2>
+    <a href="http://localhost:5678" target="_blank" class="button">⚡ Direct n8n Link</a>
+    <a href="https://app.plane.so" target="_blank" class="button">📋 Direct Plane Link</a>
+    
+    <hr>
+    <h2>Status:</h2>
+    <p id="status">Testing connections...</p>
+    
+    <script>
+        // Test n8n connection
+        fetch('http://localhost:5678')
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('status').innerHTML = '✅ n8n is running on localhost:5678<br>✅ Plane is accessible at app.plane.so<br><br><strong>Both integrations ready!</strong>';
+                } else {
+                    document.getElementById('status').innerHTML = '❌ n8n connection failed';
+                }
+            })
+            .catch(error => {
+                document.getElementById('status').innerHTML = '❌ n8n connection error: ' + error.message;
+            });
+    </script>
+</body>
+</html>

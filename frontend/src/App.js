@@ -22,6 +22,7 @@ import WorkflowBuilder from './WorkflowBuilder';
 import WorkflowCanvasAdvanced from './WorkflowCanvasAdvanced';
 import AIBrainsPage from './components/AIBrainsPage';
 import BrainsPage from './pages/BrainsPage';
+import MCABrainsPage from './pages/MCABrainsPage';
 import MarketingLabPage from './pages/MarketingLabPage';
 import LoggingPage from './components/LoggingPage';
 import LogsPage from './LogsPage';
@@ -39,6 +40,9 @@ import FeatureRequestForm from './components/FeatureRequestForm';
 import AdminRequestsPage from './pages/AdminRequestsPage';
 import UserRequestPage from './pages/UserRequestPage';
 import AdminIceBox from './pages/AdminIceBox';
+import ContentCalendarPage from './pages/ContentCalendarPage';
+import AdsPage from './pages/AdsPage';
+import AdSponsorshipPage from './pages/AdSponsorshipPage';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -378,6 +382,7 @@ export default function App() {
           <Route path="/llama-chat" element={<LlamaChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
           <Route path="/llama-rag" element={<LlamaRAGChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
           <Route path="/ai-content" element={<AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />} />
+          <Route path="/content-calendar" element={<ContentCalendarPage user={user} />} />
           <Route path="/api-verification" element={<ApiVerification />} />
           <Route path="/leave-board" element={<LeaveBoard user={user} />} />
           <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
@@ -388,6 +393,7 @@ export default function App() {
           <Route path="/workflow" element={<WorkflowBuilder user={user} />} />
           <Route path="/workflow-canvas" element={<WorkflowCanvasAdvanced user={user} />} />
           <Route path="/brains" element={<BrainsPage user={user} />} />
+          <Route path="/mca-brains" element={<MCABrainsPage user={user} />} />
           <Route path="/marketing-lab" element={<MarketingLabPage user={user} />} />
           <Route path="/enhanced-brain" element={<AIBrainsPage user={user} />} />
           <Route path="/logs" element={<LogsPage user={user} />} />
@@ -399,6 +405,8 @@ export default function App() {
           <Route path="/marketing-lab" element={<MarketingLabPage user={user} />} />
           <Route path="/submit-request" element={<UserRequestPage user={user} />} />
           <Route path="/ice-box" element={<AdminIceBox user={user} />} />
+          <Route path="/ads" element={<AdsPage user={user} />} />
+          <Route path="/ad-sponsorship-timeline" element={<AdSponsorshipPage user={user} />} />
           {(user?.is_admin || user?.role === 'admin') && (
             <Route path="/admin/requests" element={<AdminIceBox user={user} />} />
           )}

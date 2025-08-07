@@ -1,0 +1,164 @@
+networks:
+  plane-network:
+    driver: bridge
+
+volumes:
+  plane-postgres-data:
+  plane-redis-data:
+  plane-uploads:
+
+services:
+  # PostgreSQL Database
+  plane-db:
+    image: postgres:15-alpine
+    container_name: plane-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: plane_user
+      POSTGRES_PASSWORD: plane_local_password_2024
+      POSTGRES_DB: plane_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - plane-postgres-data:/var/lib/postgresql/data
+    networks:
+      - plane-network
+    ports:
+      - "5433:5432"  # Expose on different port to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plane_user -d plane_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache
+  plane-redis:
+    image: redis:7-alpine
+    container_name: plane-redis
+    restart: unless-stopped
+    volumes:
+      - plane-redis-data:/data
+    networks:
+      - plane-network
+    ports:
+      - "6380:6379"  # Expose on different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RabbitMQ Message Broker
+  plane-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: plane-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: plane_rabbit
+      RABBITMQ_DEFAULT_PASS: plane_rabbit_password_2024
+    networks:
+      - plane-network
+    ports:
+      - "5673:5672"   # AMQP port
+      - "15673:15672" # Management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Plane Backend API
+  plane-backend:
+    image: makeplane/plane-backend:latest
+    container_name: plane-backend
+    restart: unless-stopped
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    depends_on:
+      plane-db:
+        condition: service_healthy
+      plane-redis:
+        condition: service_healthy
+      plane-rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - plane-uploads:/app/uploads
+    networks:
+      - plane-network
+    ports:
+      - "8000:8000"
+
+  # Plane Worker (Background Tasks)
+  plane-worker:
+    image: makeplane/plane-backend:latest
+    container_name: plane-worker
+    restart: unless-stopped
+    depends_on:
+      plane-backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: ./bin/worker
+    volumes:
+      - plane-uploads:/app/uploads
+    networks:
+      - plane-network
+    healthcheck:
+      test: ["CMD", "celery", "inspect", "ping"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+
+  # Plane Beat Scheduler
+  plane-beat-worker:
+    image: makeplane/plane-backend:latest
+    container_name: plane-beat-worker
+    restart: unless-stopped
+    depends_on:
+      plane-backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: ./bin/beat
+    volumes:
+      - plane-uploads:/app/uploads
+    networks:
+      - plane-network
+
+  # Plane Frontend
+  plane-frontend:
+    image: makeplane/plane-frontend:latest
+    container_name: plane-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - NEXT_PUBLIC_DEPLOY_URL=http://localhost:3001
+    networks:
+      - plane-network
+    ports:
+      - "3001:3000"  # Expose on port 3001 to avoid conflict with your existing app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Plane Space (Public workspace)
+  plane-space:
+    image: makeplane/plane-space:latest
+    container_name: plane-space
+    restart: unless-stopped
+    depends_on:
+      plane-backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - plane-network
+    ports:
+      - "4000:3000"

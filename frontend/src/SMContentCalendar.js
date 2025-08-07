@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import SocialMediaConnector from './components/SocialMediaConnector';
+import PublishingStatus from './components/PublishingStatus';
+import PublishingScheduler from './components/PublishingScheduler';
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 function getDaysMatrix(year, month) {
   const firstDay = new Date(year, month, 1);
@@ -49,7 +53,13 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
     channel: '',
     status: 'Draft',
     tags: [],
-    clientFeedback: ''
+    clientFeedback: '',
+    isSponsored: false,
+    preferredDays: [],
+    sponsorDetails: {
+      budget: '',
+      targetAudience: ''
+    }
   });
   const [channelFilter, setChannelFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -73,6 +83,12 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
     optimalTiming: false
   });
   const [aiGenerating, setAiGenerating] = useState(false);
+
+  // Social media integration states
+  const [connectedAccounts, setConnectedAccounts] = useState([]);
+  const [showSocialConnector, setShowSocialConnector] = useState(false);
+  const [showPublishingScheduler, setShowPublishingScheduler] = useState(false);
+  const [selectedContentForPublishing, setSelectedContentForPublishing] = useState(null);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -109,11 +125,24 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
   // Fetch entries when month changes
   React.useEffect(() => {
     fetchEntries();
+    fetchConnectedAccounts();
     // Fetch user type for permission checks
     if (user?.id) {
       fetchUserType();
     }
   }, [currentMonth, user]);
+
+  async function fetchConnectedAccounts() {
+    try {
+      const res = await fetch('/api/social/accounts');
+      if (res.ok) {
+        const accounts = await res.json();
+        setConnectedAccounts(accounts);
+      }
+    } catch (err) {
+      console.error('Error fetching connected accounts:', err);
+    }
+  }
 
   async function fetchUserType() {
     try {
@@ -199,7 +228,10 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       channel: '',
       status: 'Draft',
       tags: [],
-      clientFeedback: ''
+      clientFeedback: '',
+      isSponsored: false,
+      preferredDays: [],
+      sponsorDetails: { budget: '', targetAudience: '' }
     });
   }
 
@@ -213,6 +245,24 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       ...prev,
       [field]: value
     }));
+  }
+
+  function handleDayChange(day) {
+    setFormData(prev => {
+      const currentDays = prev.preferredDays || [];
+      if (currentDays.includes(day)) {
+        return {
+          ...prev,
+          preferredDays: currentDays.filter(d => d !== day)
+        };
+      } else if (currentDays.length < 2) {
+        return {
+          ...prev,
+          preferredDays: [...currentDays, day]
+        };
+      }
+      return prev;
+    });
   }
 
   function handleTagSelect(e) {
@@ -288,7 +338,10 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
         tags: formData.tags,
         clientFeedback: formData.clientFeedback,
         user_id: user?.id || 1,
-        files: [...uploadedFiles, ...(formData.existingFiles || [])] // Combine new and existing files
+        files: [...uploadedFiles, ...(formData.existingFiles || [])], // Combine new and existing files
+        isSponsored: formData.isSponsored,
+        preferredDays: formData.preferredDays,
+        sponsorDetails: formData.sponsorDetails
       };
       let res;
       if (editingContent) {
@@ -306,6 +359,35 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       }
       const responseData = await res.json();
       if (!res.ok) throw new Error(responseData.error || 'Failed to save content');
+      
+      // If post is sponsored and approved, create ads request
+      if (formData.isSponsored && formData.status === 'Live' && formData.preferredDays.length === 2) {
+        try {
+          const adsPayload = {
+            content_type: 'sponsored_post',
+            description: `Sponsored content: ${formData.artworkCopy || formData.textCopy}`,
+            urgency: formData.sponsorDetails.budget > 100 ? 'high' : 'medium',
+            budget: formData.sponsorDetails.budget ? `$${formData.sponsorDetails.budget}` : '$0',
+            target_audience: formData.sponsorDetails.targetAudience,
+            preferred_days: formData.preferredDays,
+            original_content_id: responseData.id || responseData.content?.id,
+            user_id: user?.id || 1
+          };
+          
+          const adsRes = await fetch('/api/ads-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(adsPayload)
+          });
+          
+          if (adsRes.ok) {
+            console.log('Sponsored content added to ads requests');
+          }
+        } catch (adsError) {
+          console.error('Failed to create ads request:', adsError);
+        }
+      }
+      
       showAlert(editingContent ? 'Content updated successfully!' : 'Content saved successfully!', '✅ Success');
       // Force immediate refresh and wait for it to complete
       await fetchEntries();
@@ -343,7 +425,10 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
       channel: content.channel || content.platform,
       status: content.status.charAt(0).toUpperCase() + content.status.slice(1),
       tags: content.tags || [],
-      clientFeedback: content.clientFeedback || content.client_feedback || ''
+      clientFeedback: content.clientFeedback || content.client_feedback || '',
+      isSponsored: content.isSponsored || false,
+      preferredDays: content.preferredDays || [],
+      sponsorDetails: content.sponsorDetails || { budget: '', targetAudience: '' }
     });
     closeViewModal();
     setShowModal(true);
@@ -954,6 +1039,210 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
           outline: none;
           border-color: #FFD600;
         }
+
+        /* Sponsor Section Styles */
+        .sponsor-toggle {
+          margin: 1.5rem 0;
+          padding: 1rem;
+          background: linear-gradient(135deg, #2a1a00 0%, #1a1100 100%);
+          border: 2px solid #FFD600;
+          border-radius: 12px;
+          transition: all 0.3s ease;
+        }
+
+        .sponsor-checkbox-label {
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+          font-weight: 600;
+          color: #FFD600;
+        }
+
+        .sponsor-checkbox-label input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          margin-right: 12px;
+          accent-color: #FFD600;
+        }
+
+        .sponsor-checkbox-text {
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        .sponsorship-section {
+          margin-top: 1.5rem;
+          padding: 1.5rem;
+          background: linear-gradient(135deg, #1a1100 0%, #0f0800 100%);
+          border: 2px solid #FFD600;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(255, 214, 0, 0.15);
+        }
+
+        .sponsorship-header h3 {
+          color: #FFD600;
+          margin: 0 0 0.5rem 0;
+          font-size: 18px;
+          font-weight: 800;
+        }
+
+        .sponsorship-header p {
+          color: #FFD600aa;
+          margin: 0 0 1.5rem 0;
+          font-size: 14px;
+        }
+
+        .day-selector {
+          margin-bottom: 1.5rem;
+        }
+
+        .day-selector label {
+          display: block;
+          color: #FFD600;
+          font-weight: 600;
+          margin-bottom: 1rem;
+        }
+
+        .day-checkboxes {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 12px;
+          margin-bottom: 0.75rem;
+        }
+
+        .day-checkbox {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          background: #222;
+          border: 2px solid #444;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          position: relative;
+        }
+
+        .day-checkbox:hover {
+          border-color: #FFD600;
+          background: #2a2a2a;
+        }
+
+        .day-checkbox.selected {
+          background: linear-gradient(135deg, #FFD600 0%, #e6c200 100%);
+          border-color: #FFD600;
+          color: #111;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(255, 214, 0, 0.3);
+        }
+
+        .day-checkbox input[type="checkbox"] {
+          display: none;
+        }
+
+        .day-label {
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .selected-indicator {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          width: 20px;
+          height: 20px;
+          background: #28a745;
+          color: white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: bold;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .help-text {
+          color: #FFD600aa;
+          font-size: 12px;
+          font-style: italic;
+        }
+
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .budget-input, .audience-input {
+          width: 100%;
+          padding: 12px;
+          border: 2px solid #444;
+          border-radius: 8px;
+          background: #222;
+          color: #FFD600;
+          font-size: 14px;
+          transition: all 0.3s ease;
+        }
+
+        .budget-input:focus, .audience-input:focus {
+          outline: none;
+          border-color: #FFD600;
+          box-shadow: 0 0 8px rgba(255, 214, 0, 0.2);
+        }
+
+        .input-hint {
+          display: block;
+          color: #FFD600aa;
+          font-size: 12px;
+          margin-top: 0.5rem;
+          font-style: italic;
+        }
+
+        .performance-estimate {
+          margin-top: 1.5rem;
+          padding: 1rem;
+          background: linear-gradient(135deg, #0f1a0f 0%, #051005 100%);
+          border: 1px solid #28a745;
+          border-radius: 12px;
+        }
+
+        .performance-estimate h4 {
+          color: #28a745;
+          margin: 0 0 1rem 0;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        .estimate-metrics {
+          display: grid;
+          gap: 0.75rem;
+        }
+
+        .metric {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.5rem 0;
+          border-bottom: 1px solid #28a74533;
+        }
+
+        .metric:last-child {
+          border-bottom: none;
+        }
+
+        .metric-label {
+          color: #28a745aa;
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .metric-value {
+          color: #28a745;
+          font-size: 14px;
+          font-weight: 700;
+        }
       `}</style>
       
       <div className="calendar-container">
@@ -1011,6 +1300,46 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Social Media Quick Access */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <button
+            onClick={() => setShowSocialConnector(!showSocialConnector)}
+            style={{
+              background: connectedAccounts.length > 0 ? '#4CAF50' : '#FFD600',
+              color: connectedAccounts.length > 0 ? 'white' : '#111',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => {
+              e.target.style.transform = 'translateY(-1px)';
+              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+            }}
+            onMouseLeave={e => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
+          >
+            🔗 Social Media Accounts
+            {connectedAccounts.length > 0 && (
+              <span style={{
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '12px',
+                padding: '2px 8px',
+                fontSize: '12px'
+              }}>
+                {connectedAccounts.length} connected
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Calendar Navigation */}
@@ -1320,6 +1649,103 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
               </div>
             </div>
 
+            {/* Sponsor Section */}
+            <div className="form-group sponsor-toggle">
+              <label className="sponsor-checkbox-label">
+                <input
+                  type="checkbox"
+                  name="isSponsored"
+                  checked={formData.isSponsored}
+                  onChange={(e) => handleInputChange('isSponsored', e.target.checked)}
+                />
+                <span className="sponsor-checkbox-text">
+                  💰 Do you want to sponsor this post?
+                </span>
+              </label>
+            </div>
+
+            {formData.isSponsored && (
+              <div className="sponsorship-section">
+                <div className="sponsorship-header">
+                  <h3>📈 Sponsorship Settings</h3>
+                  <p>Configure your sponsored post for maximum reach and engagement</p>
+                </div>
+                
+                <div className="form-group day-selector">
+                  <label>📅 Choose 2 weekdays for optimal sponsorship performance</label>
+                  <div className="day-checkboxes">
+                    {weekdays.map(day => (
+                      <label key={day} className={`day-checkbox ${(formData.preferredDays || []).includes(day) ? 'selected' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={(formData.preferredDays || []).includes(day)}
+                          onChange={() => handleDayChange(day)}
+                          disabled={!(formData.preferredDays || []).includes(day) && (formData.preferredDays || []).length >= 2}
+                        />
+                        <span className="day-label">{day}</span>
+                        {(formData.preferredDays || []).includes(day) && <span className="selected-indicator">✓</span>}
+                      </label>
+                    ))}
+                  </div>
+                  <small className="help-text">
+                    Select exactly 2 weekdays for optimal sponsorship performance. 
+                    {(formData.preferredDays || []).length}/2 selected
+                  </small>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="budget">💸 Budget ($)</label>
+                    <input
+                      type="number"
+                      id="budget"
+                      name="sponsorDetails.budget"
+                      value={(formData.sponsorDetails || {}).budget || ''}
+                      onChange={(e) => handleInputChange('sponsorDetails', { ...(formData.sponsorDetails || {}), budget: e.target.value })}
+                      min="0"
+                      placeholder="Enter budget amount"
+                      className="budget-input"
+                    />
+                    <small className="input-hint">Recommended: $50-500 for optimal reach</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="targetAudience">🎯 Target Audience</label>
+                    <input
+                      type="text"
+                      id="targetAudience"
+                      name="sponsorDetails.targetAudience"
+                      value={(formData.sponsorDetails || {}).targetAudience || ''}
+                      onChange={(e) => handleInputChange('sponsorDetails', { ...(formData.sponsorDetails || {}), targetAudience: e.target.value })}
+                      placeholder="e.g., Young professionals, Tech enthusiasts"
+                      className="audience-input"
+                    />
+                    <small className="input-hint">Describe your ideal audience for this sponsored content</small>
+                  </div>
+                </div>
+
+                {(formData.sponsorDetails || {}).budget && (
+                  <div className="performance-estimate">
+                    <h4>📊 Estimated Performance</h4>
+                    <div className="estimate-metrics">
+                      <div className="metric">
+                        <span className="metric-label">Estimated Reach:</span>
+                        <span className="metric-value">{Math.floor(((formData.sponsorDetails || {}).budget || 0) * 50)}-{Math.floor(((formData.sponsorDetails || {}).budget || 0) * 100)} people</span>
+                      </div>
+                      <div className="metric">
+                        <span className="metric-label">Expected Engagement:</span>
+                        <span className="metric-value">{Math.floor(((formData.sponsorDetails || {}).budget || 0) * 2)}-{Math.floor(((formData.sponsorDetails || {}).budget || 0) * 5)} interactions</span>
+                      </div>
+                      <div className="metric">
+                        <span className="metric-label">Campaign Duration:</span>
+                        <span className="metric-value">{(formData.preferredDays || []).length > 0 ? `${(formData.preferredDays || []).length} days/week` : 'Select days'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div style={{ marginTop: '2rem' }}>
               <button className="btn-secondary" onClick={handleSave}>
@@ -1569,6 +1995,47 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
               </div>
             )}
 
+            {/* Social Media Integration Section */}
+            <div style={{ marginTop: '2rem', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden' }}>
+              {/* Publishing Status */}
+              <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
+                <PublishingStatus 
+                  contentId={selectedContent.id || selectedContent._id}
+                  onStatusUpdate={(status) => {
+                    console.log('Publishing status updated:', status);
+                  }}
+                />
+              </div>
+
+              {/* Publishing Scheduler - Only show if content is approved */}
+              {selectedContent.status === 'approved' && (
+                <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
+                  <PublishingScheduler
+                    contentId={selectedContent.id || selectedContent._id}
+                    user={user}
+                    connectedAccounts={connectedAccounts}
+                    onScheduled={(results) => {
+                      console.log('Content scheduled:', results);
+                      // Refresh publishing status
+                      setTimeout(() => {
+                        // Trigger status refresh
+                      }, 1000);
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Social Media Connector */}
+              <div style={{ padding: '16px' }}>
+                <SocialMediaConnector
+                  user={user}
+                  onConnectionUpdate={(accounts) => {
+                    setConnectedAccounts(accounts);
+                  }}
+                />
+              </div>
+            </div>
+
             {/* Action Buttons */}
             <div style={{ 
               marginTop: '2rem', 
@@ -1756,6 +2223,101 @@ export default function SMContentCalendar({ clientId, user, onNavigate }) {
                 }}
               >
                 {customModal.type === 'alert' ? '🎉 Great!' : '❌ Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Social Media Connector Modal */}
+      {showSocialConnector && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <button className="modal-close" onClick={() => setShowSocialConnector(false)}>×</button>
+            <h2 className="modal-title">🔗 Social Media Account Management</h2>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ color: '#ccc', marginBottom: '15px' }}>
+                Connect your social media accounts to enable automated publishing when content is approved and scheduled.
+              </p>
+              
+              <SocialMediaConnector 
+                connectedAccounts={connectedAccounts}
+                onAccountsChange={setConnectedAccounts}
+              />
+            </div>
+            
+            {connectedAccounts.length > 0 && (
+              <div style={{ 
+                background: '#2a2a2a', 
+                padding: '15px', 
+                borderRadius: '8px',
+                marginTop: '20px'
+              }}>
+                <h3 style={{ color: '#FFD600', margin: '0 0 10px 0', fontSize: '16px' }}>
+                  📊 Connected Accounts ({connectedAccounts.length})
+                </h3>
+                {connectedAccounts.map(account => (
+                  <div key={account._id} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #444'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ 
+                        fontSize: '18px',
+                        width: '24px',
+                        textAlign: 'center'
+                      }}>
+                        {account.platform === 'facebook' && '📘'}
+                        {account.platform === 'instagram' && '📷'}
+                        {account.platform === 'linkedin' && '💼'}
+                        {account.platform === 'twitter' && '🐦'}
+                      </span>
+                      <div>
+                        <div style={{ color: '#fff', fontWeight: 'bold' }}>
+                          {account.platform.charAt(0).toUpperCase() + account.platform.slice(1)}
+                        </div>
+                        <div style={{ color: '#888', fontSize: '12px' }}>
+                          {account.username || account.accountName}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ 
+                      background: '#4CAF50',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}>
+                      Connected
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              marginTop: '20px' 
+            }}>
+              <button 
+                onClick={() => setShowSocialConnector(false)}
+                style={{
+                  background: '#FFD600',
+                  color: '#111',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Done
               </button>
             </div>
           </div>

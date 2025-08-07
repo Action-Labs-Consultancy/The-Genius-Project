@@ -12,7 +12,8 @@ import {
   Brain,
   Activity,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Clipboard
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -25,6 +26,7 @@ const Sidebar = ({ user }) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'workflow', label: 'Workflow Builder', icon: Workflow, path: '/workflow' },
     { id: 'brains', label: 'AI Brains', icon: Brain, path: '/brains' },
+    { id: 'plane', label: 'Plane PM', icon: Clipboard, path: 'http://localhost:3003', external: true },
     { id: 'clients', label: 'Clients', icon: Building2, path: '/clients' },
     { id: 'projects', label: 'Projects', icon: FolderOpen, path: '/projects' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
@@ -38,8 +40,12 @@ const Sidebar = ({ user }) => {
     );
   }
 
-  const handleNavigate = (path) => {
-    navigate(path);
+  const handleNavigate = (path, external = false) => {
+    if (external) {
+      window.open(path, '_blank');
+    } else {
+      navigate(path);
+    }
   };
 
   const handleLogout = () => {
@@ -72,7 +78,7 @@ const Sidebar = ({ user }) => {
             <button
               key={item.id}
               className={`sidebar-item ${isActive ? 'active' : ''}`}
-              onClick={() => handleNavigate(item.path)}
+              onClick={() => handleNavigate(item.path, item.external)}
               title={isCollapsed ? item.label : ''}
             >
               <Icon className="sidebar-icon" />

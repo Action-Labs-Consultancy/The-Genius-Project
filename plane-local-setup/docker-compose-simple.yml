@@ -1,0 +1,117 @@
+services:
+  plane-web:
+    image: makeplane/plane-frontend:latest
+    restart: unless-stopped
+    container_name: plane-web
+    depends_on:
+      - plane-api
+      - plane-worker
+    ports:
+      - 3001:3000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_DEPLOY_URL: http://localhost:3001
+    networks:
+      - plane-network
+
+  plane-api:
+    image: makeplane/plane-backend:latest
+    restart: unless-stopped
+    container_name: plane-api
+    depends_on:
+      - plane-db
+      - plane-redis
+      - plane-minio
+    command: >
+      sh -c "
+        python manage.py wait_for_db &&
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    ports:
+      - 8000:8000
+    env_file:
+      - .env
+    networks:
+      - plane-network
+
+  plane-worker:
+    image: makeplane/plane-backend:latest
+    restart: unless-stopped
+    container_name: plane-worker
+    depends_on:
+      - plane-db
+      - plane-redis
+      - plane-minio
+    command: celery -A plane worker -l info
+    env_file:
+      - .env
+    networks:
+      - plane-network
+
+  plane-beat-worker:
+    image: makeplane/plane-backend:latest
+    restart: unless-stopped
+    container_name: plane-beat-worker
+    depends_on:
+      - plane-db
+      - plane-redis
+      - plane-minio
+    command: celery -A plane beat -l info
+    env_file:
+      - .env
+    networks:
+      - plane-network
+
+  plane-db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    container_name: plane-db
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_USER: plane
+      POSTGRES_PASSWORD: plane
+      POSTGRES_DB: plane
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - plane-db-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - plane-network
+
+  plane-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    container_name: plane-redis
+    ports:
+      - 6380:6379
+    volumes:
+      - plane-redis-data:/data
+    networks:
+      - plane-network
+
+  plane-minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    container_name: plane-minio
+    ports:
+      - 9000:9000
+      - 9001:9001
+    environment:
+      MINIO_ROOT_USER: plane
+      MINIO_ROOT_PASSWORD: password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - plane-minio-data:/data
+    networks:
+      - plane-network
+
+volumes:
+  plane-db-data:
+  plane-redis-data:
+  plane-minio-data:
+
+networks:
+  plane-network:
+    driver: bridge

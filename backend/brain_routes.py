@@ -14,7 +14,8 @@ import openai
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from dotenv import load_dotenv
-from mongo_db import mongo, MongoBrain
+from mongo_db import mongo
+from models.mongo_brain import MongoBrain
 from logs_system import logs_system
 
 # Load environment variables from parent directory
