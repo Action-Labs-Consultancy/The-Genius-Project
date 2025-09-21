@@ -1,0 +1,137 @@
+{
+  "name": "Proper MCA Due Diligence with Database Storage",
+  "nodes": [
+    {
+      "parameters": {
+        "expression": "Every 2 Minutes"
+      },
+      "name": "Every 2 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-1800, 400],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1600, 400],
+      "id": "get-kanboard-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS kb_companies (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL UNIQUE,\n    website_url TEXT,\n    kanboard_task_id INTEGER,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS kb_documents (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    company_id INTEGER NOT NULL,\n    filename TEXT NOT NULL,\n    content_text TEXT,\n    file_size INTEGER,\n    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES kb_companies(id)\n);\n\nCREATE TABLE IF NOT EXISTS kb_financial_analysis (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    company_id INTEGER NOT NULL,\n    analysis_type TEXT NOT NULL,\n    sentiment TEXT,\n    confidence_score REAL,\n    analysis_data TEXT,\n    analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES kb_companies(id)\n);\n\nCREATE TABLE IF NOT EXISTS dd_reports (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    company_id INTEGER NOT NULL,\n    company_name TEXT NOT NULL,\n    kanboard_task_id INTEGER,\n    status TEXT DEFAULT 'in_progress',\n    total_sections INTEGER DEFAULT 20,\n    completed_sections INTEGER DEFAULT 0,\n    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS dd_sections (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    report_id INTEGER NOT NULL,\n    section_name TEXT NOT NULL,\n    section_index INTEGER NOT NULL,\n    section_status TEXT DEFAULT 'pending',\n    json_content TEXT,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (report_id) REFERENCES dd_reports(id)\n);\n\nCREATE TABLE IF NOT EXISTS dd_mca_history (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    section_id INTEGER NOT NULL,\n    workflow_stage TEXT NOT NULL,\n    decision TEXT NOT NULL,\n    content TEXT,\n    feedback TEXT,\n    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (section_id) REFERENCES dd_sections(id)\n);\n\nSELECT 'Database initialized' as result;",
+        "options": {}
+      },
+      "name": "Initialize Databases",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 1,
+      "position": [-1400, 400],
+      "id": "init-db",
+      "credentials": {
+        "sqlite": {
+          "id": "sqlite-kb",
+          "name": "Knowledge Base DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// INTELLIGENT TASK FINDER AND PROCESSOR\nconst tasks = $('Get Kanboard Tasks').first().json.result || [];\nconsole.log(`🔍 Processing ${tasks.length} Kanboard tasks`);\n\n// Find Due Diligence master tasks\nlet dueDiligenceTasks = [];\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // Must be: \"Due Diligence: [Company Name]\" with website in description\n  if (title.toLowerCase().includes('due diligence:') && description.includes('http')) {\n    const companyName = title.replace(/due diligence:\\s*/i, '').trim();\n    const websiteMatch = description.match(/https?:\\/\\/[^\\s]+/);\n    const websiteUrl = websiteMatch ? websiteMatch[0] : null;\n    \n    if (companyName && websiteUrl) {\n      dueDiligenceTasks.push({\n        kanboard_id: task.id,\n        title: title,\n        description: description,\n        company_name: companyName,\n        website_url: websiteUrl,\n        project_id: task.project_id || 1\n      });\n    }\n  }\n}\n\nconsole.log(`📋 Found ${dueDiligenceTasks.length} valid Due Diligence tasks`);\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found - workflow completed');\n  throw new Error('No Due Diligence tasks found');\n}\n\n// Process first valid task\nconst taskToProcess = dueDiligenceTasks[0];\nconsole.log(`🎯 Processing: ${taskToProcess.company_name}`);\n\nreturn {\n  json: {\n    ...taskToProcess,\n    found_tasks: dueDiligenceTasks.length,\n    workflow_action: 'PROCESS_COMPANY'\n  }\n};"
+      },
+      "name": "Find Due Diligence Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-1200, 400],
+      "id": "find-dd-tasks"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Check if company already exists in knowledge base\nSELECT \n  c.id as company_id,\n  c.name,\n  c.website_url,\n  r.id as report_id,\n  r.status as report_status,\n  r.completed_sections,\n  r.total_sections\nFROM kb_companies c\nLEFT JOIN dd_reports r ON r.company_id = c.id\nWHERE c.name = '{{ $json.company_name }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "name": "Check Company in DB",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 1,
+      "position": [-1000, 400],
+      "id": "check-company-db",
+      "credentials": {
+        "sqlite": {
+          "id": "sqlite-kb",
+          "name": "Knowledge Base DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Company Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-800, 400],
+      "id": "company-exists-check"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Insert new company into knowledge base\nINSERT INTO kb_companies (name, website_url, kanboard_task_id)\nVALUES ('{{ $('Find Due Diligence Tasks').first().json.company_name }}', \n        '{{ $('Find Due Diligence Tasks').first().json.website_url }}', \n        {{ $('Find Due Diligence Tasks').first().json.kanboard_id }});\n\n-- Get the new company ID\nSELECT \n  id as company_id,\n  name,\n  website_url\nFROM kb_companies \nWHERE name = '{{ $('Find Due Diligence Tasks').first().json.company_name }}';",
+        "options": {}
+      },
+      "name": "Create New Company",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 1,
+      "position": [-600, 300],
+      "id": "create-company",
+      "credentials": {
+        "sqlite": {
+          "id": "sqlite-kb",
+          "name": "Knowledge Base DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",\n          "method": "getTaskFiles",\n          "id": 1,\n          "params": {\n            "task_id": "={{ $('Find Due Diligence Tasks').first().json.kanboard_id }}"\n          }\n        },\n        "options": {}\n      },\n      "name": "Get Task PDFs",\n      "type": "n8n-nodes-base.httpRequest",\n      "typeVersion": 4.2,\n      "position": [-400, 400],\n      "id": "get-task-pdfs",\n      "credentials": {\n        "httpBasicAuth": {\n          "id": "Gs1DQD2k5J8I9nZ8",\n          "name": "KanBoard"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "method": "POST",\n        "url": "http://localhost:5000/analyze",\n        "sendBody": true,\n        "specifyBody": "json",\n        "jsonBody": {\n          "text": "={{ $('Find Due Diligence Tasks').first().json.description + ' ' + $('Find Due Diligence Tasks').first().json.company_name }}"\n        },\n        "options": {\n          "timeout": 15000\n        },\n        "continueOnFail": true\n      },\n      "name": "Run FinBERT Analysis",\n      "type": "n8n-nodes-base.httpRequest",\n      "typeVersion": 4.2,\n      "position": [-200, 400],\n      "id": "run-finbert",\n    },\n    {\n      "parameters": {\n        "functionCode": "// KNOWLEDGE BASE STORAGE PROCESSOR\\nconst taskData = $('Find Due Diligence Tasks').first().json;\\nconst companyData = $('Check Company in DB').first().json[0] || $('Create New Company').first().json[0];\\nconst attachments = $('Get Task PDFs').first().json.result || [];\\n\\n// FinBERT processing\\nlet finbertData = null;\\ntry {\\n  const finbertResponse = $('Run FinBERT Analysis').first();\\n  if (finbertResponse && finbertResponse.json) {\\n    finbertData = finbertResponse.json;\\n    console.log('✅ FinBERT analysis successful');\\n  }\\n} catch (error) {\\n  console.log(`⚠️ FinBERT error: ${error.message}`);\\n}\\n\\nconsole.log(`📊 Processing Knowledge Base for: ${taskData.company_name}`);\\nconsole.log(`📎 Found ${attachments.length} PDF attachments`);\\nconsole.log(`💰 FinBERT status: ${finbertData ? 'SUCCESS' : 'FAILED'}`);\\n\\nreturn {\\n  json: {\\n    company_id: companyData.company_id,\\n    company_name: taskData.company_name,\\n    website_url: taskData.website_url,\\n    kanboard_task_id: taskData.kanboard_id,\\n    attachments: attachments,\\n    finbert_data: finbertData,\\n    knowledge_base_ready: true,\\n    next_action: 'STORE_KNOWLEDGE_BASE'\\n  }\\n};"\n      },\n      "name": "Process Knowledge Base",\n      "type": "n8n-nodes-base.function",\n      "typeVersion": 1,\n      "position": [0, 400],\n      "id": "process-kb"\n    },\n    {\n      "parameters": {\n        "operation": "executeQuery",\n        "query": "-- Store PDF documents in knowledge base\\nINSERT OR REPLACE INTO kb_documents (company_id, filename, content_text, file_size)\\nVALUES {{ $json.attachments.map(att => `(${$json.company_id}, '${att.name || 'unknown'}', 'PDF content extraction needed', ${att.size || 0})`).join(',\\n       ') || `(${$json.company_id}, 'No PDFs', 'No documents attached', 0)` }};\\n\\n-- Store FinBERT analysis if available\\n{{ $json.finbert_data ? `INSERT OR REPLACE INTO kb_financial_analysis (company_id, analysis_type, sentiment, confidence_score, analysis_data)\\nVALUES (${$json.company_id}, 'finbert', '${$json.finbert_data.sentiment || 'neutral'}', ${$json.finbert_data.confidence || 0.5}, '${JSON.stringify($json.finbert_data).replace(/'/g, \"''\")}');` : '-- No FinBERT data to store' }}\\n\\n-- Get summary of stored knowledge base\\nSELECT \\n  (SELECT COUNT(*) FROM kb_documents WHERE company_id = {{ $json.company_id }}) as documents_count,\\n  (SELECT COUNT(*) FROM kb_financial_analysis WHERE company_id = {{ $json.company_id }}) as financial_analyses_count,\\n  '{{ $json.company_name }}' as company_name,\\n  {{ $json.company_id }} as company_id;",\n        "options": {}\n      },\n      "name": "Store Knowledge Base",\n      "type": "n8n-nodes-base.sqlite",\n      "typeVersion": 1,\n      "position": [200, 400],\n      "id": "store-kb",\n      "credentials": {\n        "sqlite": {\n          "id": "sqlite-kb",\n          "name": "Knowledge Base DB"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "operation": "executeQuery",\n        "query": "-- Check if due diligence report already exists\\nSELECT \\n  id as report_id,\\n  status,\\n  completed_sections,\\n  total_sections\\nFROM dd_reports \\nWHERE company_id = {{ $json.company_id }}\\nLIMIT 1;",\n        "options": {}\n      },\n      "name": "Check Existing Report",\n      "type": "n8n-nodes-base.sqlite",\n      "typeVersion": 1,\n      "position": [400, 400],\n      "id": "check-report",\n      "credentials": {\n        "sqlite": {\n          "id": "sqlite-kb",\n          "name": "Knowledge Base DB"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "conditions": {\n          "number": [\n            {\n              "value1": "={{ $json.length }}",\n              "operation": "equal",\n              "value2": 0\n            }\n          ]\n        }\n      },\n      "name": "Report Exists?",\n      "type": "n8n-nodes-base.if",\n      "typeVersion": 1,\n      "position": [600, 400],\n      "id": "report-exists-check"\n    },\n    {\n      "parameters": {\n        "operation": "executeQuery",\n        "query": "-- Create new due diligence report\\nINSERT INTO dd_reports (company_id, company_name, kanboard_task_id, status, total_sections, completed_sections)\\nVALUES ({{ $('Store Knowledge Base').first().json.company_id }}, \\n        '{{ $('Process Knowledge Base').first().json.company_name }}', \\n        {{ $('Process Knowledge Base').first().json.kanboard_task_id }}, \\n        'in_progress', 20, 0);\\n\\n-- Get the new report ID\\nSELECT \\n  id as report_id,\\n  company_id,\\n  company_name,\\n  status,\\n  total_sections,\\n  completed_sections\\nFROM dd_reports \\nWHERE company_id = {{ $('Store Knowledge Base').first().json.company_id }}\\nORDER BY id DESC\\nLIMIT 1;",\n        "options": {}\n      },\n      "name": "Create New Report",\n      "type": "n8n-nodes-base.sqlite",\n      "typeVersion": 1,\n      "position": [800, 300],\n      "id": "create-report",\n      "credentials": {\n        "sqlite": {\n          "id": "sqlite-kb",\n          "name": "Knowledge Base DB"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "operation": "executeQuery",\n        "query": "-- Create all 20 sections for the report if they don't exist\\nINSERT OR IGNORE INTO dd_sections (report_id, section_name, section_index, section_status)\\nVALUES \\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Introduction & Engagement Context', 1, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Methodology & Reliability Levels', 2, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Company Overview', 3, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Business Model & Unit Economics', 4, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Products & Technology', 5, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Target Market & Competitive Set', 6, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Financials', 7, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Cash, Burn, Runway', 8, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Revenue Quality & Client Cohorts', 9, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Partnerships & Ecosystem', 10, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Intellectual Property', 11, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Legal & Regulatory', 12, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Governance & Board Effectiveness', 13, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Capital Structure & Dilution', 14, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Risk Matrix & Mitigations', 15, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Gaps, Uncertainties & Disclaimers', 16, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Scenario Analysis', 17, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Strategic Options', 18, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Recommendations & Next Steps', 19, 'pending'),\\n  ({{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}, 'Source Map & Integrity Log', 20, 'pending');\\n\\n-- Find next section to process\\nSELECT \\n  id as section_id,\\n  section_name,\\n  section_index,\\n  section_status\\nFROM dd_sections \\nWHERE report_id = {{ $('Check Existing Report').first().json[0]?.report_id || $('Create New Report').first().json[0]?.report_id }}\\n  AND section_status IN ('pending', 'maker_draft', 'checker_review', 'approver_review')\\nORDER BY section_index\\nLIMIT 1;",\n        "options": {}\n      },\n      "name": "Get Next Section",\n      "type": "n8n-nodes-base.sqlite",\n      "typeVersion": 1,\n      "position": [800, 500],\n      "id": "get-next-section",\n      "credentials": {\n        "sqlite": {\n          "id": "sqlite-kb",\n          "name": "Knowledge Base DB"\n        }\n      }\n    }\n  ],\n  "connections": {\n    "Every 2 Minutes": {\n      "main": [\n        [\n          {\n            "node": "Get Kanboard Tasks",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Get Kanboard Tasks": {\n      "main": [\n        [\n          {\n            "node": "Initialize Databases",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Initialize Databases": {\n      "main": [\n        [\n          {\n            "node": "Find Due Diligence Tasks",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Find Due Diligence Tasks": {\n      "main": [\n        [\n          {\n            "node": "Check Company in DB",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Check Company in DB": {\n      "main": [\n        [\n          {\n            "node": "Company Exists?",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Company Exists?": {\n      "main": [\n        [\n          {\n            "node": "Create New Company",\n            "type": "main",\n            "index": 0\n          }\n        ],\n        [\n          {\n            "node": "Get Task PDFs",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Create New Company": {\n      "main": [\n        [\n          {\n            "node": "Get Task PDFs",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Get Task PDFs": {\n      "main": [\n        [\n          {\n            "node": "Run FinBERT Analysis",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Run FinBERT Analysis": {\n      "main": [\n        [\n          {\n            "node": "Process Knowledge Base",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Process Knowledge Base": {\n      "main": [\n        [\n          {\n            "node": "Store Knowledge Base",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Store Knowledge Base": {\n      "main": [\n        [\n          {\n            "node": "Check Existing Report",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Check Existing Report": {\n      "main": [\n        [\n          {\n            "node": "Report Exists?",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Report Exists?": {\n      "main": [\n        [\n          {\n            "node": "Create New Report",\n            "type": "main",\n            "index": 0\n          }\n        ],\n        [\n          {\n            "node": "Get Next Section",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Create New Report": {\n      "main": [\n        [\n          {\n            "node": "Get Next Section",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    }\n  },\n  "active": false,\n  "settings": {\n    "executionOrder": "v1"\n  },\n  "versionId": "proper-mca-v1",\n  "meta": {\n    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"\n  },\n  "id": "PROPER-MCA-WORKFLOW",\n  "tags": []\n}
+  

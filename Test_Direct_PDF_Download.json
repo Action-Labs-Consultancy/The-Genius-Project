@@ -1,0 +1,181 @@
+{
+  "name": "Test Direct PDF Download",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        300
+      ],
+      "id": "get-tasks"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get first task that might have files\nconst tasks = $input.first().json.result || [];\nif (tasks.length === 0) {\n  throw new Error('No tasks found');\n}\n\nconst firstTask = tasks[0];\nconsole.log(`Using task: ${firstTask.title} (ID: ${firstTask.id})`);\n\nreturn {\n  json: {\n    task_id: parseInt(firstTask.id),\n    title: firstTask.title\n  }\n};"
+      },
+      "name": "Get First Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "get-first-task"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Task Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "id": "get-files"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check for any files and try to download the first one\nconst taskData = $input.first().json;\nconst filesResponse = $input.last().json;\n\nconst files = filesResponse.result || [];\nconsole.log(`Task ${taskData.task_id} has ${files.length} files`);\n\nif (files.length === 0) {\n  throw new Error(`No files found for task ${taskData.task_id}`);\n}\n\nconst firstFile = files[0];\nconsole.log(`First file: ${firstFile.name} (${firstFile.size} bytes)`);\nconsole.log(`MIME type: ${firstFile.mimetype}`);\n\nconst downloadUrl = `/index.php?controller=FileController&action=download&file_id=${firstFile.id}&token=${firstFile.token}`;\nconsole.log(`Download URL: ${downloadUrl}`);\n\nreturn {\n  json: {\n    ...taskData,\n    file_id: firstFile.id,\n    file_name: firstFile.name,\n    file_size: firstFile.size,\n    file_mimetype: firstFile.mimetype,\n    download_url: downloadUrl\n  }\n};"
+      },
+      "name": "Prepare Download",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        800,
+        300
+      ],
+      "id": "prepare-download"
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:8000{{ $json.download_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ],
+      "id": "download-file"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze what we actually downloaded\nconst item = $input.first();\nconst binaryData = item.binary;\n\nconsole.log(`\\n=== DOWNLOAD ANALYSIS ===`);\nconsole.log(`Binary data available: ${!!binaryData}`);\n\nif (binaryData) {\n  console.log(`Binary data keys: ${Object.keys(binaryData)}`);\n  \n  if (binaryData.data) {\n    const fileName = binaryData.data.fileName || 'unknown';\n    const mimeType = binaryData.data.mimeType || 'unknown';\n    const fileSize = binaryData.data.fileSize || 0;\n    \n    console.log(`Downloaded file name: ${fileName}`);\n    console.log(`Downloaded MIME type: ${mimeType}`);\n    console.log(`Downloaded file size: ${fileSize} bytes`);\n    \n    // Try to peek at the file content (first 100 bytes)\n    if (binaryData.data.data) {\n      const buffer = Buffer.from(binaryData.data.data, 'base64');\n      const firstBytes = buffer.slice(0, 100).toString('ascii');\n      console.log(`First 100 bytes (ASCII): ${firstBytes}`);\n      \n      // Check if it starts with PDF signature\n      const pdfSignature = buffer.slice(0, 4).toString('ascii');\n      console.log(`PDF signature check: \"${pdfSignature}\" (should be \"%PDF\")`);\n      console.log(`Is valid PDF: ${pdfSignature === '%PDF'}`);\n    }\n  }\n}\n\nreturn {\n  json: {\n    analysis: 'Download completed - check console for details',\n    has_binary: !!binaryData,\n    has_data: !!(binaryData && binaryData.data)\n  }\n};"
+      },
+      "name": "Analyze Download",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        300
+      ],
+      "id": "analyze-download"
+    }
+  ],
+  "connections": {
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get First Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get First Task": {
+      "main": [
+        [
+          {
+            "node": "Get Task Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task Files": {
+      "main": [
+        [
+          {
+            "node": "Prepare Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Download": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Analyze Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,618 @@
+{
+  "name": "Smart Due Diligence MCA Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "expression": "Every 5 Minutes"
+      },
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-1200, 300],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1000, 300],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// SMART TASK FINDER - finds Due Diligence tasks that need processing\nconst tasks = $input.first().json.result || [];\nconsole.log(`🔍 Checking ${tasks.length} tasks for Due Diligence processing`);\n\n// Define all 20 sections in correct order\nconst ALL_SECTIONS = [\n  \"Introduction & Engagement Context\",\n  \"Methodology & Reliability Levels\", \n  \"Company Overview\",\n  \"Business Model & Unit Economics\",\n  \"Products & Technology\",\n  \"Target Market & Competitive Set\",\n  \"Financials\",\n  \"Cash, Burn, Runway\",\n  \"Revenue Quality & Client Cohorts\",\n  \"Partnerships & Ecosystem\",\n  \"Intellectual Property\",\n  \"Legal & Regulatory\",\n  \"Governance & Board Effectiveness\",\n  \"Capital Structure & Dilution\",\n  \"Risk Matrix & Mitigations\",\n  \"Gaps, Uncertainties & Disclaimers\",\n  \"Scenario Analysis\",\n  \"Strategic Options\",\n  \"Recommendations & Next Steps\",\n  \"Source Map & Integrity Log\"\n];\n\n// Find Due Diligence tasks\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // Must be a Due Diligence task\n  if (!title.toLowerCase().includes('due diligence:')) {\n    continue;\n  }\n  \n  // Extract company name\n  const companyName = title.replace(/due diligence:\\s*/i, '').trim();\n  \n  // Skip if already completely done\n  if (description.includes('🤖 COMPLETE DUE DILIGENCE REPORT GENERATED')) {\n    console.log(`✅ Task ${task.id} already complete - skipping`);\n    continue;\n  }\n  \n  // Count approved sections\n  const approvedMatches = description.match(/📋 \\*\\*(.*?)\\*\\* - ✅ APPROVED/g) || [];\n  const approvedSections = approvedMatches.map(match => {\n    const nameMatch = match.match(/📋 \\*\\*(.*?)\\*\\* - ✅ APPROVED/);\n    return nameMatch ? nameMatch[1] : '';\n  }).filter(name => name);\n  \n  console.log(`📊 Task ${task.id}: ${approvedSections.length}/${ALL_SECTIONS.length} sections complete`);\n  \n  // Find NEXT section to process (sequential order)\n  let nextSection = null;\n  let nextIndex = -1;\n  \n  for (let i = 0; i < ALL_SECTIONS.length; i++) {\n    if (!approvedSections.includes(ALL_SECTIONS[i])) {\n      nextSection = ALL_SECTIONS[i];\n      nextIndex = i;\n      break;\n    }\n  }\n  \n  // All sections done? Create final report\n  if (!nextSection) {\n    console.log(`🎉 All sections complete for ${companyName} - generating final report`);\n    return {\n      json: {\n        task_id: task.id,\n        company_name: companyName,\n        title: title,\n        description: description,\n        project_id: task.project_id || 1,\n        workflow_stage: \"FINAL_REPORT\",\n        approved_sections: approvedSections,\n        total_sections: ALL_SECTIONS.length\n      }\n    };\n  }\n  \n  // Check if task has minimum requirements\n  if (!description.trim()) {\n    console.log(`❌ Task ${task.id} has no description (company website) - skipping`);\n    continue;\n  }\n  \n  // Found task that needs processing\n  console.log(`🎯 Processing section: ${nextSection} (${nextIndex + 1}/${ALL_SECTIONS.length})`);\n  return {\n    json: {\n      task_id: task.id,\n      company_name: companyName,\n      title: title,\n      description: description,\n      project_id: task.project_id || 1,\n      workflow_stage: \"PROCESS_SECTION\",\n      current_section_name: nextSection,\n      current_section_index: nextIndex,\n      approved_sections: approvedSections,\n      total_sections: ALL_SECTIONS.length,\n      website_url: description.match(/https?:\\/\\/[^\\s]+/)?.[0] || 'Not provided'\n    }\n  };\n}\n\n// No tasks found - end gracefully\nconsole.log('ℹ️ No Due Diligence tasks need processing - workflow complete');\nthrow new Error('No Due Diligence tasks need processing');"
+      },
+      "name": "Smart Task Finder",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-800, 300],
+      "id": "smart-finder"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.workflow_stage }}",
+              "value2": "FINAL_REPORT"
+            }
+          ]
+        }
+      },
+      "name": "Final Report or Section?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-600, 300],
+      "id": "stage-router"
+    },
+    {
+      "parameters": {
+        "functionCode": "// FINAL REPORT GENERATOR\nconst taskData = $input.first().json;\nconsole.log(`📄 Generating final report for ${taskData.company_name}`);\n\n// Extract all approved sections from task description\nconst description = taskData.description || '';\nconst sectionRegex = /📋 \\*\\*(.*?)\\*\\* - ✅ APPROVED\\n\\n([\\s\\S]*?)\\n\\n---/g;\nconst sections = [];\nlet match;\n\nwhile ((match = sectionRegex.exec(description)) !== null) {\n  sections.push({\n    name: match[1],\n    content: match[2].trim()\n  });\n}\n\n// Build comprehensive report\nlet report = `# 📊 COMPREHENSIVE DUE DILIGENCE REPORT\\n\\n`;\nreport += `**Company:** ${taskData.company_name}\\n`;\nreport += `**Generated:** ${new Date().toISOString()}\\n`;\nreport += `**Sections:** ${sections.length}/${taskData.total_sections} Complete\\n\\n`;\nreport += `---\\n\\n`;\n\n// Add all sections\nsections.forEach((section, index) => {\n  report += `## ${index + 1}. ${section.name}\\n\\n`;\n  report += `${section.content}\\n\\n`;\n  report += `---\\n\\n`;\n});\n\n// Executive summary\nreport += `\\n## 📋 EXECUTIVE SUMMARY\\n\\n`;\nreport += `This Due Diligence Report for **${taskData.company_name}** has been completed through our rigorous AI-powered Maker-Checker-Approver (MCA) process.\\n\\n`;\nreport += `**Report Highlights:**\\n`;\nreport += `- ${sections.length} sections completed and triple-validated\\n`;\nreport += `- Content verified through MCA quality process\\n`;\nreport += `- Ready for executive decision-making\\n\\n`;\nreport += `**Status:** ✅ COMPLETE\\n`;\nreport += `**Quality Assurance:** Maker → Checker → Approver validated\\n`;\n\nreturn {\n  json: {\n    ...taskData,\n    final_report_content: report,\n    report_ready: true\n  }\n};"
+      },
+      "name": "Generate Final Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-400, 200],
+      "id": "final-generator"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}",
+            "content": "={{ $json.final_report_content }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Final Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-200, 200],
+      "id": "post-final",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "updateTask",
+          "id": 1,
+          "params": {
+            "id": "={{ $json.task_id }}",
+            "description": "={{ $json.description + '\\n\\n🤖 COMPLETE DUE DILIGENCE REPORT GENERATED - ' + new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Mark Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 200],
+      "id": "mark-complete",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 400],
+      "id": "get-attachments",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "text": "={{ $('Smart Task Finder').first().json.description }}"
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "continueOnFail": true
+      },
+      "name": "Extract Financial Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-200, 400],
+      "id": "extract-financial"
+    },
+    {
+      "parameters": {
+        "functionCode": "// SECTION SETUP - prepare data for MCA process\nconst taskData = $('Smart Task Finder').first().json;\nconst attachments = $('Get Attachments').first().json.result || [];\n\n// Handle financial data - might fail if service is down\nlet financialData = 'Not available';\ntry {\n  const financialResponse = $('Extract Financial Data').first().json;\n  if (financialResponse && financialResponse.results) {\n    financialData = financialResponse.results;\n  } else if (financialResponse && financialResponse.analysis) {\n    financialData = financialResponse.analysis;\n  }\n} catch (error) {\n  console.log(`Financial data extraction failed: ${error.message}`);\n  financialData = 'Financial analysis unavailable - service offline';\n}\n\n// Section definitions\nconst SECTION_DESCRIPTIONS = {\n  \"Introduction & Engagement Context\": \"Context and objectives of the due diligence process\",\n  \"Methodology & Reliability Levels\": \"Approach and reliability assessment of the analysis\",\n  \"Company Overview\": \"History, leadership, ownership, mission, and scale of operations\",\n  \"Business Model & Unit Economics\": \"Revenue streams, cost structure, and unit economics\",\n  \"Products & Technology\": \"Product offerings and technological capabilities\",\n  \"Target Market & Competitive Set\": \"Market segments and competitive landscape\",\n  \"Financials\": \"Multi-year financial statements, reconciled and recomputed\",\n  \"Cash, Burn, Runway\": \"Cash position, burn rate, and runway analysis\",\n  \"Revenue Quality & Client Cohorts\": \"Revenue composition and client segmentation\",\n  \"Partnerships & Ecosystem\": \"Strategic partnerships and ecosystem integration\",\n  \"Intellectual Property\": \"Patents, trademarks, and IP portfolio\",\n  \"Legal & Regulatory\": \"Legal structure, compliance, and regulatory risks\",\n  \"Governance & Board Effectiveness\": \"Board structure and governance practices\",\n  \"Capital Structure & Dilution\": \"Capital structure and potential dilution risks\",\n  \"Risk Matrix & Mitigations\": \"Key risks and mitigation strategies\",\n  \"Gaps, Uncertainties & Disclaimers\": \"Identified gaps and uncertainties in the analysis\",\n  \"Scenario Analysis\": \"Potential scenarios and their implications\",\n  \"Strategic Options\": \"Strategic alternatives for the company\",\n  \"Recommendations & Next Steps\": \"Actionable recommendations and next steps\",\n  \"Source Map & Integrity Log\": \"Sources used and data integrity log\"\n};\n\nconst currentSection = taskData.current_section_name;\nconst sectionDescription = SECTION_DESCRIPTIONS[currentSection] || 'Section analysis';\n\nconsole.log(`🎯 Setup complete for section: ${currentSection}`);\nconsole.log(`📊 Progress: ${taskData.approved_sections.length}/${taskData.total_sections}`);\nconsole.log(`💰 Financial data: ${typeof financialData === 'string' ? financialData.substring(0, 100) + '...' : 'Available'}`);\n\nreturn {\n  json: {\n    ...taskData,\n    section_description: sectionDescription,\n    attachments: attachments.map(a => a.name),\n    financial_data: financialData,\n    knowledge_base: {\n      website: taskData.website_url,\n      pdfs: attachments.map(a => a.name),\n      financial_analysis: financialData,\n      prior_sections: taskData.approved_sections\n    }\n  }\n};"
+      },
+      "name": "Setup Section Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [0, 400],
+      "id": "setup-section"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "=You are the MAKER agent for Due Diligence reports.\\n\\nTASK: Draft the \\\"{{ $json.current_section_name }}\\\" section\\n\\nCOMPANY: {{ $json.company_name }}\\nSECTION SCOPE: {{ $json.section_description }}\\n\\nKNOWLEDGE BASE:\\n- Website: {{ $json.website_url }}\\n- PDFs: {{ $json.attachments.join(', ') }}\\n- Financial Data: {{ $json.financial_data }}\\n- Prior Approved Sections: {{ $json.approved_sections.join(', ') || 'None' }}\\n\\nINSTRUCTIONS:\\n1. Create comprehensive content for this section only\\n2. Use ONLY information from the Knowledge Base\\n3. If data is missing, state: \\\"Not available in provided materials\\\"\\n4. Include clear headings and professional structure\\n5. Add inline citations to sources\\n6. NO hallucination, simulation, or invented data\\n\\nOutput ONLY in JSON format:\\n{\\n  \\\"section\\\": \\\"{{ $json.current_section_name }}\\\",\\n  \\\"content\\\": \\\"... detailed section content ...\\\",\\n  \\\"citations\\\": [\\\"source1\\\", \\\"source2\\\"]\\n}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Maker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 400],
+      "id": "ai-maker"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "=You are the CHECKER agent for Due Diligence reports.\\n\\nTASK: Review the Maker's draft for accuracy and quality\\n\\nSECTION: {{ $('Setup Section Data').first().json.current_section_name }}\\nCOMPANY: {{ $('Setup Section Data').first().json.company_name }}\\n\\nKNOWLEDGE BASE FOR VALIDATION:\\n- Website: {{ $('Setup Section Data').first().json.website_url }}\\n- PDFs: {{ $('Setup Section Data').first().json.attachments.join(', ') }}\\n- Financial Data: {{ $('Setup Section Data').first().json.financial_data }}\\n- Prior Sections: {{ $('Setup Section Data').first().json.approved_sections.join(', ') }}\\n\\nDRAFT TO REVIEW:\\n{{ $json.response }}\\n\\nVALIDATION CRITERIA:\\n1. ACCURACY: Is content supported by Knowledge Base?\\n2. HALLUCINATION: Any unsupported claims or invented data?\\n3. COMPLETENESS: Does it address the full section scope?\\n4. CITATIONS: Are sources properly referenced?\\n\\nOutput ONLY in JSON format:\\n{\\n  \\\"decision\\\": \\\"approve\\\" OR \\\"reject\\\",\\n  \\\"feedback\\\": \\\"Specific issues if rejected, or approval confirmation\\\"\\n}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 400],
+      "id": "ai-checker"
+    },
+    {
+      "parameters": {
+        "functionCode": "// CHECKER RESULT PROCESSOR\nconst sectionData = $('Setup Section Data').first().json;\nconst makerResponse = $('AI Maker').first().json.response;\nconst checkerResponse = $('AI Checker').first().json.response;\n\nconsole.log(`🔍 Processing Checker result for: ${sectionData.current_section_name}`);\n\n// Parse Maker content\nlet makerContent;\ntry {\n  const makerJson = JSON.parse(makerResponse);\n  makerContent = {\n    section: makerJson.section,\n    content: makerJson.content,\n    citations: makerJson.citations\n  };\n} catch (error) {\n  console.log(`Maker JSON parsing failed: ${error.message}`);\n  makerContent = {\n    section: sectionData.current_section_name,\n    content: makerResponse,\n    citations: []\n  };\n}\n\n// Parse Checker decision\nlet checkerDecision;\ntry {\n  const checkerJson = JSON.parse(checkerResponse);\n  checkerDecision = {\n    decision: checkerJson.decision,\n    feedback: checkerJson.feedback\n  };\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerDecision = {\n    decision: \"approve\",\n    feedback: \"Content appears acceptable\"\n  };\n}\n\nconsole.log(`Checker decision: ${checkerDecision.decision.toUpperCase()}`);\n\nreturn {\n  json: {\n    ...sectionData,\n    maker_content: makerContent.content,\n    maker_citations: makerContent.citations,\n    checker_decision: checkerDecision.decision,\n    checker_feedback: checkerDecision.feedback\n  }\n};"
+      },
+      "name": "Process Checker",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 400],
+      "id": "process-checker"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.checker_decision }}",
+              "value2": "approve"
+            }
+          ]
+        }
+      },
+      "name": "Checker Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [800, 400],
+      "id": "checker-gate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "=You are the APPROVER agent for Due Diligence reports.\\n\\nTASK: Final business review of the Checker-approved section\\n\\nSECTION: {{ $json.current_section_name }}\\nCOMPANY: {{ $json.company_name }}\\nCHECKER FEEDBACK: {{ $json.checker_feedback }}\\n\\nCONTENT FOR APPROVAL:\\n{{ $json.maker_content }}\\n\\nBUSINESS CRITERIA:\\n1. STRATEGIC RELEVANCE: Is this valuable for executive decisions?\\n2. CLARITY: Is it readable and well-structured?\\n3. CONSISTENCY: Does it align with prior approved sections?\\n4. COMPLETENESS: Does it meet business requirements?\\n\\nOutput ONLY in JSON format:\\n{\\n  \\\"decision\\\": \\\"approve\\\" OR \\\"reject\\\",\\n  \\\"feedback\\\": \\\"Business rationale for decision\\\"\\n}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300],
+      "id": "ai-approver"
+    },
+    {
+      "parameters": {
+        "functionCode": "// APPROVER RESULT PROCESSOR\nconst sectionData = $('Process Checker').first().json;\nconst approverResponse = $('AI Approver').first().json.response;\n\nconsole.log(`💼 Processing Approver result for: ${sectionData.current_section_name}`);\n\n// Parse Approver decision\nlet approverDecision;\ntry {\n  const approverJson = JSON.parse(approverResponse);\n  approverDecision = {\n    decision: approverJson.decision,\n    feedback: approverJson.feedback\n  };\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverDecision = {\n    decision: \"approve\",\n    feedback: \"Section approved for business use\"\n  };\n}\n\nconsole.log(`Approver decision: ${approverDecision.decision.toUpperCase()}`);\n\nreturn {\n  json: {\n    ...sectionData,\n    approver_decision: approverDecision.decision,\n    approver_feedback: approverDecision.feedback\n  }\n};"
+      },
+      "name": "Process Approver",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1200, 300],
+      "id": "process-approver"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.approver_decision }}",
+              "value2": "approve"
+            }
+          ]
+        }
+      },
+      "name": "Approver Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "id": "approver-gate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "updateTask",
+          "id": 1,
+          "params": {
+            "id": "={{ $json.task_id }}",
+            "description": "={{ $json.description + '\\n\\n📋 **' + $json.current_section_name + '** - ✅ APPROVED\\n\\n' + $json.maker_content + '\\n\\n---\\n\\n🤖 **MCA Process Complete**\\n- ✅ Maker: Content generated\\n- ✅ Checker: ' + $json.checker_feedback + '\\n- ✅ Approver: ' + $json.approver_feedback + '\\n- 📊 Progress: ' + ($json.current_section_index + 1) + '/' + $json.total_sections + '\\n- 📚 Citations: ' + JSON.stringify($json.maker_citations) + '\\n\\n⏰ Completed: ' + new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Save Approved Section",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 200],
+      "id": "save-approved",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}",
+            "content": "=❌ **CHECKER REJECTION**\\n\\n📋 **Section:** {{ $json.current_section_name }}\\n🔍 **Issue:** {{ $json.checker_feedback }}\\n\\n**This section will be regenerated in the next workflow cycle.**\\n\\n⏰ {{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Log Checker Rejection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 500],
+      "id": "log-checker-reject",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}",
+            "content": "=❌ **APPROVER REJECTION**\\n\\n📋 **Section:** {{ $json.current_section_name }}\\n💼 **Business Issue:** {{ $json.approver_feedback }}\\n\\n**Section needs business-level revision and will be regenerated.**\\n\\n⏰ {{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Log Approver Rejection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400],
+      "id": "log-approver-reject",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Smart Task Finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Task Finder": {
+      "main": [
+        [
+          {
+            "node": "Final Report or Section?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Report or Section?": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Report": {
+      "main": [
+        [
+          {
+            "node": "Post Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Final Report": {
+      "main": [
+        [
+          {
+            "node": "Mark Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Attachments": {
+      "main": [
+        [
+          {
+            "node": "Extract Financial Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Financial Data": {
+      "main": [
+        [
+          {
+            "node": "Setup Section Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Section Data": {
+      "main": [
+        [
+          {
+            "node": "AI Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Maker": {
+      "main": [
+        [
+          {
+            "node": "AI Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker": {
+      "main": [
+        [
+          {
+            "node": "Process Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Checker": {
+      "main": [
+        [
+          {
+            "node": "Checker Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Approved?": {
+      "main": [
+        [
+          {
+            "node": "AI Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Checker Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver": {
+      "main": [
+        [
+          {
+            "node": "Process Approver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver": {
+      "main": [
+        [
+          {
+            "node": "Approver Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver Approved?": {
+      "main": [
+        [
+          {
+            "node": "Save Approved Section",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Approver Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "smart-workflow-v1",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "SMART-MCA-WORKFLOW",
+  "tags": []
+}

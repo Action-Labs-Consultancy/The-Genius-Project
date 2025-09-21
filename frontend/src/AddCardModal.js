@@ -7,6 +7,7 @@ const CARD_TYPES = [
   { type: 'calendar', title: 'SM Content Calendar', icon: '📅', subtitle: 'Plan content' },
   { type: 'influencers', title: 'Influencers', icon: '🤝', subtitle: 'Manage influencers' },
   { type: 'dashboard', title: 'Data Dashboard', icon: '📈', subtitle: 'Track metrics' },
+  { type: 'contracts', title: 'Contracts', icon: '📋', subtitle: 'View client contracts' },
 ];
 
 const PRO_TIPS = [
@@ -16,6 +17,7 @@ const PRO_TIPS = [
   'SM Content Calendar: Plan and schedule content.',
   'Influencers: Manage influencer relationships.',
   'Data Dashboard: Visualize KPIs and analytics.',
+  'Contracts: View and download AI-generated contracts.',
 ];
 
 export default function AddCardModal({ client, onClose, onAdd }) {

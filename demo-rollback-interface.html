@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Database Rollback Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            height: fit-content;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .status-section {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+        
+        .current-data {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .data-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .data-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .data-label {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+        
+        .action-section {
+            margin-bottom: 25px;
+        }
+        
+        .action-section h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-warning { background: #d69e2e; color: white; }
+        
+        .btn:hover { transform: translateY(-1px); opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .warning-box {
+            background: #fef5e7;
+            border: 2px solid #f6ad55;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .warning-title {
+            font-weight: 600;
+            color: #c05621;
+            margin-bottom: 5px;
+        }
+        
+        .backups-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .backup-item {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .backup-item:hover {
+            background: #f7fafc;
+        }
+        
+        .backup-item.selected {
+            background: #e6fffa;
+            border-color: #38a169;
+        }
+        
+        .backup-item:last-child {
+            border-bottom: none;
+        }
+        
+        .backup-name {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .backup-details {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+        
+        .notification.success { background: #38a169; }
+        .notification.error { background: #e53e3e; }
+        .notification.warning { background: #d69e2e; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .timeline {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .timeline-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #4a5568;
+        }
+        
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+        
+        .confirmation-section {
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .confirmation-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .confirmation-checkbox input[type="checkbox"] {
+            margin-top: 4px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel: Database Status & Operations -->
+        <div class="panel">
+            <div class="header">
+                <h1>🛡️ Demo Database Management</h1>
+                <p style="color: #718096; font-size: 14px;">PostgreSQL Rollback Simulation</p>
+            </div>
+            
+            <div class="status-section">
+                <div class="status-indicator">
+                    <div id="status-dot" class="status-dot"></div>
+                    <div>
+                        <strong>Database Status:</strong>
+                        <span id="status-text">Checking...</span>
+                    </div>
+                </div>
+                <div style="font-size: 12px; color: #718096; margin-bottom: 15px;">
+                    Last Updated: <span id="last-updated">--</span>
+                </div>
+                
+                <div class="current-data">
+                    <div class="data-card">
+                        <div id="users-count" class="data-value">--</div>
+                        <div class="data-label">Users</div>
+                    </div>
+                    <div class="data-card">
+                        <div id="projects-count" class="data-value">--</div>
+                        <div class="data-label">Projects</div>
+                    </div>
+                    <div class="data-card">
+                        <div id="workflows-count" class="data-value">--</div>
+                        <div class="data-label">Workflows</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-section">
+                <h3>🎮 Demo Operations</h3>
+                <div class="btn-group">
+                    <button id="add-data-btn" class="btn btn-primary">
+                        ➕ Add Demo Data
+                    </button>
+                    <button id="create-backup-btn" class="btn btn-success">
+                        💾 Create Backup
+                    </button>
+                    <button id="reset-data-btn" class="btn btn-warning">
+                        🔄 Reset Demo
+                    </button>
+                </div>
+            </div>
+            
+            <div class="action-section">
+                <h3>🚨 Emergency Rollback</h3>
+                
+                <div class="form-group">
+                    <label for="rollback-type">Rollback Method:</label>
+                    <select id="rollback-type">
+                        <option value="pitr">Point-in-Time Recovery (PITR)</option>
+                        <option value="backup">Restore from Backup File</option>
+                    </select>
+                </div>
+                
+                <div id="pitr-options">
+                    <div class="form-group">
+                        <label for="target-time">Target Recovery Time:</label>
+                        <input type="datetime-local" id="target-time">
+                        <div style="font-size: 12px; color: #718096; margin-top: 4px;">
+                            Demo will simulate data loss based on time difference
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="backup-options" style="display: none;">
+                    <div class="form-group">
+                        <label>Available Backups:</label>
+                        <div id="backups-list" class="backups-list">
+                            <div style="padding: 20px; text-align: center; color: #718096;">
+                                Loading backups...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="warning-box">
+                    <div class="warning-title">⚠️ Demo Warning</div>
+                    <div style="color: #744210; font-size: 14px;">
+                        This is a simulation. In a real scenario, this would modify your actual database.
+                    </div>
+                </div>
+                
+                <div class="confirmation-section">
+                    <div class="confirmation-checkbox">
+                        <input type="checkbox" id="confirm-rollback">
+                        <label for="confirm-rollback" style="font-size: 14px; color: #742a2a;">
+                            I understand this is a demo operation and want to proceed with the simulated rollback.
+                        </label>
+                    </div>
+                </div>
+                
+                <button id="execute-rollback-btn" class="btn btn-danger" style="width: 100%;" disabled>
+                    🚨 Execute Demo Rollback
+                </button>
+            </div>
+        </div>
+        
+        <!-- Right Panel: Activity Log & Backups -->
+        <div class="panel">
+            <div class="header">
+                <h1>📊 Activity Monitor</h1>
+                <p style="color: #718096; font-size: 14px;">Real-time Operations Log</p>
+            </div>
+            
+            <div class="action-section">
+                <h3>📋 Available Backups</h3>
+                <div id="backups-display" style="min-height: 150px;">
+                    <div style="padding: 20px; text-align: center; color: #718096;">
+                        No backups created yet
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-section">
+                <h3>📝 Activity Timeline</h3>
+                <div id="activity-timeline" class="timeline">
+                    <div class="timeline-item">
+                        <strong>System initialized</strong> - Demo database ready
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                <div style="font-size: 12px; color: #718096;">
+                    Demo API Server: http://localhost:10001<br>
+                    <button id="refresh-all-btn" class="btn btn-primary" style="margin-top: 10px;">
+                        🔄 Refresh All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:10001';
+        let selectedBackupFile = '';
+        let activityLog = [];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await updateDatabaseStatus();
+            await loadBackups();
+            setupEventListeners();
+            setDefaultTime();
+            addActivity('Page loaded', 'Demo interface initialized');
+        });
+        
+        function setupEventListeners() {
+            document.getElementById('rollback-type').addEventListener('change', handleRollbackTypeChange);
+            document.getElementById('confirm-rollback').addEventListener('change', handleConfirmationChange);
+            document.getElementById('execute-rollback-btn').addEventListener('click', executeRollback);
+            document.getElementById('create-backup-btn').addEventListener('click', createBackup);
+            document.getElementById('add-data-btn').addEventListener('click', addDemoData);
+            document.getElementById('reset-data-btn').addEventListener('click', resetDemoData);
+            document.getElementById('refresh-all-btn').addEventListener('click', refreshAllData);
+        }
+        
+        function setDefaultTime() {
+            const targetTime = document.getElementById('target-time');
+            const oneHourAgo = new Date(Date.now() - 3600000);
+            const timestamp = oneHourAgo.toISOString().slice(0, 19);
+            targetTime.value = timestamp;
+        }
+        
+        async function updateDatabaseStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/status`);
+                const data = await response.json();
+                
+                document.getElementById('status-text').textContent = 'Healthy';
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                
+                if (data.database && data.database.currentState) {
+                    const state = data.database.currentState.data;
+                    document.getElementById('users-count').textContent = state.users;
+                    document.getElementById('projects-count').textContent = state.projects;
+                    document.getElementById('workflows-count').textContent = state.workflows;
+                }
+            } catch (error) {
+                document.getElementById('status-text').textContent = 'API Unavailable';
+                addActivity('Error', 'Failed to connect to demo API server');
+            }
+        }
+        
+        async function loadBackups() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/backups`);
+                const data = await response.json();
+                
+                const backupsList = document.getElementById('backups-list');
+                const backupsDisplay = document.getElementById('backups-display');
+                
+                if (data.backups && data.backups.length > 0) {
+                    backupsList.innerHTML = data.backups.map(backup => `
+                        <div class="backup-item" onclick="selectBackup('${backup.filename}')">
+                            <div class="backup-name">${backup.filename}</div>
+                            <div class="backup-details">
+                                Size: ${backup.size} | Created: ${new Date(backup.created).toLocaleString()}
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    backupsDisplay.innerHTML = data.backups.map(backup => `
+                        <div style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px;">
+                            <div style="font-weight: 600; color: #2d3748;">${backup.filename}</div>
+                            <div style="font-size: 12px; color: #718096;">${new Date(backup.created).toLocaleString()}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    backupsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #718096;">No backups available</div>';
+                    backupsDisplay.innerHTML = '<div style="padding: 20px; text-align: center; color: #718096;">No backups created yet</div>';
+                }
+            } catch (error) {
+                addActivity('Error', 'Failed to load backups');
+            }
+        }
+        
+        function handleRollbackTypeChange() {
+            const rollbackType = document.getElementById('rollback-type');
+            const pitrOptions = document.getElementById('pitr-options');
+            const backupOptions = document.getElementById('backup-options');
+            
+            if (rollbackType.value === 'pitr') {
+                pitrOptions.style.display = 'block';
+                backupOptions.style.display = 'none';
+            } else {
+                pitrOptions.style.display = 'none';
+                backupOptions.style.display = 'block';
+            }
+        }
+        
+        function handleConfirmationChange() {
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            const executeBtn = document.getElementById('execute-rollback-btn');
+            executeBtn.disabled = !confirmCheckbox.checked;
+        }
+        
+        function selectBackup(filename) {
+            selectedBackupFile = filename;
+            // Highlight selected backup
+            document.querySelectorAll('.backup-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.target.closest('.backup-item').classList.add('selected');
+            addActivity('Backup Selected', `Selected backup: ${filename}`);
+        }
+        
+        async function createBackup() {
+            const btn = document.getElementById('create-backup-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Creating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/backup`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Demo backup created successfully!', 'success');
+                    addActivity('Backup Created', `Created backup: ${data.filename}`);
+                    await loadBackups();
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                showNotification('Demo backup failed: ' + error.message, 'error');
+                addActivity('Error', 'Backup creation failed');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function addDemoData() {
+            const btn = document.getElementById('add-data-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Adding...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/demo/addData`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Demo data added!', 'success');
+                    addActivity('Data Added', 'Added demo users, projects, and workflows');
+                    await updateDatabaseStatus();
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                showNotification('Failed to add demo data', 'error');
+                addActivity('Error', 'Failed to add demo data');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function resetDemoData() {
+            const btn = document.getElementById('reset-data-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Resetting...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/demo/reset`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Demo data reset!', 'success');
+                    addActivity('Data Reset', 'Reset demo database to initial state');
+                    await updateDatabaseStatus();
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                showNotification('Failed to reset demo data', 'error');
+                addActivity('Error', 'Failed to reset demo data');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function executeRollback() {
+            const rollbackType = document.getElementById('rollback-type').value;
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            
+            if (!confirmCheckbox.checked) {
+                showNotification('Please confirm the rollback operation.', 'warning');
+                return;
+            }
+            
+            let params = {};
+            
+            if (rollbackType === 'pitr') {
+                const targetTime = document.getElementById('target-time').value;
+                if (!targetTime) {
+                    showNotification('Please select a target time for recovery.', 'warning');
+                    return;
+                }
+                params = { timestamp: new Date(targetTime).toISOString() };
+            } else {
+                if (!selectedBackupFile) {
+                    showNotification('Please select a backup file to restore from.', 'warning');
+                    return;
+                }
+                params = { backupFile: selectedBackupFile };
+            }
+            
+            const btn = document.getElementById('execute-rollback-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Rolling back...';
+            btn.disabled = true;
+            
+            try {
+                const endpoint = rollbackType === 'pitr' ? '/api/database/rollback' : '/api/database/recovery';
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Demo rollback completed successfully!', 'success');
+                    const method = rollbackType === 'pitr' ? 'Point-in-Time Recovery' : 'Backup Restore';
+                    addActivity('Rollback Completed', `${method} executed successfully`);
+                    await updateDatabaseStatus();
+                    confirmCheckbox.checked = false;
+                    handleConfirmationChange();
+                } else {
+                    throw new Error(data.message || 'Rollback failed');
+                }
+            } catch (error) {
+                showNotification('Demo rollback failed: ' + error.message, 'error');
+                addActivity('Error', 'Rollback operation failed');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = true; // Keep disabled until confirmed again
+            }
+        }
+        
+        async function refreshAllData() {
+            await updateDatabaseStatus();
+            await loadBackups();
+            addActivity('Data Refreshed', 'All data refreshed from server');
+        }
+        
+        function addActivity(action, description) {
+            const timeline = document.getElementById('activity-timeline');
+            const time = new Date().toLocaleTimeString();
+            
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            item.innerHTML = `<strong>${time} - ${action}:</strong> ${description}`;
+            
+            timeline.insertBefore(item, timeline.firstChild);
+            
+            // Keep only last 10 items
+            while (timeline.children.length > 10) {
+                timeline.removeChild(timeline.lastChild);
+            }
+        }
+        
+        function showNotification(message, type) {
+            // Remove existing notifications
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 4 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 4000);
+        }
+        
+        // Auto-refresh status every 30 seconds
+        setInterval(updateDatabaseStatus, 30000);
+    </script>
+</body>
+</html>

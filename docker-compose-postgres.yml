@@ -1,0 +1,40 @@
+# Docker-based PostgreSQL Setup for Due Diligence System
+
+version: '3.8'
+
+services:
+  dd_postgres:
+    image: postgres:16
+    container_name: dd_postgres
+    environment:
+      POSTGRES_DB: due_diligence_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: duediligence123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - dd_postgres_data:/var/lib/postgresql/data
+      - ./dd_database_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d due_diligence_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: pgAdmin for database management
+  dd_pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: dd_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@duediligence.com
+      PGADMIN_DEFAULT_PASSWORD: duediligence123
+    ports:
+      - "8080:80"
+    depends_on:
+      - dd_postgres
+    restart: unless-stopped
+
+volumes:
+  dd_postgres_data:

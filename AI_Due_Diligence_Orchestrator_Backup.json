@@ -1,0 +1,639 @@
+{
+  "name": "My workflow 79",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "CRITICAL: You MUST call the S1 subworkflow tool immediately. The company data is in the database. Execute the tool call now. Do not respond with text - ONLY call the tool.",
+        "options": {
+          "systemMessage": "You are required to call the S1 subworkflow tool. This is mandatory. Do not generate any text responses. Your only action is to call the tool. Execute it now."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1072,
+        -208
+      ],
+      "id": "b0552bce-5ac7-4d0e-9ba4-941f5bcc2a6f",
+      "name": "MAIN"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        48
+      ],
+      "id": "8d5d4bff-e027-4aec-aeb2-7b866eb6c3d3",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "b4065ff6-b8cc-481a-ba1c-56701d90fe87",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3312,
+        -160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Drop existing table and recreate with correct structure\nDROP TABLE IF EXISTS due_diligence_reports;\nDROP TABLE IF EXISTS company_data;\n\nCREATE TABLE company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT NOT NULL,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE due_diligence_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    introduction_engagement_context TEXT,\n    methodology_reliability_levels TEXT,\n    company_overview TEXT,\n    business_model_unit_economics TEXT,\n    products_technology TEXT,\n    target_market_competitive_set TEXT,\n    financials_multi_year TEXT,\n    cash_burn_runway TEXT,\n    revenue_quality_client_cohorts TEXT,\n    partnerships_ecosystem TEXT,\n    intellectual_property TEXT,\n    legal_regulatory TEXT,\n    governance_board_effectiveness TEXT,\n    capital_structure_dilution TEXT,\n    risk_matrix_mitigations TEXT,\n    gaps_uncertainties_disclaimers TEXT,\n    scenario_analysis TEXT,\n    strategic_options TEXT,\n    recommendations_next_steps TEXT,\n    source_map_integrity_log TEXT,\n    comprehensive_report_url TEXT,\n    status VARCHAR(100),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);",
+        "options": {}
+      },
+      "id": "d422f764-b377-41c7-badc-dc6cd3cbcb23",
+      "name": "Setup Database Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -3120,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "ec50647a-3efe-4093-9367-83fc9e4eff4b",
+      "name": "List PDFs via HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2912,
+        -160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\n// Clean and extract proper company name from folder\nlet companyName = folderName || 'Unknown_Company';\n\n// Clean company name - remove common patterns that aren't company names\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')  // Replace underscores and dashes with spaces\n  .replace(/\\s+/g, ' ')    // Normalize spaces\n  .trim();\n\n// If it's too short or generic, mark as unknown\nif (companyName.length < 2 || /^(new|folder|doc|file|temp|test)$/i.test(companyName)) {\n  companyName = 'Unknown_Company';\n}\n\nconsole.log(`Original folder name: \"${folderName}\"`);\nconsole.log(`Cleaned company name: \"${companyName}\"`);\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  console.log(`Preparing file: ${file.name} (${file.id})`);\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      webViewLink: file.webViewLink,\n      webContentLink: file.webContentLink,\n      company_name: companyName,\n      folder_id: folderId,\n      original_folder_name: folderName\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing with company name: \"${companyName}\"`);\nreturn results;"
+      },
+      "id": "69e13652-5ad4-40b3-aef0-e29c78c8420e",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2720,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Merge all PDFs into a single document before processing\nconst allInputs = $input.all();\nconst firstInput = allInputs[0]?.json || {};\n\nconsole.log('=== PDF MERGING PROCESS ===');\nconsole.log(`Received ${allInputs.length} PDF files to merge`);\nconsole.log('Company:', firstInput.company_name);\nconsole.log('Folder ID:', firstInput.folder_id);\n\n// Collect all PDF file information\nconst pdfFiles = allInputs.map((input, index) => {\n  const file = input.json;\n  console.log(`PDF ${index + 1}: ${file.name} (${file.id}) - Size: ${file.size}`);\n  return {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    downloadUrl: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`\n  };\n});\n\n// Sort files by name for consistent merging order\npdfFiles.sort((a, b) => a.name.localeCompare(b.name));\n\nconsole.log('Files will be merged in this order:');\npdfFiles.forEach((file, index) => {\n  console.log(`${index + 1}. ${file.name}`);\n});\n\n// Generate consistent company ID\nconst companyId = `comp_${firstInput.folder_id}_${firstInput.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfFiles.length}files`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log('========================');\n\n// Return merged file information for processing\nreturn {\n  json: {\n    // Consistent company ID throughout workflow\n    company_id: companyId,\n    company_name: firstInput.company_name,\n    folder_id: firstInput.folder_id,\n    original_folder_name: firstInput.original_folder_name,\n    // Include all source files for download\n    source_files: pdfFiles,\n    file_count: pdfFiles.length,\n    merge_status: 'ready_for_download'\n  }\n};"
+      },
+      "id": "6aad13ac-84e0-4955-937c-a7f669598f4d",
+      "name": "Merge PDFs Info",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Download and process ALL PDFs, merging their content\nconst mergeInfo = $input.first().json;\nconst sourceFiles = mergeInfo.source_files || [];\n\nconsole.log('=== DOWNLOADING ALL PDFs FOR MERGING ===');\nconsole.log(`Processing ${sourceFiles.length} PDF files`);\nconsole.log('Company:', mergeInfo.company_name);\nconsole.log('Company ID:', mergeInfo.company_id);\n\nif (sourceFiles.length === 0) {\n  console.error('❌ No source files to process!');\n  return {\n    json: {\n      error: 'No PDF files found',\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id\n    }\n  };\n}\n\n// Process ALL files and return them for individual download\nconst allFilesForProcessing = sourceFiles.map((file, index) => {\n  console.log(`Preparing file ${index + 1}/${sourceFiles.length}: ${file.name}`);\n  return {\n    json: {\n      // Consistent company ID\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id,\n      // Individual file info for download\n      file_id: file.id,\n      file_name: file.name,\n      file_size: file.size,\n      download_url: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,\n      file_index: index + 1,\n      total_files: sourceFiles.length,\n      // Metadata\n      all_file_names: sourceFiles.map(f => f.name).join(', '),\n      processing_status: 'ready_for_download'\n    }\n  };\n});\n\nconsole.log(`✅ Prepared ${allFilesForProcessing.length} files for individual processing`);\nconsole.log('All files will be downloaded and content merged');\n\nreturn allFilesForProcessing;"
+      },
+      "id": "0e975988-790d-45f9-b2db-afb008a7b808",
+      "name": "Prepare All PDFs for Download",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2320,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "9955984d-ad95-4895-8399-cb6857af82b2",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2112,
+        -160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "6a12c7e1-7f99-4193-a799-d3c79026633f",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1920,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract content from current PDF file\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Prepare All PDFs for Download\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters from ${fileInfo.file_name}`);\n} else {\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = `PDF extraction failed for ${fileInfo.file_name} - file may be image-based or corrupted`;\n    extractionMethod = 'failed';\n    console.log(`⚠️ Could not extract text from ${fileInfo.file_name}`);\n  }\n}\n\nconsole.log(`File ${fileInfo.file_index}/${fileInfo.total_files}: ${fileInfo.file_name}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`Extraction method: ${extractionMethod}`);\n\n// Return individual file data with extracted content\nreturn {\n  json: {\n    company_id: fileInfo.company_id,\n    company_name: fileInfo.company_name,\n    folder_id: fileInfo.folder_id,\n    file_name: fileInfo.file_name,\n    file_index: fileInfo.file_index,\n    total_files: fileInfo.total_files,\n    extracted_content: fullTextContent,\n    extraction_method: extractionMethod,\n    content_length: fullTextContent.length,\n    all_file_names: fileInfo.all_file_names\n  }\n};"
+      },
+      "id": "a70ac5f1-bb36-43f6-a10d-30daa61c0e15",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect and merge ALL extracted content from all PDF files\nconst allExtractions = $input.all();\nconst firstFile = allExtractions[0]?.json || {};\n\nconsole.log('=== MERGING ALL PDF CONTENT ===');\nconsole.log(`Received ${allExtractions.length} extracted PDF files`);\nconsole.log(`Company: ${firstFile.company_name}`);\nconsole.log(`Company ID: ${firstFile.company_id}`);\n\nif (allExtractions.length === 0) {\n  console.error('❌ No extracted content received!');\n  return {\n    json: {\n      error: 'No content extracted from PDFs',\n      company_id: firstFile.company_id,\n      company_name: firstFile.company_name\n    }\n  };\n}\n\n// Merge all content together\nlet mergedContent = '';\nlet totalContentLength = 0;\nlet successfulExtractions = 0;\nlet failedExtractions = 0;\nconst fileDetails = [];\n\nallExtractions.forEach((extraction, index) => {\n  const fileData = extraction.json;\n  const content = fileData.extracted_content || '';\n  \n  console.log(`Processing file ${index + 1}: ${fileData.file_name}`);\n  console.log(`  Content length: ${content.length} characters`);\n  console.log(`  Extraction method: ${fileData.extraction_method}`);\n  \n  if (content && content.length > 50 && !content.includes('extraction failed')) {\n    // Add file separator and content\n    mergedContent += `\\n\\n=== CONTENT FROM: ${fileData.file_name} ===\\n\\n`;\n    mergedContent += content;\n    mergedContent += `\\n\\n=== END OF ${fileData.file_name} ===\\n\\n`;\n    successfulExtractions++;\n  } else {\n    console.log(`  ⚠️ Skipping ${fileData.file_name} - extraction failed or insufficient content`);\n    failedExtractions++;\n  }\n  \n  totalContentLength += content.length;\n  fileDetails.push({\n    name: fileData.file_name,\n    content_length: content.length,\n    extraction_method: fileData.extraction_method,\n    success: content.length > 50 && !content.includes('extraction failed')\n  });\n});\n\n// Final data object\nconst finalData = {\n  company_id: firstFile.company_id,\n  company_name: firstFile.company_name,\n  folder_id: firstFile.folder_id,\n  content: mergedContent,\n  processed_at: new Date().toISOString()\n};\n\n// Log results\nconsole.log(`\\n=== FINAL MERGE RESULTS ===`);\nconsole.log(`Company ID: ${finalData.company_id}`);\nconsole.log(`Final Company Name: ${finalData.company_name}`);\nconsole.log(`Total files processed: ${allExtractions.length}`);\nconsole.log(`Successful extractions: ${successfulExtractions}`);\nconsole.log(`Failed extractions: ${failedExtractions}`);\nconsole.log(`Total merged content length: ${mergedContent.length} characters`);\nconsole.log(`Files processed: ${fileDetails.map(f => f.name).join(', ')}`);\nconsole.log(`============================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "64ce2250-b466-4556-ae10-f7ff0c9b307b",
+      "name": "Merge All Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "de98d7aa-f927-4de4-9a0a-e4a596a3ec0f",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1312,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get the AI-generated Section 1 content from the S1 subworkflow\n-- Return empty result if no AI content exists yet (don't stop workflow)\nSELECT \n  COALESCE(company_id, '{{ $node[\"Save Company Data\"].json.company_id }}') as company_id,\n  COALESCE(company_name, '{{ $node[\"Save Company Data\"].json.company_name }}') as company_name,\n  introduction_engagement_context,\n  COALESCE(status, 'pending_ai_generation') as status,\n  COALESCE(created_at, NOW()) as created_at\nFROM (\n  SELECT \n    company_id,\n    company_name,\n    introduction_engagement_context,\n    status,\n    created_at\n  FROM due_diligence_reports \n  WHERE company_id = '{{ $node[\"Save Company Data\"].json.company_id }}'\n    AND introduction_engagement_context IS NOT NULL\n    AND status = 'section1_complete'\n  ORDER BY created_at DESC \n  LIMIT 1\n) as report_data\nUNION ALL\nSELECT \n  '{{ $node[\"Save Company Data\"].json.company_id }}' as company_id,\n  '{{ $node[\"Save Company Data\"].json.company_name }}' as company_name,\n  NULL as introduction_engagement_context,\n  'pending_ai_generation' as status,\n  NOW() as created_at\nWHERE NOT EXISTS (\n  SELECT 1 FROM due_diligence_reports \n  WHERE company_id = '{{ $node[\"Save Company Data\"].json.company_id }}'\n    AND introduction_engagement_context IS NOT NULL\n    AND status = 'section1_complete'\n)\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "=$json",
+          "largeNumbersOutput": "numbers"
+        }
+      },
+      "id": "5f563e40-70ef-4170-ba3a-31eac8bdcd0f",
+      "name": "Retrieve Complete Report Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -640,
+        -320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create text file - check if AI content exists or trigger S1 generation\nconst reportData = $input.first().json;\n\nconsole.log('=== CREATING SECTION 1 TEXT FILE ===');\nconsole.log('Report data received:', reportData);\n\nconst companyName = reportData.company_name || 'Unknown_Company';\nconst companyId = reportData.company_id || 'unknown_id';\nconst status = reportData.status || 'unknown';\nconst createdAt = reportData.created_at || new Date().toISOString();\nconst reportDate = new Date().toISOString().split('T')[0];\n\n// Check if we have AI-generated content\nif (!reportData.introduction_engagement_context || status === 'pending_ai_generation') {\n  console.log('⚠️ No AI-generated content found - S1 subworkflow needs to run first');\n  console.log('Creating status file to indicate AI generation is needed');\n  \n  const statusContent = `Due Diligence Report - Section 1: Status\n${'='.repeat(80)}\n\nCompany: ${companyName}\nCompany ID: ${companyId}\nGenerated: ${reportDate}\nStatus: AI Generation Required\n\n${'='.repeat(80)}\n\nSTATUS: WAITING FOR AI GENERATION\n\nThe S1 subworkflow needs to run to generate Section 1 content.\nThis file will be updated once the AI agent completes the analysis.\n\nNext Steps:\n1. S1 subworkflow will analyze company data\n2. AI agent will generate professional Section 1 content\n3. Content will be saved to database\n4. This file will be replaced with actual AI-generated content\n\n${'='.repeat(80)}\nEnd of Status Update\nGenerated by Action Labs Due Diligence System\n`;\n\n  const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Section1_STATUS_${reportDate}.txt`;\n  \n  console.log(`✅ Created status file: ${fileName}`);\n  \n  return [{\n    json: {\n      company_id: companyId,\n      company_name: companyName,\n      file_name: fileName,\n      content: statusContent,\n      content_length: statusContent.length,\n      created_at: reportDate,\n      status: 'status_file_created',\n      source: 'waiting_for_ai'\n    },\n    binary: {\n      data: {\n        data: Buffer.from(statusContent, 'utf8').toString('base64'),\n        mimeType: 'text/plain',\n        fileName: fileName\n      }\n    }\n  }];\n}\n\n// We have AI-generated content\nconst aiGeneratedContent = reportData.introduction_engagement_context;\n\nconsole.log(`✅ Found AI-generated content for: ${companyName}`);\nconsole.log(`Content length: ${aiGeneratedContent.length} characters`);\nconsole.log(`Status: ${status}`);\n\n// Create text file with AI-generated content\nconst textFileContent = `Due Diligence Report - Section 1: Introduction & Engagement Context\n${'='.repeat(80)}\n\nCompany: ${companyName}\nCompany ID: ${companyId}\nGenerated: ${reportDate}\nAI Generated: ${createdAt}\nStatus: ${status}\nSource: S1 Subworkflow (AI Agent Generated)\n\n${'='.repeat(80)}\n\n${aiGeneratedContent}\n\n${'='.repeat(80)}\nEnd of Section 1\nGenerated by Action Labs Due Diligence System\nAI Content Generated by S1 Subworkflow\n`;\n\nconst fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Section1_AI_Generated_${reportDate}.txt`;\n\nconsole.log(`✅ Created AI-generated text file: ${fileName}`);\nconsole.log(`File contains AI-generated content from S1 subworkflow`);\nconsole.log(`Total file length: ${textFileContent.length} characters`);\n\n// Return data in Code node format (array of items)\nreturn [{\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    file_name: fileName,\n    content: textFileContent,\n    content_length: textFileContent.length,\n    ai_content_length: aiGeneratedContent.length,\n    created_at: reportDate,\n    status: 'ai_content_ready',\n    source: 's1_subworkflow'\n  },\n  binary: {\n    data: {\n      data: Buffer.from(textFileContent, 'utf8').toString('base64'),\n      mimeType: 'text/plain',\n      fileName: fileName\n    }\n  }\n}];"
+      },
+      "position": [
+        -432,
+        -320
+      ],
+      "id": "aec1e394-9996-4fce-9023-c3f56da56767",
+      "name": "Create Section 1 Text File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.file_name }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "position": [
+        -240,
+        -320
+      ],
+      "id": "3d764a30-eedd-4b61-b371-b69767abac16",
+      "name": "Upload Text File to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -736,
+        -656
+      ],
+      "id": "84b271ee-4ee2-4148-bec3-194fc9791f82",
+      "name": "Wait for S1 Subworkflow",
+      "webhookId": "4341dd70-34e6-4128-b536-90758e5be598"
+    },
+    {
+      "parameters": {
+        "description": "Call this tool to generate Section 1 of the due diligence report. This tool will retrieve company data from database and use AI to generate professional Section 1 content, then save it back to the database.",
+        "workflowId": {
+          "__rl": true,
+          "value": "G5YYk9XK2tStRIU9",
+          "mode": "list",
+          "cachedResultName": "s1 try"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -848,
+        -32
+      ],
+      "id": "80a3f1fd-792b-46f1-9717-89ec9c71d05c",
+      "name": "Call n8n Workflow Tool"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "MAIN",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Database Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Database Table": {
+      "main": [
+        [
+          {
+            "node": "List PDFs via HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs via HTTP": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Merge PDFs Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDFs Info": {
+      "main": [
+        [
+          {
+            "node": "Prepare All PDFs for Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare All PDFs for Download": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Content": {
+      "main": [
+        [
+          {
+            "node": "Save Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Company Data": {
+      "main": [
+        [
+          {
+            "node": "MAIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for S1 Subworkflow": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Complete Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Complete Report Data": {
+      "main": [
+        [
+          {
+            "node": "Create Section 1 Text File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Section 1 Text File": {
+      "main": [
+        [
+          {
+            "node": "Upload Text File to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIN": {
+      "main": [
+        [
+          {
+            "node": "Wait for S1 Subworkflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "MAIN",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "58f80a5e-32fc-4658-8fcf-7f11665cdf7e",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "AUh85oEOPEsIgcav",
+  "tags": []
+}

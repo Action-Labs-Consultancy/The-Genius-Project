@@ -1,0 +1,130 @@
+{
+  "timestamp": "2025-08-14T08:55:57.289Z",
+  "summary": {
+    "totalTests": 16,
+    "passed": 3,
+    "failed": 13,
+    "successRate": 18.75,
+    "totalDuration": 402
+  },
+  "tests": [
+    {
+      "name": "System Health Check",
+      "status": "FAIL",
+      "duration": 18,
+      "error": "",
+      "timestamp": "2025-08-14T08:55:56.901Z"
+    },
+    {
+      "name": "Kanboard Connectivity",
+      "status": "PASS",
+      "duration": 192,
+      "result": {
+        "details": "Kanboard version: v1.2.47"
+      },
+      "timestamp": "2025-08-14T08:55:57.093Z"
+    },
+    {
+      "name": "n8n Connectivity",
+      "status": "FAIL",
+      "duration": 4,
+      "error": "Request failed with status code 404",
+      "timestamp": "2025-08-14T08:55:57.097Z"
+    },
+    {
+      "name": "Create Test Task",
+      "status": "FAIL",
+      "duration": 181,
+      "error": "Request failed with status code 403",
+      "timestamp": "2025-08-14T08:55:57.278Z"
+    },
+    {
+      "name": "Snapshot Creation Performance",
+      "status": "FAIL",
+      "duration": 1,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.279Z"
+    },
+    {
+      "name": "Version History",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.279Z"
+    },
+    {
+      "name": "Task Restoration",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.279Z"
+    },
+    {
+      "name": "AI Confidence Check",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.279Z"
+    },
+    {
+      "name": "Auto Rollback",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.280Z"
+    },
+    {
+      "name": "Audit Trail",
+      "status": "FAIL",
+      "duration": 2,
+      "error": "",
+      "timestamp": "2025-08-14T08:55:57.282Z"
+    },
+    {
+      "name": "Version Diff",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.282Z"
+    },
+    {
+      "name": "Export Functionality",
+      "status": "FAIL",
+      "duration": 1,
+      "error": "",
+      "timestamp": "2025-08-14T08:55:57.283Z"
+    },
+    {
+      "name": "Performance Constraints",
+      "status": "FAIL",
+      "duration": 0,
+      "error": "No test task available",
+      "timestamp": "2025-08-14T08:55:57.283Z"
+    },
+    {
+      "name": "Storage Efficiency",
+      "status": "PASS",
+      "duration": 0,
+      "result": {
+        "details": "Average snapshot size: NaNKB (requirement: <10KB per task)"
+      },
+      "timestamp": "2025-08-14T08:55:57.284Z"
+    },
+    {
+      "name": "Error Handling",
+      "status": "FAIL",
+      "duration": 3,
+      "error": "Only 0/3 error handling tests passed",
+      "timestamp": "2025-08-14T08:55:57.287Z"
+    },
+    {
+      "name": "Cleanup Test Data",
+      "status": "PASS",
+      "duration": 0,
+      "result": {
+        "details": "No test task to cleanup"
+      },
+      "timestamp": "2025-08-14T08:55:57.287Z"
+    }
+  ]
+}

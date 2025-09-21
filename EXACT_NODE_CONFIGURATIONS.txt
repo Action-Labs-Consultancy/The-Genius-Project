@@ -1,0 +1,154 @@
+// EXACT NODE CONFIGURATIONS FOR KANBOARD AI WORKFLOW
+
+// NODE 1: CRON TRIGGER
+// Name: Every 3 Minutes
+// Type: Cron
+// Expression: 0 */3 * * * *
+
+// NODE 2: HTTP REQUEST (GET TASKS)
+// Name: Get Tasks
+// Type: HTTP Request
+// Method: POST
+// URL: http://localhost:8000/jsonrpc.php
+// Authentication: Basic Auth (Credential: KanBoard)
+// Headers: Content-Type = application/json
+// Body Type: Raw/JSON
+// Body:
+{
+  "jsonrpc": "2.0",
+  "method": "getAllTasks",
+  "id": 1,
+  "params": {
+    "project_id": 1,
+    "status_id": 1
+  }
+}
+
+// NODE 3: FUNCTION (FIND TASK)
+// Name: Find Task to Enhance
+// Type: Function
+// JavaScript Code:
+const tasks = $input.first().json.result || [];
+console.log(`Checking ${tasks.length} tasks for enhancement`);
+
+for (const task of tasks) {
+  const description = task.description ? task.description.toString() : '';
+  const title = task.title ? task.title.toString() : '';
+  
+  console.log(`Task ${task.id}: title="${title}" desc_length=${description.trim().length}`);
+  
+  if (description.trim().length < 20 && title.trim().length > 0) {
+    console.log(`✅ Found task needing enhancement: "${title}" (ID: ${task.id})`);
+    
+    return {
+      json: {
+        task_id: task.id,
+        title: title.trim(),
+        description: description.trim(),
+        project_id: task.project_id || 1,
+        found: true
+      }
+    };
+  }
+}
+
+console.log('ℹ️ No tasks need enhancement at this time');
+return {
+  json: {
+    skip: true,
+    message: 'No tasks need enhancement',
+    found: false
+  }
+};
+
+// NODE 4: IF (CHECK TASK)
+// Name: Has Task to Process?
+// Type: IF
+// Condition: {{ $json.found }} equals true (Boolean)
+
+// NODE 5: HTTP REQUEST (AI ENHANCE)
+// Name: AI Enhance
+// Type: HTTP Request
+// Method: POST
+// URL: http://localhost:11434/api/generate
+// Headers: Content-Type = application/json
+// Body Type: Raw/JSON
+// Body:
+{
+  "model": "mistral:latest",
+  "prompt": "Enhance this task: {{ $json.title }}\n\nCreate:\n1. Clear description (2-3 sentences)\n2. Complexity rating 1-5\n3. Three relevant tags\n\nRespond ONLY with JSON:\n{\n  \"description\": \"your description\",\n  \"complexity\": 3,\n  \"tags\": [\"tag1\", \"tag2\", \"tag3\"]\n}",
+  "stream": false
+}
+
+// NODE 6: FUNCTION (PREPARE UPDATE)
+// Name: Prepare Update
+// Type: Function
+// JavaScript Code:
+const taskData = $('Find Task to Enhance').first().json;
+const aiResponse = $input.first().json.response;
+
+console.log(`Processing task: ${taskData.title}`);
+console.log(`AI response length: ${aiResponse.length} characters`);
+
+let enhancedData;
+try {
+  const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
+  if (jsonMatch) {
+    enhancedData = JSON.parse(jsonMatch[0]);
+    console.log('AI JSON parsed successfully:', enhancedData.description.substring(0, 50) + '...');
+  } else {
+    throw new Error('No JSON found in AI response');
+  }
+} catch (error) {
+  console.log(`JSON parsing failed: ${error.message}`);
+  console.log('Using fallback enhancement');
+  
+  enhancedData = {
+    description: `Enhanced: ${taskData.title}. This task requires careful analysis, proper planning, and systematic execution to achieve the desired outcome effectively.`,
+    complexity: 3,
+    tags: ['ai-enhanced', 'auto-generated', 'needs-review']
+  };
+}
+
+const enhancedDescription = `${enhancedData.description}
+
+🤖 AI Enhancement Applied
+📊 Complexity: ${enhancedData.complexity}/5
+🏷️ Tags: ${enhancedData.tags.join(', ')}
+⏰ Enhanced: ${new Date().toISOString()}`;
+
+const result = {
+  task_id: parseInt(taskData.task_id),
+  enhanced_description: enhancedDescription
+};
+
+console.log(`Ready to update task ${result.task_id}`);
+return { json: result };
+
+// NODE 7: HTTP REQUEST (UPDATE TASK)
+// Name: Update Task
+// Type: HTTP Request
+// Method: POST
+// URL: http://localhost:8000/jsonrpc.php
+// Authentication: Basic Auth (Credential: KanBoard)
+// Headers: Content-Type = application/json
+// Body Type: Raw/JSON
+// Body:
+{
+  "jsonrpc": "2.0",
+  "method": "updateTask",
+  "id": 1,
+  "params": {
+    "id": {{ $json.task_id }},
+    "description": "{{ $json.enhanced_description }}"
+  }
+}
+
+// CONNECTIONS:
+// Every 3 Minutes → Get Tasks
+// Get Tasks → Find Task to Enhance
+// Find Task to Enhance → Has Task to Process?
+// Has Task to Process? → AI Enhance (TRUE branch)
+// Has Task to Process? → (empty) (FALSE branch)
+// AI Enhance → Prepare Update
+// Prepare Update → Update Task

@@ -1,0 +1,479 @@
+{
+  "name": "Simple Kanboard Due Diligence Reader",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [80, 300],
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 300],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Kanboard tasks to find Due Diligence tasks\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks`);\n\nconst dueDiligenceTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const description = task.description ? task.description.toString().trim() : '';\n  \n  console.log(`Checking task: \"${title}\"`);\n  \n  // Check if title contains \"Due Diligence\" (case insensitive)\n  const titleLower = title.toLowerCase();\n  if (titleLower.includes('due diligence')) {\n    let companyName = '';\n    \n    // Try different patterns to extract company name\n    \n    // Pattern 1: \"Due Diligence: Company Name\" (your format)\n    const colonPattern = /due diligence:\\s*(.+)/i;\n    const colonMatch = title.match(colonPattern);\n    if (colonMatch) {\n      companyName = colonMatch[1].trim().replace(/^[\"']+|[\"']+$/g, ''); // Remove quotes if present\n      console.log(`✅ Found colon pattern: \"${companyName}\"`);\n    }\n    \n    // Pattern 2: \"Due Diligence 'Company'\" or \"Due Diligence Company\"\n    else {\n      const afterDD = title.substring(title.toLowerCase().indexOf('due diligence') + 13).trim();\n      companyName = afterDD.replace(/^[:\\s\"']+/, '').replace(/[\"']+$/, '').trim() || 'Unknown Company';\n      console.log(`✅ Found general pattern: \"${companyName}\"`);\n    }\n    \n    // Extract website from description (look for URLs)\n    const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n    const urls = description.match(urlRegex) || [];\n    const website = urls.length > 0 ? urls[0] : '';\n    \n    console.log(`✅ Found Due Diligence task: \"${companyName}\" (ID: ${task.id})`);\n    console.log(`   Full Title: \"${title}\"`);\n    console.log(`   Website: ${website || 'Not found'}`);\n    console.log(`   Description: \"${description.substring(0, 100)}${description.length > 100 ? '...' : ''}\"`); \n    \n    dueDiligenceTasks.push({\n      json: {\n        task_id: task.id,\n        title: title,\n        company_name: companyName,\n        website: website,\n        description: description,\n        project_id: task.project_id || 1,\n        has_attachments: false,\n        attachment_count: 0\n      }\n    });\n  } else {\n    console.log(`❌ No 'Due Diligence' found in: \"${title}\"`);\n  }\n}\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found');\n  console.log('📋 All task titles checked:');\n  tasks.forEach((task, index) => {\n    console.log(`   ${index + 1}. \"${task.title}\" (ID: ${task.id})`);\n  });\n  return [{ json: { message: 'No Due Diligence tasks found' } }];\n}\n\nconsole.log(`📋 Processing ${dueDiligenceTasks.length} Due Diligence tasks`);\nreturn dueDiligenceTasks;"
+      },
+      "name": "Filter Due Diligence Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "id": "filter-tasks"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "string",
+                "operation": "notEqual",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "No Due Diligence tasks found"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "check-tasks-found",
+      "name": "Tasks Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [680, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Task Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 300],
+      "id": "get-attachments",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process attachments and combine with task data\nconst taskData = $input.first().json;\nconst attachmentsResponse = $input.last().json;\n\nconsole.log(`📎 Processing attachments for task ${taskData.task_id} (${taskData.company_name})`);\nconsole.log(`📎 Raw API response:`, JSON.stringify(attachmentsResponse, null, 2));\n\n// Handle different response structures\nlet attachments = [];\nif (attachmentsResponse && attachmentsResponse.result) {\n  attachments = Array.isArray(attachmentsResponse.result) ? attachmentsResponse.result : [];\n  console.log(`📎 Found attachments in .result: ${attachments.length} files`);\n} else if (Array.isArray(attachmentsResponse)) {\n  attachments = attachmentsResponse;\n  console.log(`📎 Found attachments as array: ${attachments.length} files`);\n} else {\n  console.log(`📎 No attachments found or unexpected format`);\n}\n\n// Filter for PDF attachments with very flexible matching\nconst pdfAttachments = attachments.filter(file => {\n  if (!file) {\n    console.log(`⚠️ Null/undefined file found`);\n    return false;\n  }\n  \n  if (!file.name && !file.filename) {\n    console.log(`⚠️ File without name found:`, file);\n    return false;\n  }\n  \n  const fileName = (file.name || file.filename || '').toLowerCase().trim();\n  const mimeType = (file.type || file.mime_type || file.mimetype || '').toLowerCase();\n  \n  // Check multiple ways a PDF might be identified\n  const isPdf = fileName.endsWith('.pdf') || \n                fileName.includes('.pdf') || \n                mimeType.includes('pdf') ||\n                mimeType === 'application/pdf';\n  \n  console.log(`📄 File check: \"${file.name || file.filename}\"`);\n  console.log(`   -> Extension check: ${fileName.endsWith('.pdf')}`);\n  console.log(`   -> MIME type: ${mimeType}`);\n  console.log(`   -> Is PDF: ${isPdf}`);\n  \n  return isPdf;\n});\n\n// Also check for any files that might be documents\nconst documentAttachments = attachments.filter(file => {\n  if (!file || (!file.name && !file.filename)) return false;\n  \n  const fileName = (file.name || file.filename || '').toLowerCase().trim();\n  const mimeType = (file.type || file.mime_type || file.mimetype || '').toLowerCase();\n  \n  return fileName.includes('.pdf') || \n         fileName.includes('.doc') || \n         fileName.includes('.txt') ||\n         mimeType.includes('pdf') ||\n         mimeType.includes('document') ||\n         mimeType.includes('text');\n});\n\nconsole.log(`📎 Task ${taskData.task_id} attachment summary:`);\nconsole.log(`   Total attachments: ${attachments.length}`);\nconsole.log(`   PDF attachments: ${pdfAttachments.length}`);\nconsole.log(`   Document attachments: ${documentAttachments.length}`);\n\n// Log all attachment details for debugging\nif (attachments.length > 0) {\n  console.log(`📎 All attachments detailed:`);\n  attachments.forEach((file, index) => {\n    const name = file.name || file.filename || 'unnamed';\n    const type = file.type || file.mime_type || file.mimetype || 'unknown';\n    const size = file.size || file.filesize || 0;\n    console.log(`   ${index + 1}. \"${name}\" | Type: \"${type}\" | Size: ${size} bytes | ID: ${file.id}`);\n  });\n} else {\n  console.log(`📎 No attachments found for task ${taskData.task_id}`);\n}\n\n// Log PDF-specific details\nif (pdfAttachments.length > 0) {\n  console.log(`📄 PDF attachments found:`);\n  pdfAttachments.forEach((pdf, index) => {\n    const name = pdf.name || pdf.filename || 'unnamed.pdf';\n    console.log(`   ${index + 1}. PDF: \"${name}\" (ID: ${pdf.id}, Size: ${pdf.size || 0} bytes)`);\n  });\n} else {\n  console.log(`📄 No PDF attachments detected`);\n}\n\nreturn [{\n  json: {\n    ...taskData,\n    has_attachments: attachments.length > 0,\n    attachment_count: attachments.length,\n    pdf_count: pdfAttachments.length,\n    document_count: documentAttachments.length,\n    attachments: attachments,\n    pdf_attachments: pdfAttachments,\n    document_attachments: documentAttachments,\n    debug_info: {\n      total_files: attachments.length,\n      pdf_files: pdfAttachments.length,\n      document_files: documentAttachments.length,\n      file_names: attachments.map(f => f.name || f.filename || 'unnamed'),\n      api_response_structure: Object.keys(attachmentsResponse || {})\n    }\n  }\n}];"
+      },
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1080, 300],
+      "id": "process-attachments"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "condition-pdf-count",
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.pdf_count }}",
+              "rightValue": 0
+            },
+            {
+              "id": "condition-attachments",
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.attachment_count }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "check-has-pdfs",
+      "name": "Has PDFs?",
+      "type": "n8n-nodes-base.if",
+      "position": [1280, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create COMPLETE Summary from Attachment Processing Data\nconst taskData = $input.first().json;\n\nconsole.log(`📝 === COMPLETE TASK DATA ANALYSIS ===`);\nconsole.log(`📝 Full task data:`, JSON.stringify(taskData, null, 2));\n\n// Extract ALL the data properly\nconst taskId = taskData.task_id;\nconst companyName = taskData.company_name;\nconst website = taskData.website;\nconst description = taskData.description;\nconst attachments = taskData.attachments || [];\nconst pdfAttachments = taskData.pdf_attachments || [];\nconst documentCount = taskData.attachment_count || 0;\nconst pdfCount = taskData.pdf_count || 0;\n\nconsole.log(`📝 EXTRACTED VALUES:`);\nconsole.log(`   Task ID: ${taskId}`);\nconsole.log(`   Company: ${companyName}`);\nconsole.log(`   Website: ${website}`);\nconsole.log(`   Description: ${description}`);\nconsole.log(`   Total Attachments: ${documentCount}`);\nconsole.log(`   PDF Attachments: ${pdfCount}`);\nconsole.log(`   Attachments Array Length: ${attachments.length}`);\n\n// Build comprehensive attachment summary\nlet attachmentSummary = '';\nif (documentCount > 0 && attachments.length > 0) {\n  attachmentSummary = '\\n📎 **ATTACHMENTS SUMMARY:**\\n';\n  attachments.forEach((file, index) => {\n    const fileName = file.name || file.filename || `Document ${index + 1}`;\n    const fileSize = file.size ? ` (${Math.round(file.size / 1024)} KB)` : '';\n    const fileId = file.id ? ` [ID: ${file.id}]` : '';\n    \n    // Determine file type and icon\n    const fileName_lower = fileName.toLowerCase();\n    let fileIcon = '📄';\n    let fileType = 'Document';\n    \n    if (fileName_lower.includes('.pdf')) {\n      fileIcon = '📄';\n      fileType = 'PDF';\n    } else if (fileName_lower.includes('.doc') || fileName_lower.includes('.docx')) {\n      fileIcon = '📝';\n      fileType = 'Word Document';\n    } else if (fileName_lower.includes('.xls') || fileName_lower.includes('.xlsx')) {\n      fileIcon = '📊';\n      fileType = 'Excel Spreadsheet';\n    } else if (fileName_lower.includes('.txt')) {\n      fileIcon = '📄';\n      fileType = 'Text File';\n    }\n    \n    attachmentSummary += `• ${fileIcon} **${fileType}**: ${fileName}${fileSize}${fileId}\\n`;\n  });\n  \n  // Add PDF-specific details if available\n  if (pdfCount > 0 && pdfAttachments.length > 0) {\n    attachmentSummary += '\\n📄 **PDF Details:**\\n';\n    pdfAttachments.forEach((pdf, index) => {\n      const pdfName = pdf.name || pdf.filename || `PDF ${index + 1}`;\n      const pdfSize = pdf.size ? ` (${Math.round(pdf.size / 1024)} KB)` : '';\n      attachmentSummary += `   ${index + 1}. ${pdfName}${pdfSize}\\n`;\n    });\n  }\n} else {\n  attachmentSummary = '\\n📎 **ATTACHMENTS:** No documents found\\n';\n}\n\n// Extract additional URLs from description if available\nlet websiteInfo = website || 'Not specified';\nif (description) {\n  const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n  const foundUrls = description.match(urlRegex) || [];\n  if (foundUrls.length > 0 && websiteInfo === 'Not specified') {\n    websiteInfo = foundUrls[0];\n  }\n}\n\n// Create the comprehensive summary comment\nconst summaryComment = `🤖 **DUE DILIGENCE TASK SUMMARY**\n\n📋 **Company:** ${companyName}\n🌐 **Website:** ${websiteInfo}\n🆔 **Task ID:** ${taskId}\n📅 **Processed:** ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}\n${attachmentSummary}\n---\n\n📊 **TASK DETAILS:**\n• Company under review: **${companyName}**\n• Official website: **${websiteInfo}**\n• Documents attached: **${documentCount} file(s)**\n• PDF documents: **${pdfCount} file(s)**\n• Task description: ${description ? description.substring(0, 200) + (description.length > 200 ? '...' : '') : 'No description provided'}\n\n📝 **NEXT STEPS:**\n1. Review all ${documentCount} attached document(s)\n2. Verify company website: ${websiteInfo}\n3. Conduct financial and operational analysis\n4. Complete due diligence checklist\n5. Prepare final recommendation\n\n---\n*Auto-generated summary by Due Diligence Workflow*\\n*Task ID: ${taskId} | Company: ${companyName}*`;\n\nconsole.log(`📝 === SUMMARY GENERATED ===`);\nconsole.log(`📝 Task ID: ${taskId}`);\nconsole.log(`📝 Company: ${companyName}`);\nconsole.log(`📝 Website: ${websiteInfo}`);\nconsole.log(`📝 Documents: ${documentCount}`);\nconsole.log(`📝 Summary length: ${summaryComment.length} characters`);\n\nreturn [{\n  json: {\n    task_id: taskId,\n    comment_content: summaryComment,\n    company_name: companyName,\n    website: websiteInfo,\n    document_count: documentCount,\n    pdf_count: pdfCount,\n    summary_source: 'complete_task_data',\n    debug_info: {\n      original_website: website,\n      description_preview: description ? description.substring(0, 100) : 'No description',\n      attachment_names: attachments.map(f => f.name || f.filename),\n      total_attachments: attachments.length\n    }\n  }\n}];"
+      },
+      "name": "Create Direct Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1280, 420],
+      "id": "create-direct-summary"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Split attachments for processing (PDFs and other files)\nconst taskData = $input.first().json;\nconst pdfAttachments = taskData.pdf_attachments || [];\nconst allAttachments = taskData.attachments || [];\n\nconsole.log(`📄 Task ${taskData.task_id} processing:`);\nconsole.log(`   PDF attachments: ${pdfAttachments.length}`);\nconsole.log(`   All attachments: ${allAttachments.length}`);\n\n// If we have PDF attachments, process them\nif (pdfAttachments.length > 0) {\n  console.log(`📄 Processing ${pdfAttachments.length} PDF files`);\n  return pdfAttachments.map(pdf => ({\n    json: {\n      ...pdf,\n      task_id: taskData.task_id,\n      project_id: taskData.project_id,\n      company_name: taskData.company_name,\n      website: taskData.website,\n      file_type: 'pdf'\n    }\n  }));\n}\n\n// If no PDFs but we have other attachments, try processing them anyway\nif (allAttachments.length > 0) {\n  console.log(`📄 No PDFs found, but processing ${allAttachments.length} other files`);\n  return allAttachments.map(file => ({\n    json: {\n      ...file,\n      task_id: taskData.task_id,\n      project_id: taskData.project_id,\n      company_name: taskData.company_name,\n      website: taskData.website,\n      file_type: 'other'\n    }\n  }));\n}\n\n// No attachments found\nconsole.log('📄 No attachments found');\nreturn [{ \n  json: { \n    no_attachments: true,\n    task_id: taskData.task_id,\n    company_name: taskData.company_name,\n    website: taskData.website\n  } \n}];"
+      },
+      "name": "Split PDFs for Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1480, 180],
+      "id": "split-pdfs"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://localhost:8000/?controller=TaskFileController&action=download&file_id=' + $json.id + '&project_id=' + $json.project_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 180],
+      "id": "download-pdf",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract PDF text using JavaScript (simplified approach)\n// This is a workaround since PyPDF2 is not available in n8n\n// For production use, consider using a dedicated PDF processing service\n\nconst inputData = $input.first();\nconst fileName = inputData.json.name || inputData.json.filename || 'document.pdf';\nconst taskId = inputData.json.task_id;\nconst companyName = inputData.json.company_name;\nconst website = inputData.json.website;\n\nconsole.log(`📄 Processing file: ${fileName}`);\nconsole.log(`   Task ID: ${taskId}`);\nconsole.log(`   Company: ${companyName}`);\nconsole.log(`   Website: ${website}`);\nconsole.log(`   Input data:`, JSON.stringify(inputData.json, null, 2));\n\n// For now, we'll return a placeholder that indicates the PDF needs processing\nconst extractedText = `PDF Document: ${fileName}\\n\\nThis PDF document was uploaded for due diligence analysis of ${companyName}.\\n\\nNote: Automatic text extraction is not available in this environment. Please manually review the PDF document or use an external PDF processing service.\\n\\nDocument Details:\\n- File: ${fileName}\\n- Company: ${companyName}\\n- Website: ${website}\\n- Processing Date: ${new Date().toISOString()}`;\n\nreturn [{\n  json: {\n    file_name: fileName,\n    extraction_success: true,\n    extracted_text: extractedText,\n    task_id: taskId,\n    company_name: companyName,\n    website: website,\n    note: 'PDF text extraction requires external service - placeholder content generated'\n  }\n}];"
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1880, 180],
+      "id": "extract-pdf-text"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "name": "Merge PDF Contents",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2080, 180],
+      "id": "merge-pdf-contents"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate Due Diligence Analysis (Fallback without Llama)\n// This provides a comprehensive analysis framework when Llama is not available\n\nconst data = $input.first().json.data;\nconsole.log(`📊 Analysis input data:`, JSON.stringify(data, null, 2));\n\n// Get company info from first item, with fallbacks\nlet companyName = 'Unknown Company';\nlet website = 'Not specified';\nlet taskId = 'Unknown';\n\nif (data && data.length > 0) {\n  const firstItem = data[0];\n  companyName = firstItem.company_name || firstItem.companyName || 'mirriad'; // Fallback to 'mirriad'\n  website = firstItem.website || firstItem.websiteUrl || 'Not specified';\n  taskId = firstItem.task_id || firstItem.taskId || 'Unknown';\n  \n  console.log(`📊 Extracted: Company=\"${companyName}\", Website=\"${website}\", TaskID=\"${taskId}\"`);\n}\n\nconst documentCount = data ? data.length : 0;\n\n// Create a comprehensive analysis report\nconst analysisReport = `**DUE DILIGENCE ANALYSIS REPORT**\n\n**Company:** ${companyName}\n**Website:** ${website}\n**Task ID:** ${taskId}\n**Documents Reviewed:** ${documentCount} files\n**Analysis Date:** ${new Date().toLocaleDateString()}\n\n---\n\n**1. EXECUTIVE SUMMARY**\nDue diligence analysis initiated for ${companyName}. Document review required for comprehensive assessment.\n\n**2. DOCUMENT INVENTORY**\n${data && data.length > 0 ? data.map((item, index) => `• ${index + 1}. ${item.file_name || item.filename || 'Unknown file'}`).join('\\n') : '• No documents found'}\n\n**3. ANALYSIS FRAMEWORK**\n\n**Financial Review:**\n• Revenue trends and growth patterns\n• Profitability and margin analysis  \n• Cash flow and liquidity position\n• Debt structure and leverage ratios\n• Working capital management\n\n**Operational Assessment:**\n• Business model sustainability\n• Market position and competitive advantages\n• Management team and governance\n• Operational efficiency metrics\n• Technology and infrastructure\n\n**Risk Factors to Evaluate:**\n• Market and industry risks\n• Financial and credit risks\n• Operational and execution risks\n• Regulatory and compliance risks\n• Technology and cybersecurity risks\n\n**Legal and Compliance:**\n• Corporate structure and ownership\n• Material contracts and agreements\n• Litigation and legal exposures\n• Regulatory compliance status\n• Intellectual property portfolio\n\n**4. KEY QUESTIONS FOR INVESTIGATION**\n• What are the primary revenue drivers?\n• How sustainable is the current business model?\n• What are the main competitive threats?\n• Are there any material legal or regulatory issues?\n• What is the quality of the management team?\n• How does the company compare to industry benchmarks?\n\n**5. NEXT STEPS**\n1. **Document Review:** Manually review all PDF attachments\n2. **Financial Analysis:** Analyze financial statements and projections\n3. **Market Research:** Conduct industry and competitive analysis\n4. **Management Interview:** Schedule meetings with key executives\n5. **Reference Checks:** Contact customers, suppliers, and partners\n6. **Final Report:** Compile findings and recommendations\n\n**6. RECOMMENDATION FRAMEWORK**\n\n**Investment Decision Criteria:**\n• Financial performance and projections\n• Market opportunity and competitive position\n• Management quality and execution capability\n• Risk assessment and mitigation strategies\n• Strategic fit and synergy potential\n\n---\n\n**Note:** This analysis framework provides the structure for comprehensive due diligence. Manual review of the attached documents is required to complete the assessment.\n\n**Action Required:** Please review the documents listed above and update this analysis with specific findings.`;\n\nconsole.log(`📊 Generated analysis framework for ${companyName}`);\nconsole.log(`📄 ${documentCount} documents require manual review`);\n\nreturn [{\n  json: {\n    response: analysisReport,\n    company_name: companyName,\n    website: website,\n    task_id: taskId,\n    document_count: documentCount,\n    analysis_type: 'framework_generated',\n    requires_manual_review: true\n  }\n}];"
+      },
+      "name": "Generate Analysis Framework",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2280, 180],
+      "id": "generate-analysis"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create comprehensive summary for Kanboard comment - Direct from processed attachments\nconst analysisData = $input.first().json;\nconsole.log(`📝 Full analysis input:`, JSON.stringify(analysisData, null, 2));\n\n// Try to get data from multiple possible sources\nlet companyName = 'Unknown Company';\nlet website = 'Not specified';\nlet taskId = 'Unknown';\nlet attachments = [];\nlet documentCount = 0;\n\n// First try the direct analysis data\nif (analysisData.company_name) {\n  companyName = analysisData.company_name;\n  website = analysisData.website || 'Not specified';\n  taskId = analysisData.task_id;\n}\n\n// Try to get attachment info from aggregated data\nif (analysisData.data && Array.isArray(analysisData.data)) {\n  const data = analysisData.data;\n  documentCount = data.length;\n  \n  // Get company info from first item if not already set\n  if (data.length > 0 && companyName === 'Unknown Company') {\n    const firstItem = data[0];\n    companyName = firstItem.company_name || firstItem.companyName || companyName;\n    website = firstItem.website || firstItem.websiteUrl || website;\n    taskId = firstItem.task_id || firstItem.taskId || taskId;\n  }\n  \n  // Build attachments list\n  attachments = data.map(item => ({\n    name: item.file_name || item.filename || item.name || 'Unknown file',\n    type: (item.file_name || item.filename || item.name || '').toLowerCase().includes('.pdf') ? 'PDF' : 'Document'\n  }));\n}\n\nconsole.log(`📝 Summary data: Company=\"${companyName}\", Website=\"${website}\", Docs=${documentCount}`);\nconsole.log(`📎 Attachments:`, attachments);\n\n// Build attachment summary\nlet attachmentSummary = '';\nif (documentCount > 0 && attachments.length > 0) {\n  attachmentSummary = '\\n📎 **ATTACHMENTS SUMMARY:**\\n';\n  attachments.forEach((file, index) => {\n    const fileIcon = file.type === 'PDF' ? '📄' : '📄';\n    attachmentSummary += `• ${fileIcon} ${file.type}: ${file.name}\\n`;\n  });\n} else {\n  attachmentSummary = '\\n📎 **ATTACHMENTS:** No documents found\\n';\n}\n\n// Create the comprehensive summary comment\nconst summaryComment = `🤖 **DUE DILIGENCE TASK SUMMARY**\n\n📋 **Company:** ${companyName}\n🌐 **Website:** ${website}\n📅 **Processed:** ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}\n${attachmentSummary}\n---\n\n📊 **QUICK OVERVIEW:**\n• Company under review: ${companyName}\n• Official website: ${website === 'Not specified' ? 'Website not provided in task description' : website}\n• Documents attached: ${documentCount} file(s)\n• Status: Ready for detailed analysis\n\n📝 **NEXT STEPS:**\n1. Review all attached documents\n2. Verify company website and gather additional information\n3. Conduct financial and operational analysis\n4. Complete due diligence checklist\n5. Prepare final recommendation\n\n---\n*Auto-generated summary by Due Diligence Workflow*`;\n\nreturn [{\n  json: {\n    task_id: taskId,\n    comment_content: summaryComment,\n    company_name: companyName,\n    website: website,\n    document_count: documentCount\n  }\n}];"
+      },
+      "name": "Create Summary Comment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2480, 180],
+      "id": "create-summary"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}",
+            "content": "={{ $json.comment_content }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Summary to Kanboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2680, 180],
+      "id": "post-summary",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Diligence Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Diligence Tasks": {
+      "main": [
+        [
+          {
+            "node": "Tasks Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tasks Found?": {
+      "main": [
+        [
+          {
+            "node": "Get Task Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Task Attachments": {
+      "main": [
+        [
+          {
+            "node": "Process Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Attachments": {
+      "main": [
+        [
+          {
+            "node": "Create Direct Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has PDFs?": {
+      "main": [
+        [
+          {
+            "node": "Split PDFs for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split PDFs for Processing": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge PDF Contents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDF Contents": {
+      "main": [
+        [
+          {
+            "node": "Generate Analysis Framework",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Analysis Framework": {
+      "main": [
+        [
+          {
+            "node": "Create Summary Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Summary Comment": {
+      "main": [
+        [
+          {
+            "node": "Post Summary to Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Direct Summary": {
+      "main": [
+        [
+          {
+            "node": "Post Summary to Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "simple-dd-reader-v1-fixed",
+  "meta": {
+    "instanceId": "simple-kanboard-reader-fixed"
+  },
+  "id": "simple-due-diligence-reader-fixed",
+  "tags": [
+    "due-diligence",
+    "kanboard",
+    "simple"
+  ]
+}

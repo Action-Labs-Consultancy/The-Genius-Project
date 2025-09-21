@@ -1,0 +1,9 @@
+{
+  "companyInfo": {
+    "companyName": "Test Company",
+    "description": "Test company for webhook testing",
+    "contactEmail": "test@example.com"
+  },
+  "uploadedFiles": [],
+  "requestId": "test123"
+}

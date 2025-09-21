@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authApi } from './api/authApi';
+import { API_BASE_URL } from './config/api';
 
 const AuthenticationComponent = ({ onLoginSuccess }) => {
   // Force premium styling
@@ -347,7 +348,7 @@ const AuthenticationComponent = ({ onLoginSuccess }) => {
     setIsLoading(true);
     try {
       // Direct fetch with credentials to maintain session
-      const response = await fetch('http://192.168.100.63:10000/login', {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

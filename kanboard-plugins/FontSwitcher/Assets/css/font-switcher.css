@@ -1,0 +1,271 @@
+/* KANBOARD PLUGIN - CSS FILE */
+
+:root {
+    --pp-blue: #007AC9;
+    --pp-blue-alt: #00ADFF;
+    --pp-red: #B71234;
+    --pp-red-alt: #DA004C;
+    --pp-red-alt-2: #AE003D;
+    --pp-black: #000000;
+    --pp-light-grey: #8F8F8F;
+    --pp-grey-alt: #737373;
+    --pp-grey: #4D4D4D;
+    --pp-white: #FFFFFF;
+    --pp-green: #2EA02E;
+    --pp-green-dark: #055D20;
+    --pp-orange: #FF6500;
+    --pp-purple: #7532F9;
+    --pp-purple-dark: #3800A6;
+    --blue-icon-dark: #034CA6;
+    --button-blue-gradient: linear-gradient(to bottom, #7892C2 80%, #476E9E 100%);
+    --blue-border-gradient-match: #476E9E;
+    --button-background-delete: #D05C84;
+    --link-color-primary: #3366CC;
+    --header-page-margin-font-switcher: 5px 15px 10px 15px;
+    --page-margin-font-switcher: 0 15px 0 15px;
+    --title-margin-font-switcher: 0 15px 0 15px;
+    --border-radius-font-switcher: 3px;
+    --panel-background-font-switcher: #EEEEEE;
+    --transition-font-switcher: ease-in-out all .3s;
+}
+
+.pp-blue { color: var(--pp-blue); fill: var(--pp-blue); }
+.pp-blue-alt { color: var(--pp-blue-alt); fill: var(--pp-blue-alt); }
+.pp-red { color: var(--pp-red); fill: var(--pp-red); }
+.pp-red-alt { color: var(--pp-red-alt); fill: var(--pp-red-alt); }
+.pp-red-alt-2 { color: var(--pp-red-alt-2); fill: var(--pp-red-alt-2); }
+.pp-black { color: var(--pp-black); fill: var(--pp-black); }
+.pp-light-grey { color: var(--pp-light-grey); fill: var(--pp-light-grey); }
+.pp-grey { color: var(--pp-grey); fill: var(--pp-grey); }
+.pp-white { color: var(--pp-white); fill: var(--pp-white); }
+.pp-green { color: var(--pp-green); fill: var(--pp-green); }
+.pp-dark-green { color: var(--pp-green-dark); fill: var(--pp-green-dark); }
+.pp-orange { color: var(--pp-orange); fill: var(--pp-orange); }
+
+.display-none, .d-none { display: none; }
+
+.font-weight-bold { font-weight: bold; }
+
+.text-center { text-align: center; }
+
+.relative { position: relative; }
+
+.v-middle { vertical-align: middle; }
+
+#FontSettingsSection h3 {
+    margin-top: 0;
+    font-weight: 600;
+}
+
+#FontSettingsSection span.font-switcher-icon {
+    vertical-align: middle;
+    margin-right: 4px;
+    height: 32px;
+}
+
+#FontForm .form-actions button, #FontForm .form-actions a.btn {
+    transition: var(--transition-font-switcher);
+}
+
+a.font-page-link {
+    text-decoration: none;
+    font-weight: 600;
+    transition: var(--transition-font-switcher);
+}
+
+a.font-page-link:hover, a.font-page-link:focus {
+    color: var(--pp-purple);
+}
+
+#FontsPage h2 {
+    margin-block: 5px 15px;
+}
+
+#FontsPage h2 span.font-switcher-icon {
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+.fonts-page-intro {
+    margin-block: 25px;
+}
+
+.font-form h3 {
+    margin-top: 0;
+    font-weight: 600;
+}
+
+.font-form.panel {
+    border: 1px inset var(--pp-grey);
+    border-radius: var(--border-radius-font-switcher);
+}
+
+.font-form fieldset.font-wrapper legend, .font-form fieldset.font-wrapper-enabled legend {
+    background-color: var(--pp-white);
+    padding-inline: 5px;
+}
+
+.font-form fieldset.font-wrapper-enabled {
+    border: 2px inset var(--pp-green);
+}
+
+.font-form fieldset {
+    position: relative;
+    box-shadow: 0 0 2px 0;
+}
+
+.font-form fieldset.font-wrapper {
+    border: 2px inset var(--pp-purple);
+    border-radius: var(--border-radius-font-switcher);
+}
+
+.font-form fieldset.font-wrapper legend {
+    color: var(--pp-purple-dark);
+}
+
+.icon-version {
+    position: absolute;
+    right: 10px;
+    top: -25px;
+    background: var(--pp-white);
+    padding-inline: 5px;
+    color: var(--pp-grey);
+}
+
+.font-form fieldset span[class*="-icon"] {
+    width: 30px;
+    height: 30px;
+    background: var(--pp-white);
+    padding-inline: 5px;
+}
+
+.font-form fieldset span.font-version {
+    display: block;
+    background: var(--pp-white);
+    padding-inline: 5px;
+    color: var(--pp-grey);
+    text-align: center;
+    line-height: 1;
+}
+
+.font-form fieldset span.font-typeface {
+    position: absolute;
+    right: 10px;
+    bottom: 6px;
+    color: var(--pp-grey);
+}
+
+.font-option-wrapper {
+    width: 200px;
+    font-size: .9em;
+    height: 40px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.font-option-wrapper label {
+    font-size: 1.1em;
+    margin-top: 0;
+}
+
+.font-option-wrapper label input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    vertical-align: bottom;
+}
+
+.font-description-wrapper {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.font-description-name, .font-description-styles-title, .font-description-charsets-title {
+    font-size: .8em;
+    font-weight: 600;
+    color: var(--pp-purple-dark);
+    opacity: .7;
+    margin-right: 15px;
+}
+
+.font-description-name i {
+    font-weight: normal;
+}
+
+ul.font-description li, ul.font-description-styles li, ul.font-description-charsets li {
+    list-style-type: none;
+    margin-left: 0;
+    line-height: initial;
+    display: inline-block;
+}
+
+ul.font-description, ul.font-description-styles, ul.font-description-charsets {
+    margin-block: 2px 5px;
+}
+
+li.font-style-value {
+    background-color: var(--pp-light-grey);
+    color: var(--pp-white);
+}
+
+.font-style-value, .font-charset-value {
+    font-size: .9em;
+    margin-right: 5px;
+    color: var(--pp-grey-alt);
+    border: 1px solid var(--pp-grey-alt);
+    padding: 1px 3px;
+    border-radius: var(--border-radius-font-switcher);
+}
+
+/* Radio element, when checked */
+.font-option-wrapper input[type="radio"]:checked {
+    box-shadow: 0 0 0 2px var(--pp-purple);
+}
+
+.font-name-value {
+    padding: 2px 7px 2px 5px;
+    border-radius: var(--border-radius-font-switcher);
+    color: var(--pp-black);
+}
+
+#FontForm .form-actions button.save-font-settings {
+    background-color: #9B69FF;
+    color: white;
+    font-size: 1.1em;
+    border: 2px solid var(--pp-purple-dark);
+    border-radius: var(--border-radius-font-switcher);
+    vertical-align: middle;
+}
+
+#FontForm .form-actions button.save-font-settings:hover, #FontForm .form-actions button.save-font-settings:focus {
+    background-color: var(--pp-purple);
+}
+
+#FontForm .form-actions a.btn {
+    font-size: 1.1em;
+    border: 2px solid var(--pp-purple);
+    border-radius: var(--border-radius-font-switcher);
+    vertical-align: middle;
+}
+
+#FontForm .form-actions a.btn:hover, #FontForm .form-actions a.btn:focus {
+    color: var(--pp-purple);
+    background-color: var(--pp-white);
+}
+
+img.font-preview-img {
+    border: 2px solid transparent;
+    display: block;
+    transition: var(--transition-font-switcher);
+    margin-left: -3px;
+}
+
+.font-wrapper:hover img.font-preview-img {
+    border: 2px outset var(--pp-purple-dark);
+    border-radius: var(--border-radius-font-switcher);
+    margin-left: 0;
+}
+
+#FontsPage p.form-help.default-notice {
+    display: block;
+    margin-left: 0;
+}

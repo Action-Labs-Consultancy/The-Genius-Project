@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import NotificationBell from './components/NotificationBell';
+import NotificationSystem from './components/NotificationSystem';
 
 export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -36,7 +36,7 @@ export default function HeaderBar({ user, onLogout, onLogoClick, onNavigate }) {
             </span>
           )}
           <div style={{ marginLeft: 15, marginRight: 15 }}>
-            <NotificationBell user={user} />
+            <NotificationSystem user={user} />
           </div>
           <button
             className="logout-btn"

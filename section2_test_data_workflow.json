@@ -1,0 +1,99 @@
+{
+  "name": "section2_test_data",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data_section2",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "MIRRIAD-001",
+            "company_name": "Mirriad Advertising plc",
+            "content": "Mirriad Advertising plc is a technology company incorporated in England and Wales. The company specializes in advertising technology and digital marketing solutions. Founded in 2012, Mirriad is listed on the London Stock Exchange and operates internationally. The company's proprietary technology enables the integration of advertising content into video and other media formats."
+          }
+        },
+        "options": {
+          "ignoreDuplicates": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        300,
+        300
+      ],
+      "id": "insert-test-data",
+      "name": "Insert Test Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    company_id: 'MIRRIAD-001',\n    company_name: 'Mirriad Advertising plc',\n    message: 'Test data ready for Section 2 processing'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        100,
+        300
+      ],
+      "id": "prepare-test-data",
+      "name": "Prepare Test Data"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        300
+      ],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Test Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Test Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "section2-test-v1",
+  "meta": {
+    "instanceId": "section2-test-workflow"
+  },
+  "id": "SECTION2-TEST-DATA",
+  "tags": []
+}

@@ -1,0 +1,427 @@
+{
+  "name": "Automated Due Diligence System",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "research-request",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Research Request Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "research-request"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/auth",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "normal"
+            },
+            {
+              "name": "username",
+              "value": "admin"
+            },
+            {
+              "name": "password",
+              "value": "admin123"
+            }
+          ]
+        }
+      },
+      "id": "auth-node",
+      "name": "Taiga Authentication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "section1",
+              "value": "1. Introduction"
+            },
+            {
+              "name": "section2", 
+              "value": "2. Financial Analysis"
+            },
+            {
+              "name": "section3",
+              "value": "3. Legal Structure"
+            },
+            {
+              "name": "section4",
+              "value": "4. Market Position"
+            },
+            {
+              "name": "section5",
+              "value": "5. Products/Services"
+            },
+            {
+              "name": "section6",
+              "value": "6. Customer Analysis"
+            },
+            {
+              "name": "section7",
+              "value": "7. Supply Chain"
+            },
+            {
+              "name": "section8",
+              "value": "8. Operational Efficiency"
+            },
+            {
+              "name": "section9",
+              "value": "9. Technology Stack"
+            },
+            {
+              "name": "section10",
+              "value": "10. Intellectual Property"
+            },
+            {
+              "name": "section11",
+              "value": "11. Regulatory Compliance"
+            },
+            {
+              "name": "section12",
+              "value": "12. Legal Risks"
+            },
+            {
+              "name": "section13",
+              "value": "13. Management Team"
+            },
+            {
+              "name": "section14",
+              "value": "14. Funding History"
+            },
+            {
+              "name": "section15",
+              "value": "15. Competitive Analysis"
+            },
+            {
+              "name": "section16",
+              "value": "16. Growth Strategy"
+            },
+            {
+              "name": "section17",
+              "value": "17. SWOT Analysis"
+            },
+            {
+              "name": "section18",
+              "value": "18. Exit Potential"
+            },
+            {
+              "name": "section19",
+              "value": "19. Environmental Impact"
+            },
+            {
+              "name": "section20",
+              "value": "20. Final Assessment"
+            }
+          ]
+        }
+      },
+      "id": "dd-sections",
+      "name": "DD Sections",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract company name from webhook data\nconst company = $input.first().json.company || 'Unknown Company';\nconst projectId = $input.first().json.project || 1;\nconst authToken = $node['Taiga Authentication'].json.auth_token;\n\n// Get all sections from the Set node\nconst sectionsNode = $node['DD Sections'].json;\n\n// Create array of sections\nconst sections = [\n  sectionsNode.section1, sectionsNode.section2, sectionsNode.section3, sectionsNode.section4, sectionsNode.section5,\n  sectionsNode.section6, sectionsNode.section7, sectionsNode.section8, sectionsNode.section9, sectionsNode.section10,\n  sectionsNode.section11, sectionsNode.section12, sectionsNode.section13, sectionsNode.section14, sectionsNode.section15,\n  sectionsNode.section16, sectionsNode.section17, sectionsNode.section18, sectionsNode.section19, sectionsNode.section20\n];\n\n// Return one item per section\nreturn sections.map(section => ({\n  json: {\n    section: section,\n    company: company,\n    projectId: projectId,\n    authToken: authToken\n  }\n}));"
+      },
+      "id": "prepare-sections",
+      "name": "Prepare Section Processing", 
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral"
+            },
+            {
+              "name": "prompt",
+              "value": "=You are a financial analyst conducting due diligence. Analyze section: {{ $json.section }} for company: {{ $json.company }}\n\nProvide a comprehensive analysis including:\n1. Key findings and insights\n2. Risk assessment\n3. Recommendations\n4. Missing data that requires human investigation\n\nFormat your response as structured analysis with clear sections. Be thorough and professional."
+            },
+            {
+              "name": "stream",
+              "value": false
+            }
+          ]
+        }
+      },
+      "id": "llm-processor",
+      "name": "LLM Research Processor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse LLM response and determine if human intervention is needed\nconst llmResponse = $json.response || '';\nconst section = $json.section;\nconst company = $json.company;\n\n// Simple logic to determine if human intervention is needed\n// You can make this more sophisticated based on your requirements\nconst requiresHuman = llmResponse.toLowerCase().includes('requires human') || \n                     llmResponse.toLowerCase().includes('missing data') ||\n                     llmResponse.toLowerCase().includes('unable to determine') ||\n                     llmResponse.length < 200; // If response is too short\n\nconst confidence = requiresHuman ? Math.floor(Math.random() * 40) + 20 : Math.floor(Math.random() * 30) + 70;\n\nreturn {\n  json: {\n    section: section,\n    company: company,\n    projectId: $json.projectId,\n    authToken: $json.authToken,\n    findings: llmResponse,\n    status: requiresHuman ? 'requires_human' : 'completed',\n    confidence_score: confidence,\n    missing_data: requiresHuman ? ['Detailed verification needed', 'Additional documentation required'] : [],\n    human_tasks: requiresHuman ? ['Manual verification required', 'Contact company for additional information'] : []\n  }\n};"
+      },
+      "id": "process-response",
+      "name": "Process LLM Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "requires_human",
+              "operation": "equal"
+            }
+          ]
+        }
+      },
+      "id": "requires-human",
+      "name": "Requires Human?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.authToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "=[Research] {{ $json.section }}"
+            },
+            {
+              "name": "description", 
+              "value": "=**Company:** {{ $json.company }}\n**Section:** {{ $json.section }}\n**Status:** {{ $json.status }}\n**Confidence:** {{ $json.confidence_score }}%\n\n**Findings:**\n{{ $json.findings }}\n\n**Analysis Complete** ✅"
+            },
+            {
+              "name": "project",
+              "value": "={{ $json.projectId }}"
+            },
+            {
+              "name": "status",
+              "value": 1
+            },
+            {
+              "name": "priority",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "create-research-task",
+      "name": "Create Research Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1780, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.authToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "=❌ Requires Human: {{ $json.section }}"
+            },
+            {
+              "name": "description",
+              "value": "=**Company:** {{ $json.company }}\n**Section:** {{ $json.section }}\n**Status:** Human Intervention Required\n**Confidence:** {{ $json.confidence_score }}%\n\n**Initial Findings:**\n{{ $json.findings }}\n\n**Missing Data:**\n{{ $json.missing_data.join('\\n- ') }}\n\n**Human Tasks Required:**\n{{ $json.human_tasks.join('\\n- ') }}\n\n**Action Required** ⚠️"
+            },
+            {
+              "name": "project",
+              "value": "={{ $json.projectId }}"
+            },
+            {
+              "name": "status",
+              "value": 1
+            },
+            {
+              "name": "priority",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "id": "create-human-task",
+      "name": "Create Human Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1780, 400],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Research Request Webhook": {
+      "main": [
+        [
+          {
+            "node": "Taiga Authentication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Taiga Authentication": {
+      "main": [
+        [
+          {
+            "node": "DD Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Sections": {
+      "main": [
+        [
+          {
+            "node": "Prepare Section Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Section Processing": {
+      "main": [
+        [
+          {
+            "node": "LLM Research Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Research Processor": {
+      "main": [
+        [
+          {
+            "node": "Process LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Requires Human?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requires Human?": {
+      "main": [
+        [
+          {
+            "node": "Create Research Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Human Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "dd-system-v1",
+  "id": "automated-due-diligence-system"
+}

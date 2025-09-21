@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>n8n Action Rollback Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            height: fit-content;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .execution-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .execution-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .execution-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .execution-item.selected {
+            border-color: #667eea;
+            background: #f7fafc;
+        }
+        
+        .execution-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .execution-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 16px;
+        }
+        
+        .execution-id {
+            font-size: 12px;
+            color: #718096;
+            background: #f7fafc;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .execution-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            color: #4a5568;
+        }
+        
+        .execution-actions {
+            margin-top: 12px;
+        }
+        
+        .action-tag {
+            display: inline-block;
+            background: #e6fffa;
+            color: #065f46;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-right: 6px;
+            margin-bottom: 4px;
+        }
+        
+        .action-tag.irreversible {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .details-panel {
+            display: none;
+        }
+        
+        .details-panel.active {
+            display: block;
+        }
+        
+        .action-details {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .action-node {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .action-type {
+            background: #667eea;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        
+        .action-data {
+            font-size: 12px;
+            color: #4a5568;
+            margin-top: 8px;
+        }
+        
+        .rollback-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fef5e7;
+            border-radius: 12px;
+            border: 2px solid #f6ad55;
+        }
+        
+        .rollback-plan {
+            margin-top: 15px;
+        }
+        
+        .rollback-step {
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .rollback-step.irreversible {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .step-header {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .risk-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .risk-low { background: #d1fae5; color: #065f46; }
+        .risk-medium { background: #fef3c7; color: #92400e; }
+        .risk-high { background: #fee2e2; color: #991b1b; }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary { background: #667eea; color: white; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-warning { background: #d69e2e; color: white; }
+        
+        .btn:hover { transform: translateY(-1px); opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .confirmation-section {
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .confirmation-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .warning-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+        
+        .warning-list li {
+            padding: 6px 0;
+            color: #c05621;
+            font-size: 12px;
+        }
+        
+        .warning-list li:before {
+            content: "⚠️ ";
+            margin-right: 6px;
+        }
+        
+        .rollback-history {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .rollback-item {
+            padding: 12px;
+            background: #f7fafc;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #38a169;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+        
+        .notification.success { background: #38a169; }
+        .notification.error { background: #e53e3e; }
+        .notification.warning { background: #d69e2e; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+        
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel: Execution List -->
+        <div class="panel">
+            <div class="header">
+                <h1>🎯 n8n Workflow Executions</h1>
+                <p class="subtitle">Select an execution to rollback specific actions</p>
+            </div>
+            
+            <div id="execution-list" class="execution-list">
+                <div class="empty-state">
+                    <div class="icon">⏳</div>
+                    <div>Loading n8n executions...</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <button id="refresh-executions-btn" class="btn btn-primary">
+                    🔄 Refresh Executions
+                </button>
+            </div>
+        </div>
+        
+        <!-- Right Panel: Execution Details & Rollback -->
+        <div class="panel">
+            <div class="header">
+                <h1>🔍 Execution Details</h1>
+                <p class="subtitle">Review actions and plan rollback</p>
+            </div>
+            
+            <div id="no-selection" class="empty-state">
+                <div class="icon">👈</div>
+                <div><strong>Select an execution</strong></div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    Choose a workflow execution from the left panel to see its actions and rollback options
+                </div>
+            </div>
+            
+            <div id="execution-details" class="details-panel">
+                <div id="execution-info"></div>
+                
+                <div id="actions-section">
+                    <h3 style="margin: 20px 0 15px 0; color: #2d3748;">📋 Execution Actions</h3>
+                    <div id="actions-list"></div>
+                </div>
+                
+                <div id="rollback-section" class="rollback-section" style="display: none;">
+                    <h3 style="margin: 0 0 15px 0; color: #c05621;">🚨 Rollback Plan</h3>
+                    <div id="rollback-plan-content"></div>
+                    
+                    <div class="confirmation-section">
+                        <div class="confirmation-checkbox">
+                            <input type="checkbox" id="confirm-rollback">
+                            <label for="confirm-rollback" style="font-size: 14px; color: #742a2a;">
+                                I understand that this will reverse the selected workflow execution's actions. 
+                                Some actions may be irreversible.
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button id="execute-rollback-btn" class="btn btn-danger" disabled>
+                        🔄 Execute Action Rollback
+                    </button>
+                </div>
+            </div>
+            
+            <div id="rollback-history-section" style="margin-top: 30px;">
+                <h3 style="color: #2d3748; margin-bottom: 15px;">📊 Recent Rollbacks</h3>
+                <div id="rollback-history" class="rollback-history">
+                    <div style="text-align: center; padding: 20px; color: #718096; font-size: 14px;">
+                        No rollbacks performed yet
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:10002';
+        let selectedExecution = null;
+        let currentRollbackPlan = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadExecutions();
+            await loadRollbackHistory();
+            setupEventListeners();
+        });
+        
+        function setupEventListeners() {
+            document.getElementById('refresh-executions-btn').addEventListener('click', loadExecutions);
+            document.getElementById('confirm-rollback').addEventListener('change', handleConfirmationChange);
+            document.getElementById('execute-rollback-btn').addEventListener('click', executeRollback);
+        }
+        
+        async function loadExecutions() {
+            const executionList = document.getElementById('execution-list');
+            executionList.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><div>Loading n8n executions...</div></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/n8n/executions`);
+                const data = await response.json();
+                
+                if (data.success && data.executions.length > 0) {
+                    executionList.innerHTML = data.executions.map(execution => `
+                        <div class="execution-item" onclick="selectExecution('${execution.id}')">
+                            <div class="status-badge status-${execution.status}">${execution.status}</div>
+                            
+                            <div class="execution-header">
+                                <div>
+                                    <div class="execution-name">${execution.workflowName}</div>
+                                    <div class="execution-id">ID: ${execution.id}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="execution-meta">
+                                <div><strong>Started:</strong> ${new Date(execution.startedAt).toLocaleString()}</div>
+                                <div><strong>Mode:</strong> ${execution.mode}</div>
+                                <div><strong>Duration:</strong> ${calculateDuration(execution.startedAt, execution.finishedAt)}</div>
+                                <div><strong>Actions:</strong> ${execution.actions?.length || 0}</div>
+                            </div>
+                            
+                            <div class="execution-actions">
+                                ${execution.actions?.map(action => `
+                                    <span class="action-tag ${action.reversible === false ? 'irreversible' : ''}">${action.action}</span>
+                                `).join('') || ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    executionList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📭</div>
+                            <div><strong>No executions found</strong></div>
+                            <div style="font-size: 12px; margin-top: 8px;">Run some n8n workflows to see them here</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                executionList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">❌</div>
+                        <div><strong>Failed to load executions</strong></div>
+                        <div style="font-size: 12px; margin-top: 8px;">Check if the API server is running on port 10002</div>
+                    </div>
+                `;
+                showNotification('Failed to load executions: ' + error.message, 'error');
+            }
+        }
+        
+        async function selectExecution(executionId) {
+            // Highlight selected execution
+            document.querySelectorAll('.execution-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.target.closest('.execution-item').classList.add('selected');
+            
+            // Load execution details
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/n8n/executions/${executionId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    selectedExecution = data.execution;
+                    displayExecutionDetails(data.execution);
+                    await loadRollbackPlan(executionId);
+                }
+            } catch (error) {
+                showNotification('Failed to load execution details: ' + error.message, 'error');
+            }
+        }
+        
+        function displayExecutionDetails(execution) {
+            document.getElementById('no-selection').style.display = 'none';
+            document.getElementById('execution-details').style.display = 'block';
+            
+            const executionInfo = document.getElementById('execution-info');
+            executionInfo.innerHTML = `
+                <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; color: #2d3748; margin-bottom: 10px;">${execution.workflowName}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; color: #4a5568;">
+                        <div><strong>Execution ID:</strong> ${execution.id}</div>
+                        <div><strong>Workflow ID:</strong> ${execution.workflowId}</div>
+                        <div><strong>Started:</strong> ${new Date(execution.startedAt).toLocaleString()}</div>
+                        <div><strong>Status:</strong> <span class="status-badge status-${execution.status}">${execution.status}</span></div>
+                    </div>
+                </div>
+            `;
+            
+            const actionsList = document.getElementById('actions-list');
+            actionsList.innerHTML = execution.actions.map(action => `
+                <div class="action-details">
+                    <div class="action-node">
+                        <span>${action.nodeName || action.node}</span>
+                        <span class="action-type">${action.action}</span>
+                        ${action.reversible === false ? '<span style="color: #ef4444; font-size: 10px;">⚠️ IRREVERSIBLE</span>' : '<span style="color: #10b981; font-size: 10px;">✅ REVERSIBLE</span>'}
+                    </div>
+                    
+                    <div class="action-data">
+                        <div><strong>Time:</strong> ${new Date(action.timestamp).toLocaleString()}</div>
+                        ${action.table ? `<div><strong>Table:</strong> ${action.table}</div>` : ''}
+                        ${action.query ? `<div><strong>Query:</strong> <code style="background: #e2e8f0; padding: 2px 4px; border-radius: 2px;">${action.query}</code></div>` : ''}
+                        ${action.data ? `<div><strong>Data:</strong> ${JSON.stringify(action.data)}</div>` : ''}
+                        ${action.note ? `<div style="color: #718096; font-style: italic;">${action.note}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadRollbackPlan(executionId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/n8n/executions/${executionId}/rollback-plan`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentRollbackPlan = data.rollbackPlan;
+                    displayRollbackPlan(data.rollbackPlan);
+                }
+            } catch (error) {
+                showNotification('Failed to create rollback plan: ' + error.message, 'error');
+            }
+        }
+        
+        function displayRollbackPlan(plan) {
+            document.getElementById('rollback-section').style.display = 'block';
+            
+            const rollbackContent = document.getElementById('rollback-plan-content');
+            rollbackContent.innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: 600; color: #2d3748; margin-bottom: 8px;">Rollback Summary</div>
+                    <div style="font-size: 12px; color: #4a5568;">
+                        <div>Steps: ${plan.summary.totalSteps} (${plan.summary.reversibleSteps} reversible, ${plan.summary.irreversibleSteps} irreversible)</div>
+                        <div>Estimated Duration: ${plan.summary.estimatedDuration}</div>
+                        <div>Risk Level: <span class="risk-badge risk-${plan.summary.riskLevel}">${plan.summary.riskLevel}</span></div>
+                    </div>
+                </div>
+                
+                <div class="rollback-plan">
+                    ${plan.steps.map(step => `
+                        <div class="rollback-step ${!step.reversible ? 'irreversible' : ''}">
+                            <div class="step-header">
+                                <span>Step ${step.stepId}</span>
+                                <span class="risk-badge risk-${step.risk}">${step.risk}</span>
+                                ${!step.reversible ? '<span style="color: #ef4444; font-size: 10px;">⚠️ IRREVERSIBLE</span>' : ''}
+                            </div>
+                            <div style="font-size: 12px; color: #4a5568; margin-bottom: 6px;">${step.description}</div>
+                            ${step.query ? `<div style="font-size: 11px; background: #f7fafc; padding: 4px; border-radius: 4px; font-family: monospace;">${step.query}</div>` : ''}
+                            ${step.warning ? `<div style="color: #ef4444; font-size: 11px; margin-top: 4px;">⚠️ ${step.warning}</div>` : ''}
+                            ${step.note ? `<div style="color: #718096; font-size: 11px; margin-top: 4px; font-style: italic;">${step.note}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                
+                ${plan.warnings && plan.warnings.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <div style="font-weight: 600; color: #c05621; margin-bottom: 8px;">⚠️ Important Warnings</div>
+                        <ul class="warning-list">
+                            ${plan.warnings.map(warning => `<li>${warning}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        function handleConfirmationChange() {
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            const executeBtn = document.getElementById('execute-rollback-btn');
+            executeBtn.disabled = !confirmCheckbox.checked;
+        }
+        
+        async function executeRollback() {
+            if (!selectedExecution || !currentRollbackPlan) {
+                showNotification('No execution or rollback plan selected', 'error');
+                return;
+            }
+            
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            if (!confirmCheckbox.checked) {
+                showNotification('Please confirm the rollback operation', 'warning');
+                return;
+            }
+            
+            const btn = document.getElementById('execute-rollback-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Executing Rollback...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/n8n/executions/${selectedExecution.id}/rollback`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        planId: currentRollbackPlan.planId,
+                        confirmed: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Action rollback completed successfully!', 'success');
+                    await loadRollbackHistory();
+                    
+                    // Reset UI
+                    confirmCheckbox.checked = false;
+                    handleConfirmationChange();
+                    
+                    // Show rollback results
+                    displayRollbackResults(data.rollback);
+                } else {
+                    throw new Error(data.message || 'Rollback failed');
+                }
+            } catch (error) {
+                showNotification('Rollback failed: ' + error.message, 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = true; // Keep disabled until confirmed again
+            }
+        }
+        
+        function displayRollbackResults(rollback) {
+            const rollbackContent = document.getElementById('rollback-plan-content');
+            rollbackContent.innerHTML = `
+                <div style="background: #d1fae5; border: 2px solid #10b981; border-radius: 8px; padding: 15px;">
+                    <div style="font-weight: 600; color: #065f46; margin-bottom: 10px;">✅ Rollback Completed Successfully</div>
+                    <div style="font-size: 12px; color: #064e3b;">
+                        <div><strong>Rollback ID:</strong> ${rollback.rollbackId}</div>
+                        <div><strong>Duration:</strong> ${rollback.summary.duration}</div>
+                        <div><strong>Data Reverted:</strong> ${rollback.summary.dataReverted.join(', ')}</div>
+                        ${rollback.summary.dataUnrecoverable.length > 0 ? `<div><strong>Irreversible:</strong> ${rollback.summary.dataUnrecoverable.join(', ')}</div>` : ''}
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <div style="font-weight: 600; color: #065f46; margin-bottom: 8px;">Executed Steps:</div>
+                        ${rollback.steps.map(step => `
+                            <div style="background: white; padding: 8px; border-radius: 4px; margin-bottom: 6px; border-left: 3px solid #10b981;">
+                                <div style="font-weight: 600; font-size: 11px;">${step.action}</div>
+                                <div style="font-size: 10px; color: #064e3b;">${step.message}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function loadRollbackHistory() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/n8n/rollbacks`);
+                const data = await response.json();
+                
+                const historyContainer = document.getElementById('rollback-history');
+                
+                if (data.success && data.rollbacks.length > 0) {
+                    historyContainer.innerHTML = data.rollbacks.map(rollback => `
+                        <div class="rollback-item">
+                            <div style="font-weight: 600; color: #2d3748; margin-bottom: 4px;">
+                                Rollback: ${rollback.executionId}
+                            </div>
+                            <div style="font-size: 12px; color: #4a5568; margin-bottom: 6px;">
+                                ${new Date(rollback.finishedAt).toLocaleString()} | Duration: ${rollback.summary.duration}
+                            </div>
+                            <div style="font-size: 11px; color: #065f46;">
+                                Reverted: ${rollback.summary.dataReverted.join(', ')}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    historyContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #718096; font-size: 14px;">No rollbacks performed yet</div>';
+                }
+            } catch (error) {
+                console.error('Failed to load rollback history:', error);
+            }
+        }
+        
+        function calculateDuration(start, end) {
+            const diff = new Date(end) - new Date(start);
+            const seconds = Math.floor(diff / 1000);
+            if (seconds < 60) return `${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            return `${minutes}m ${seconds % 60}s`;
+        }
+        
+        function showNotification(message, type) {
+            // Remove existing notifications
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        // Auto-refresh executions every 30 seconds
+        setInterval(loadExecutions, 30000);
+    </script>
+</body>
+</html>

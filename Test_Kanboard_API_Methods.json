@@ -1,0 +1,200 @@
+{
+  "name": "Test Kanboard API Methods",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllFiles",
+          "id": 1,
+          "params": {
+            "task_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Test getAllFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        200
+      ],
+      "id": "test-get-all-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getFiles",
+          "id": 2,
+          "params": {
+            "task_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Test getFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        300
+      ],
+      "id": "test-get-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTaskFiles",
+          "id": 3,
+          "params": {
+            "task_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Test getAllTaskFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        400
+      ],
+      "id": "test-get-all-task-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTask",
+          "id": 4,
+          "params": {
+            "task_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Test getTask with Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        500
+      ],
+      "id": "test-get-task",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze all API responses to find the working method\nconst inputs = $input.all();\n\nconsole.log('=== KANBOARD API METHOD TESTING ===');\n\ninputs.forEach((input, index) => {\n  const response = input.json;\n  const methodNames = ['getAllFiles', 'getFiles', 'getAllTaskFiles', 'getTask'];\n  \n  console.log(`\\n--- ${methodNames[index]} ---`);\n  \n  if (response.error) {\n    console.log(`❌ Error: ${response.error.message} (Code: ${response.error.code})`);\n  } else if (response.result) {\n    console.log(`✅ Success!`);\n    console.log(`Result type: ${typeof response.result}`);\n    \n    if (Array.isArray(response.result)) {\n      console.log(`Array length: ${response.result.length}`);\n      if (response.result.length > 0) {\n        console.log(`First item keys: ${Object.keys(response.result[0])}`);\n      }\n    } else if (typeof response.result === 'object') {\n      console.log(`Object keys: ${Object.keys(response.result)}`);\n      \n      // Check if it has file-related properties\n      const keys = Object.keys(response.result);\n      const fileKeys = keys.filter(key => \n        key.toLowerCase().includes('file') || \n        key.toLowerCase().includes('attachment')\n      );\n      if (fileKeys.length > 0) {\n        console.log(`File-related keys: ${fileKeys}`);\n      }\n    }\n    \n    console.log(`Full response:`);\n    console.log(JSON.stringify(response.result, null, 2));\n  }\n});\n\nreturn {\n  json: {\n    message: 'API method testing completed - check console for results'\n  }\n};"
+      },
+      "name": "Analyze API Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        500,
+        350
+      ],
+      "id": "analyze-results"
+    }
+  ],
+  "connections": {
+    "Test getAllFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze API Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test getFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze API Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test getAllTaskFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze API Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test getTask with Files": {
+      "main": [
+        [
+          {
+            "node": "Analyze API Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

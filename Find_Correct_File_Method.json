@@ -1,0 +1,234 @@
+{
+  "name": "Find Correct Kanboard File Method",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Tasks First",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        300
+      ],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get task IDs to test file methods\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} tasks`);\n\nif (tasks.length === 0) {\n  throw new Error('No tasks found to test');\n}\n\n// Return first task ID for testing\nconst firstTask = tasks[0];\nconsole.log(`Testing with task: ${firstTask.title} (ID: ${firstTask.id})`);\n\nreturn {\n  json: {\n    task_id: parseInt(firstTask.id),\n    title: firstTask.title\n  }\n};"
+      },
+      "name": "Get Task ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "get-task-id"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Try getAllFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        200
+      ],
+      "id": "try-get-all-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getFiles",
+          "id": 2,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Try getFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "id": "try-get-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 3,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Try getTaskFiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        400
+      ],
+      "id": "try-get-task-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check which method worked\nconst inputs = $input.all();\nconst taskInfo = inputs[0].json;\nconsole.log(`\\n=== TESTING FILE METHODS FOR TASK ${taskInfo.task_id} ===`);\n\nconst methods = [\n  { name: 'getAllFiles', response: inputs[1].json },\n  { name: 'getFiles', response: inputs[2].json },\n  { name: 'getTaskFiles', response: inputs[3].json }\n];\n\nlet workingMethod = null;\nlet filesFound = [];\n\nmethods.forEach(method => {\n  console.log(`\\n--- Testing ${method.name} ---`);\n  \n  if (method.response.error) {\n    console.log(`❌ Error: ${method.response.error.message}`);\n  } else {\n    console.log(`✅ Success!`);\n    \n    if (method.response.result && Array.isArray(method.response.result)) {\n      const files = method.response.result;\n      console.log(`Found ${files.length} files`);\n      \n      if (files.length > 0) {\n        workingMethod = method.name;\n        filesFound = files;\n        \n        files.forEach((file, index) => {\n          console.log(`  File ${index + 1}: ${file.name} (${file.size} bytes)`);\n          console.log(`    ID: ${file.id}, MIME: ${file.mimetype}`);\n          console.log(`    Token: ${file.token}`);\n        });\n      }\n    } else {\n      console.log(`Result: ${JSON.stringify(method.response.result)}`);\n    }\n  }\n});\n\nif (workingMethod) {\n  console.log(`\\n🎉 Working method found: ${workingMethod}`);\n  console.log(`Files discovered: ${filesFound.length}`);\n} else {\n  console.log(`\\n❌ No working file method found`);\n}\n\nreturn {\n  json: {\n    task_id: taskInfo.task_id,\n    working_method: workingMethod,\n    files_count: filesFound.length,\n    files: filesFound,\n    message: workingMethod ? `Use ${workingMethod} method` : 'No file method works'\n  }\n};"
+      },
+      "name": "Analyze File Methods",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        800,
+        300
+      ],
+      "id": "analyze-methods"
+    }
+  ],
+  "connections": {
+    "Get Tasks First": {
+      "main": [
+        [
+          {
+            "node": "Get Task ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task ID": {
+      "main": [
+        [
+          {
+            "node": "Try getAllFiles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Try getFiles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Try getTaskFiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Try getAllFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze File Methods",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Try getFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze File Methods",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Try getTaskFiles": {
+      "main": [
+        [
+          {
+            "node": "Analyze File Methods",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

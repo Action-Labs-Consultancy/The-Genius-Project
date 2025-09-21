@@ -1,0 +1,136 @@
+{
+  "name": "Debug Kanboard File Detection",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get All Tasks (Any Status)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        300
+      ],
+      "id": "get-all-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Debug: Show ALL tasks and their details\nconst tasks = $input.first().json.result || [];\nconsole.log(`\\n=== KANBOARD TASK ANALYSIS ===`);\nconsole.log(`Total tasks found: ${tasks.length}`);\n\nif (tasks.length === 0) {\n  console.log('❌ No tasks found in Kanboard!');\n  return [{ json: { error: 'No tasks found', total_tasks: 0 } }];\n}\n\n// Show details of each task\ntasks.forEach((task, index) => {\n  console.log(`\\n--- Task ${index + 1} ---`);\n  console.log(`ID: ${task.id}`);\n  console.log(`Title: \"${task.title}\"`);\n  console.log(`Description: \"${task.description}\"`);\n  console.log(`Status ID: ${task.status_id}`);\n  console.log(`Project ID: ${task.project_id}`);\n  console.log(`Date Created: ${task.date_creation}`);\n});\n\n// Return first few tasks for file checking\nconst tasksToCheck = tasks.slice(0, 3); // Check first 3 tasks\nconsole.log(`\\n🔍 Will check files for first ${tasksToCheck.length} tasks`);\n\nreturn tasksToCheck.map(task => ({\n  json: {\n    task_id: parseInt(task.id),\n    title: task.title,\n    description: task.description,\n    status_id: task.status_id\n  }\n}));"
+      },
+      "name": "Debug Task Details",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "debug-tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Files for Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "id": "get-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Detailed file analysis\nconst taskData = $input.first().json;\nconst fileResponse = $input.last().json;\n\nconsole.log(`\\n🔍 ANALYZING FILES FOR TASK ${taskData.task_id}`);\nconsole.log(`Task Title: \"${taskData.title}\"`);\nconsole.log(`Raw Kanboard Response:`);\nconsole.log(JSON.stringify(fileResponse, null, 2));\n\nconst files = fileResponse.result || [];\nconsole.log(`\\n📁 Files found: ${files.length}`);\n\nif (files.length === 0) {\n  console.log(`❌ No files attached to task ${taskData.task_id}`);\n  return {\n    json: {\n      task_id: taskData.task_id,\n      task_title: taskData.title,\n      status: 'NO_FILES',\n      files_count: 0,\n      message: 'No files attached to this task'\n    }\n  };\n}\n\n// Analyze each file in detail\nconst fileAnalysis = files.map((file, index) => {\n  console.log(`\\n--- File ${index + 1} ---`);\n  console.log(`Name: \"${file.name}\"`);\n  console.log(`ID: ${file.id}`);\n  console.log(`Size: ${file.size} bytes`);\n  console.log(`MIME Type: ${file.mimetype || 'not specified'}`);\n  console.log(`Token: ${file.token}`);\n  console.log(`Date: ${file.date}`);\n  console.log(`User ID: ${file.user_id}`);\n  \n  // Check if it's a PDF\n  const isPdfByName = file.name && file.name.toLowerCase().endsWith('.pdf');\n  const isPdfByMime = file.mimetype && file.mimetype.toLowerCase().includes('pdf');\n  \n  console.log(`Is PDF by name: ${isPdfByName}`);\n  console.log(`Is PDF by MIME: ${isPdfByMime}`);\n  \n  const downloadUrl = `/index.php?controller=FileController&action=download&file_id=${file.id}&token=${file.token}`;\n  console.log(`Download URL: http://localhost:8000${downloadUrl}`);\n  \n  return {\n    name: file.name,\n    id: file.id,\n    size: file.size,\n    mimetype: file.mimetype,\n    token: file.token,\n    download_url: downloadUrl,\n    is_pdf_by_name: isPdfByName,\n    is_pdf_by_mime: isPdfByMime,\n    is_pdf: isPdfByName || isPdfByMime\n  };\n});\n\nconst pdfFiles = fileAnalysis.filter(f => f.is_pdf);\nconsole.log(`\\n✅ PDF files detected: ${pdfFiles.length}`);\npdfFiles.forEach(pdf => {\n  console.log(`- ${pdf.name} (${pdf.size} bytes)`);\n});\n\nreturn {\n  json: {\n    task_id: taskData.task_id,\n    task_title: taskData.title,\n    status: files.length > 0 ? 'HAS_FILES' : 'NO_FILES',\n    files_count: files.length,\n    pdf_count: pdfFiles.length,\n    all_files: fileAnalysis,\n    pdf_files: pdfFiles,\n    first_pdf: pdfFiles.length > 0 ? pdfFiles[0] : null\n  }\n};"
+      },
+      "name": "Detailed File Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        800,
+        300
+      ],
+      "id": "analyze-files"
+    }
+  ],
+  "connections": {
+    "Get All Tasks (Any Status)": {
+      "main": [
+        [
+          {
+            "node": "Debug Task Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Task Details": {
+      "main": [
+        [
+          {
+            "node": "Get Files for Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Files for Task": {
+      "main": [
+        [
+          {
+            "node": "Detailed File Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

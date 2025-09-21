@@ -1,0 +1,174 @@
+{
+  "name": "Website Research Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "research-webhook",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Research Request Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "research-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const company = $input.first().json.company || 'Unknown Company';\n\nconst sections = [\n  'Introduction',\n  'Financial Analysis', \n  'Legal Structure',\n  'Market Position',\n  'Products/Services',\n  'Customer Analysis',\n  'Supply Chain',\n  'Operational Efficiency',\n  'Technology Stack',\n  'Intellectual Property',\n  'Regulatory Compliance',\n  'Legal Risks',\n  'Management Team',\n  'Funding History',\n  'Competitive Analysis',\n  'Growth Strategy',\n  'SWOT Analysis',\n  'Exit Potential',\n  'Environmental Impact',\n  'Final Assessment'\n];\n\nreturn sections.map(section => ({\n  json: {\n    company: company,\n    section: section\n  }\n}));"
+      },
+      "id": "prepare-sections",
+      "name": "Prepare Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/v1/chat/completions",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\": \"system\", \"content\": \"You are a financial analyst conducting due diligence. Return only JSON.\"}, {\"role\": \"user\", \"content\": \"Research {{ $json.section }} for {{ $json.company }}. Output: {'status':'completed|requires_human','findings':'','missing_data':[],'human_tasks':[],'confidence_score':0}\"}]"
+            }
+          ]
+        }
+      },
+      "id": "llm-request",
+      "name": "LLM Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "const company = $json.company;\nconst section = $json.section;\nconst llmResponse = $json.choices?.[0]?.message?.content || '{}';\n\nlet parsedResponse;\ntry {\n  parsedResponse = JSON.parse(llmResponse);\n} catch (e) {\n  parsedResponse = {\n    status: 'requires_human',\n    findings: llmResponse,\n    missing_data: ['LLM response parsing failed'],\n    human_tasks: ['Manual review required'],\n    confidence_score: 0\n  };\n}\n\nreturn {\n  json: {\n    company: company,\n    section: section,\n    status: parsedResponse.status || 'requires_human',\n    findings: parsedResponse.findings || '',\n    missing_data: JSON.stringify(parsedResponse.missing_data || []),\n    human_tasks: JSON.stringify(parsedResponse.human_tasks || []),\n    confidence_score: parsedResponse.confidence_score || 0\n  }\n};"
+      },
+      "id": "parse-response",
+      "name": "Parse LLM Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "research_results",
+        "columns": "company, section, status, findings, missing_data, human_tasks, confidence_score",
+        "additionalFields": {},
+        "columnValues": {
+          "company": "={{ $json.company }}",
+          "section": "={{ $json.section }}",
+          "status": "={{ $json.status }}",
+          "findings": "={{ $json.findings }}",
+          "missing_data": "={{ $json.missing_data }}",
+          "human_tasks": "={{ $json.human_tasks }}",
+          "confidence_score": "={{ $json.confidence_score }}"
+        }
+      },
+      "id": "database-insert",
+      "name": "Insert to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300],
+      "credentials": {
+        "postgres": {
+          "id": "local-postgres",
+          "name": "Local PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\"status\": \"success\", \"message\": \"Research queued\", \"sections\": 20} }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Research Request Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sections": {
+      "main": [
+        [
+          {
+            "node": "LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Request": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Insert to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert to Database": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "website-research-v1",
+  "id": "website-research-workflow"
+}

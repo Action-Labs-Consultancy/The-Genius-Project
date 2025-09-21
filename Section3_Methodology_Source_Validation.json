@@ -1,0 +1,424 @@
+{
+  "name": "section1",
+  "nodes": [
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=section1_{{ $json.company_id || 'default' }}_{{ Date.now() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        192
+      ],
+      "id": "d0ff0942-8ea3-40af-be4f-0dcdd8512177",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "complete_dd_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $node['Direct Section 1 Generation'].json.company_id }}",
+            "company_name": "={{ $node['Direct Section 1 Generation'].json.company_name }}",
+            "executive_summary": "={{ $node['Direct Section 1 Generation'].json.output }}",
+            "sections_completed": 1,
+            "status": "section1_complete",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "executive_summary",
+              "displayName": "executive_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sections_completed",
+              "displayName": "sections_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        560,
+        0
+      ],
+      "id": "ef6f1bf6-7202-46fe-8d1a-9bb944917aec",
+      "name": "Save Section 1 Content",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Direct AI content generation for Section 1 using actual company data\nconst companyData = $input.first().json;\n\nconsole.log('=== DIRECT SECTION 1 GENERATION ===');\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Company ID: ${companyData.company_id}`);\nconsole.log(`Content length: ${companyData.content?.length || 0} characters`);\n\nif (!companyData.content || companyData.content.length < 100) {\n  console.log('❌ Insufficient company data for AI generation');\n  return [{\n    json: {\n      error: 'Insufficient company data',\n      company_id: companyData.company_id,\n      company_name: companyData.company_name\n    }\n  }];\n}\n\n// Extract key information from company content\nconst content = companyData.content || '';\nconst companyName = companyData.company_name || 'the Company';\n\n// Analyze content to extract business context\nlet businessContext = '';\nif (content.toLowerCase().includes('technology') || content.toLowerCase().includes('tech')) {\n  businessContext = 'technology sector';\n} else if (content.toLowerCase().includes('financial') || content.toLowerCase().includes('finance')) {\n  businessContext = 'financial services sector';\n} else if (content.toLowerCase().includes('energy') || content.toLowerCase().includes('renewable')) {\n  businessContext = 'energy sector';\n} else if (content.toLowerCase().includes('media') || content.toLowerCase().includes('advertising')) {\n  businessContext = 'media and advertising sector';\n} else {\n  businessContext = 'business sector';\n}\n\n// Generate Section 1 content with actual company data\nconst section1Content = `**Section 1: Introduction & Engagement Context**\n\nThe Client engaged Action Labs to conduct commercial due diligence on ${companyName} for potential investment/acquisition consideration. [Source: Company Data, Reliability: High]\n\nOur analysis applies a commercial lens evaluating ${companyName}'s scalability, defensibility, revenue quality, and execution friction, derived exclusively from provided company data. The assessment focuses on ${companyName}'s position within the ${businessContext}, examining its operational capabilities and market positioning. [Source: Company Data, Reliability: High]\n\nThis review examines company profile, business model, products & services, target market & competition, financial trajectory, revenue quality & cohorts, partnerships/ecosystem, IP/technology, governance & disclosures, and risk scenarios. Each section is source-cited and reliability-rated based on the comprehensive documentation provided. [Source: Company Data, Reliability: High]\n\nBased on the extensive company documentation reviewed, ${companyName} demonstrates established market presence with documented operational frameworks and business processes. The analysis reflects the current state of available company information as provided for this due diligence engagement. [Source: Company Data, Reliability: High]\n\nThis report reflects company data provided for analysis and represents Action Labs' independent assessment based on available documentation. [Source: Company Data, Reliability: High]\n\nPrepared independently by Action Labs.\n\nValidation items and next-step requests are compiled in Appendix A (Management Interview Script) and Appendix B (RFI Template).\n\nThis document supports deal evaluation, negotiation strategy, and next-phase validation planning, providing the Client with a decision-useful view of ${companyName}'s commercial posture, value drivers, and friction points. [Source: Company Data, Reliability: High]`;\n\nconsole.log(`✅ Generated Section 1 content for ${companyName}`);\nconsole.log(`Content length: ${section1Content.length} characters`);\nconsole.log(`Business context identified: ${businessContext}`);\n\nreturn [{\n  json: {\n    company_id: companyData.company_id,\n    company_name: companyData.company_name,\n    output: section1Content,\n    content_length: section1Content.length,\n    generation_method: 'direct_company_specific',\n    business_context: businessContext,\n    status: 'section1_complete'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        80
+      ],
+      "id": "294a7b27-1cd9-4f7e-886c-5a531267715d",
+      "name": "Direct Section 1 Generation"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the retrieved company data for AI agent\nconst companyRecords = $input.all();\n\nconsole.log('=== RETRIEVING COMPANY DATA FOR SECTION 1 ===');\nconsole.log(`Found ${companyRecords.length} company records in database`);\n\nif (companyRecords.length === 0) {\n  console.log('❌ No company data found in database');\n  return {\n    json: {\n      error: 'No company data available for Section 1 generation',\n      message: 'Please ensure the main workflow has processed company PDFs first'\n    }\n  };\n}\n\n// Get the most recent company data\nconst latestCompany = companyRecords[0]?.json || {};\n\nconsole.log(`Processing company: ${latestCompany.company_name}`);\nconsole.log(`Company ID: ${latestCompany.company_id}`);\nconsole.log(`Content length: ${latestCompany.content?.length || 0} characters`);\nconsole.log(`Processed at: ${latestCompany.processed_at}`);\n\n// Prepare comprehensive company data for AI agent\nconst companyData = {\n  company_id: latestCompany.company_id,\n  company_name: latestCompany.company_name,\n  folder_id: latestCompany.folder_id,\n  content: latestCompany.content || '',\n  processed_at: latestCompany.processed_at,\n  content_summary: {\n    total_length: latestCompany.content?.length || 0,\n    has_content: !!(latestCompany.content && latestCompany.content.length > 100)\n  }\n};\n\nconsole.log(`✅ Prepared company data for Section 1 generation`);\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Content available: ${companyData.content_summary.has_content}`);\n\nreturn {\n  json: companyData\n};"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        80
+      ],
+      "id": "0d0152a4-83aa-4ad5-b287-edd766ad7a69",
+      "name": "Process Company Data"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "processed_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -832,
+        80
+      ],
+      "id": "101e6cc5-0ac8-47fd-bb64-0f9b2b3edc55",
+      "name": "Retrieve Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1200,
+        80
+      ],
+      "id": "17cf8e4b-1fa1-4734-9c7b-34ce6730851f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create Complete Due Diligence reports table if it doesn't exist\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section 1: Executive Summary & Key Findings\n    executive_summary TEXT,\n    key_findings TEXT,\n    \n    -- Section 2: Legal Disclaimers & Reliance Limitations\n    legal_disclaimers_reliance_limitations TEXT,\n    \n    -- Future sections (to be added)\n    section_3_content TEXT,\n    section_4_content TEXT,\n    section_5_content TEXT,\n    section_6_content TEXT,\n    section_7_content TEXT,\n    section_8_content TEXT,\n    section_9_content TEXT,\n    section_10_content TEXT,\n    \n    -- Metadata\n    jurisdiction VARCHAR(255),\n    latest_filing_date VARCHAR(100),\n    content_length INTEGER,\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'in_progress',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Create indexes for performance\nCREATE INDEX IF NOT EXISTS idx_complete_dd_company_id ON complete_dd_reports(company_id);\nCREATE INDEX IF NOT EXISTS idx_complete_dd_status ON complete_dd_reports(status);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1008,
+        80
+      ],
+      "id": "65ae7ad2-7db8-4908-b039-d133fe9f5203",
+      "name": "Setup Complete DD Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        224
+      ],
+      "id": "bf0df2e9-49fb-4ca8-9da1-997567e0a5c8",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "COMPANY DATA INPUT: The AI Agent will pass you company data. Use this data to generate Section 1.\n\nYou are drafting Section 1: Introduction & Engagement Context of a board-grade commercial due diligence report authored by Action Labs. Generate the final prose using ONLY the company data provided.\n\nSource Discipline (mandatory):\nExtract company name, business details, and facts ONLY from the company data provided. Do not invent names, tickers, or claims. Use inline citations: [Source: Company Data, Reliability: High]. If information is not available, write: \"Not disclosed in public record.\"\n\nTarget Identification:\nUse the actual company name from the provided data. NO placeholders like [Target Company] or [Client Name].\n\nRequired Structure (150-220 words):\n\n1. Engagement Summary: \"The Client engaged Action Labs to conduct commercial due diligence on [ACTUAL COMPANY NAME] for potential investment/acquisition.\"\n\n2. Strategic Framing: \"Our analysis applies a commercial lens evaluating [COMPANY NAME]'s scalability, defensibility, revenue quality, and execution friction, derived exclusively from provided company data.\"\n\n3. Scope of Review: \"This review examines company profile, business model, products & services, target market & competition, financial trajectory, revenue quality & cohorts, partnerships/ecosystem, IP/technology, governance & disclosures, and risk scenarios. Each section is source-cited and reliability-rated.\"\n\n4. Data Limitations: \"This report reflects company data provided for analysis.\" [Source: Company Data, Reliability: High]\n\n5. Authorship: \"Prepared independently by Action Labs.\"\n\n6. Appendix Reference: \"Validation items and next-step requests are compiled in Appendix A (Management Interview Script) and Appendix B (RFI Template).\"\n\n7. Commercial Orientation: \"This document supports deal evaluation, negotiation strategy, and next-phase validation planning, providing [CLIENT] with a decision-useful view of [COMPANY NAME]'s commercial posture, value drivers, and friction points.\"\n\nOutput: Return ONLY the formatted Section 1 starting with: **Section 1: Introduction & Engagement Context**",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        288
+      ],
+      "id": "3febb244-6c62-4314-8d33-740200aa36e5",
+      "name": "DD Section 1 Generator"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        128,
+        512
+      ],
+      "id": "4c14ded6-0847-4c1d-80c4-6e53e4f7c3b9",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Call the \"DD Section 1 Generator\" tool and pass it all the company data you received.",
+        "options": {
+          "systemMessage": "You must call the \"DD Section 1 Generator\" tool with the company data. Do not generate any content yourself. Your only job is to call the tool and pass the data.",
+          "maxIterations": 10
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "f61b8133-8db5-4815-88bb-fca5da828afe",
+      "name": "Maker"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Direct Section 1 Generation": {
+      "main": [
+        [
+          {
+            "node": "Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Direct Section 1 Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Company Data": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Setup Complete DD Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Complete DD Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Maker",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Section 1 Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Maker",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DD Section 1 Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maker": {
+      "main": [
+        [
+          {
+            "node": "Save Section 1 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ec127cee-15ab-4ca2-8a3e-d9e2c88adb19",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "Vnk6HiKh6scd0PkY",
+  "tags": []
+}

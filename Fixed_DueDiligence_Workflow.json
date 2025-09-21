@@ -1,0 +1,551 @@
+{
+  "name": "DueDiligenceAutomation",
+  "nodes": [
+    {
+      "parameters": {
+        "expression": "*/5 * * * *"
+      },
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-250, 50],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-50, 50],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      },
+      "id": "get-tasks"
+    },
+    {
+      "parameters": {
+        "functionCode": "const tasks = $input.first().json.result || [];\n\n// Find DD tasks\nconst ddTasks = tasks.filter(task => \n  task.title && task.title.toLowerCase().includes('due diligence:')\n);\n\nif (ddTasks.length === 0) {\n  console.log('No DD tasks found');\n  throw new Error('No Due Diligence tasks found');\n}\n\n// Select first DD task\nconst task = ddTasks[0];\n\n// Validate prerequisites\nconst errors = [];\n\nif (!task.title.includes('Due Diligence:')) {\n  errors.push('Title missing company name');\n}\n\nlet websiteUrl = '';\ntry {\n  const urlMatch = task.description ? task.description.match(/https?:\\/\\/[^\\s]+/) : null;\n  if (urlMatch) {\n    websiteUrl = urlMatch[0];\n  } else {\n    errors.push('No website URL found in description');\n  }\n} catch (e) {\n  errors.push('Invalid website URL');\n}\n\n// Extract company name\nconst companyName = task.title.replace(/due diligence:\\s*/i, '').trim();\n\nreturn {\n  json: {\n    taskId: task.id,\n    projectId: task.project_id || 1,\n    companyName,\n    websiteUrl,\n    errors,\n    description: task.description || ''\n  }\n};"
+      },
+      "name": "Validate Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [150, 50],
+      "id": "validate-task"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.errors.length > 0 }}"
+            }
+          ]
+        }
+      },
+      "name": "Has Errors?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [350, 50],
+      "id": "error-check"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.taskId }}",
+            "user_id": 1,
+            "content": "=⚠️ DD PROCESS ERROR: Missing requirements:\\n{{ $json.errors.map(e => '• ' + e).join('\\n') }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Error Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [550, -100],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      },
+      "id": "post-error"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.websiteUrl }}",
+        "options": {
+          "timeout": 30000
+        },
+        "continueOnFail": true
+      },
+      "name": "Fetch Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [350, 200],
+      "id": "fetch-website"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build Knowledge Base from website\nconst taskData = $('Validate Task').first().json;\nlet websiteContent = '';\n\ntry {\n  const websiteResponse = $('Fetch Website').first();\n  if (websiteResponse && websiteResponse.data) {\n    websiteContent = websiteResponse.data.toString();\n  }\n} catch (error) {\n  console.log('Website fetch failed:', error.message);\n}\n\n// Create knowledge base chunks\nlet kbChunks = [];\n\n// Add task info\nkbChunks.push({\n  chunk_id: `kb://${taskData.taskId}/task:title`,\n  content: `Company: ${taskData.companyName}. Task: ${taskData.title || 'Due Diligence: ' + taskData.companyName}`,\n  source_type: 'task_info'\n});\n\nkbChunks.push({\n  chunk_id: `kb://${taskData.taskId}/task:description`,\n  content: `Task Description: ${taskData.description}`,\n  source_type: 'task_info'\n});\n\n// Add website chunks if available\nif (websiteContent) {\n  const chunks = chunkText(websiteContent, 800);\n  chunks.forEach((chunk, index) => {\n    kbChunks.push({\n      chunk_id: `kb://${taskData.taskId}/website:${index + 1}`,\n      content: chunk,\n      source_type: 'website'\n    });\n  });\n}\n\nfunction chunkText(text, maxTokens) {\n  const words = text.split(/\\s+/);\n  const chunks = [];\n  let currentChunk = [];\n  \n  for (const word of words) {\n    currentChunk.push(word);\n    if (currentChunk.length >= maxTokens * 0.75) {\n      chunks.push(currentChunk.join(' '));\n      currentChunk = [];\n    }\n  }\n  \n  if (currentChunk.length > 0) {\n    chunks.push(currentChunk.join(' '));\n  }\n  \n  return chunks;\n}\n\nconsole.log(`Built KB with ${kbChunks.length} chunks`);\n\nreturn {\n  json: {\n    ...taskData,\n    kbChunks: kbChunks,\n    totalChunks: kbChunks.length\n  }\n};"
+      },
+      "name": "Build Knowledge Base",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [550, 200],
+      "id": "build-kb"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate section list\nconst sections = [\n  'Business Model & Unit Economics',\n  'Company Overview',\n  'Products & Technology',\n  'Target Market & Competitive Set',\n  'Financials'\n];\n\nconst taskData = $input.first().json;\n\n// For this demo, process first section\nconst currentSection = sections[0];\n\nreturn {\n  json: {\n    ...taskData,\n    currentSection: currentSection,\n    allSections: sections\n  }\n};"
+      },
+      "name": "Get Next Section",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 200],
+      "id": "next-section"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "=SYSTEM: You are the MAKER agent for a Due Diligence report. Write ONLY the requested section using the provided Knowledge Base.\n\nRules:\n- Use ONLY KB chunks provided\n- NO fabrication or invention\n- Cite sources as [KB:chunk_id]\n- State missing info explicitly\n- Professional Markdown format\n\nUSER:\nCompany: {{ $json.companyName }}\nSection: {{ $json.currentSection }}\n\nKnowledge Base:\n{{ $json.kbChunks.slice(0,5).map(c => `[${c.chunk_id}]: ${c.content.substring(0,200)}...`).join('\\n\\n') }}\n\nWrite the \"{{ $json.currentSection }}\" section covering:\n1. Value Proposition\n2. Revenue Streams  \n3. Pricing Strategy\n4. Key Cost Drivers\n5. Unit Economics (if data available)\n\nUse professional Markdown with proper citations.",
+          "stream": false,
+          "options": {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "max_tokens": 2000
+          }
+        },
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Maker LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [950, 200],
+      "id": "maker-llm"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "=SYSTEM: You are the CHECKER. Validate the Maker's work. Respond ONLY in JSON format:\n\n{\"approved\": true/false, \"quality_score\": 1-10, \"issues\": [\"list of problems\"], \"instructions\": \"guidance for improvement\"}\n\nUSER:\nSection: {{ $('Get Next Section').first().json.currentSection }}\n\nMaker Output:\n{{ $('Maker LLM').first().json.response }}\n\nValidation Rules:\n1. All claims supported by KB chunks?\n2. No hallucinated data?\n3. Proper citations [KB:chunk_id]?\n4. Complete coverage of section scope?\n5. Professional quality?\n\nRespond with JSON only.",
+          "stream": false,
+          "options": {
+            "temperature": 0.1,
+            "top_p": 0.6,
+            "max_tokens": 1000
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Checker LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 200],
+      "id": "checker-llm"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Checker response\nconst taskData = $('Get Next Section').first().json;\nconst makerResponse = $('Maker LLM').first().json.response;\nconst checkerResponse = $input.first().json.response;\n\nlet checkerData;\ntry {\n  // Try to parse JSON from response\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No JSON found');\n  }\n} catch (e) {\n  checkerData = {\n    approved: false,\n    quality_score: 1,\n    issues: ['Checker response invalid: ' + e.message],\n    instructions: 'Checker failed to return valid JSON'\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.quality_score}/10)`);\n\nreturn {\n  json: {\n    ...taskData,\n    makerOutput: makerResponse,\n    checkerData: checkerData\n  }\n};"
+      },
+      "name": "Parse Checker JSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1350, 200],
+      "id": "parse-checker"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checkerData.approved }}"
+            }
+          ]
+        }
+      },
+      "name": "Checker Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1550, 200],
+      "id": "checker-check"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.taskId }}",
+            "user_id": 1,
+            "content": "=❌ **CHECKER REJECTED: {{ $json.currentSection }}**\\n\\n📊 **Score:** {{ $json.checkerData.quality_score }}/10\\n\\n**Issues:**\\n{{ $json.checkerData.issues.map(i => '• ' + i).join('\\n') }}\\n\\n**Instructions:**\\n{{ $json.checkerData.instructions }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Checker Reject",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 100],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      },
+      "id": "post-reject"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "=SYSTEM: You are the APPROVER. Make final business decision. Respond ONLY in JSON:\n\n{\"approved\": true/false, \"feedback\": \"brief rationale\", \"instructions\": \"any guidance\"}\n\nUSER:\nSection: {{ $json.currentSection }}\n\nMaker Output:\n{{ $json.makerOutput }}\n\nChecker Findings:\n{{ JSON.stringify($json.checkerData) }}\n\nApprove if:\n- Strategic value for executives\n- Professional quality\n- Honest about limitations\n\nRespond with JSON only.",
+          "stream": false,
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 800
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Approver LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300],
+      "id": "approver-llm"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Approver response\nconst taskData = $input.first().json;\nconst approverResponse = $('Approver LLM').first().json.response;\n\nlet approverData;\ntry {\n  // Try to parse JSON from response\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No JSON found');\n  }\n} catch (e) {\n  approverData = {\n    approved: false,\n    feedback: 'Approver response invalid: ' + e.message,\n    instructions: 'Approver failed to return valid JSON'\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nif (approverData.approved) {\n  // Generate final comment\n  const finalComment = `🎉 **DUE DILIGENCE ANALYSIS COMPLETED**\\n\\n` +\n    `📄 **Company:** ${taskData.companyName}\\n` +\n    `📝 **Section:** ${taskData.currentSection}\\n` +\n    `**Quality Score:** ${taskData.checkerData.quality_score}/10\\n` +\n    `**Generated:** ${new Date().toISOString()}\\n\\n` +\n    `---\\n\\n` +\n    taskData.makerOutput +\n    `\\n\\n---\\n\\n` +\n    `## Quality Assurance\\n\\n` +\n    `**Checker:** ✅ Approved (${taskData.checkerData.quality_score}/10)\\n` +\n    `**Approver:** ✅ Approved\\n` +\n    `**Knowledge Base:** ${taskData.totalChunks} chunks\\n` +\n    `\\n⏰ **Completed:** ${new Date().toISOString()}`;\n    \n  return {\n    json: {\n      ...taskData,\n      approverData: approverData,\n      finalComment: finalComment,\n      approved: true\n    }\n  };\n} else {\n  return {\n    json: {\n      ...taskData,\n      approverData: approverData,\n      approved: false\n    }\n  };\n}"
+      },
+      "name": "Process Approver Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1950, 300],
+      "id": "process-approver"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approved }}"
+            }
+          ]
+        }
+      },
+      "name": "Final Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2150, 300],
+      "id": "final-check"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.taskId }}",
+            "user_id": 1,
+            "content": "={{ $json.finalComment }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Success Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2350, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      },
+      "id": "post-success"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.taskId }}",
+            "user_id": 1,
+            "content": "=❌ **APPROVER REJECTED: {{ $json.currentSection }}**\\n\\n**Feedback:** {{ $json.approverData.feedback }}\\n\\n**Instructions:** {{ $json.approverData.instructions }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Approver Reject",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2350, 200],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      },
+      "id": "post-approver-reject"
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Validate Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Task": {
+      "main": [
+        [
+          {
+            "node": "Has Errors?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Errors?": {
+      "main": [
+        [
+          {
+            "node": "Post Error Comment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Website": {
+      "main": [
+        [
+          {
+            "node": "Build Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Get Next Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Next Section": {
+      "main": [
+        [
+          {
+            "node": "Maker LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maker LLM": {
+      "main": [
+        [
+          {
+            "node": "Checker LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker LLM": {
+      "main": [
+        [
+          {
+            "node": "Parse Checker JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Checker JSON": {
+      "main": [
+        [
+          {
+            "node": "Checker Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Approved?": {
+      "main": [
+        [
+          {
+            "node": "Post Checker Reject",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approver LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver LLM": {
+      "main": [
+        [
+          {
+            "node": "Process Approver Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver Result": {
+      "main": [
+        [
+          {
+            "node": "Final Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Approved?": {
+      "main": [
+        [
+          {
+            "node": "Post Approver Reject",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Success Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fixed-dd-v1",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "FIXED-DD-WORKFLOW",
+  "tags": []
+}

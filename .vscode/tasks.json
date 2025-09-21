@@ -8,6 +8,14 @@
 			"group": "test",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Start Frontend on Port 2345",
+			"type": "shell",
+			"command": "cd frontend; npm run start:2345",
+			"group": "test",
+			"isBackground": true,
+			"problemMatcher": []
 		}
 	]
 }

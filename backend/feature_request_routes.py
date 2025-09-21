@@ -389,7 +389,7 @@ def send_status_notification(user_email, request_title, old_status, new_status):
         print(f"[NOTIFICATION] Error sending notification: {e}")
 
 @feature_request_routes.route('/api/notifications', methods=['GET'])
-def get_user_notifications():
+def get_notifications():
     """Get notifications for current user - NO AUTH REQUIRED"""
     try:
         limit = int(request.args.get('limit', 10))

@@ -1,0 +1,571 @@
+{
+  "name": "MASTER",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list",
+          "cachedResultName": "Due",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1hDbczPdamC3FDROskKamg9MdCYV5PY06"
+        },
+        "event": "folderCreated"
+      },
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        336
+      ],
+      "id": "8c538419-22f8-4369-9515-e431b3cf0ef5",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Initialize company processing session\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\n\n// Generate unique company ID\nconst companyId = `company_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n\n// Clean company name\nlet companyName = folderName || 'Unknown_Company';\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nif (companyName.length < 2) {\n  companyName = 'Unknown_Company';\n}\n\nconsole.log('🏢 STARTING DUE DILIGENCE PROCESS');\nconsole.log('═'.repeat(60));\nconsole.log(`📁 Company Folder: ${folderName}`);\nconsole.log(`🏢 Company Name: ${companyName}`);\nconsole.log(`🆔 Company ID: ${companyId}`);\nconsole.log(`📂 Folder ID: ${folderId}`);\nconsole.log('═'.repeat(60));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: folderName,\n    company_folder_id: folderId,\n    processing_status: 'initialized',\n    start_time: new Date().toISOString(),\n    current_step: 'ingestion'\n  }\n};"
+      },
+      "name": "Initialize Company Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1360,
+        336
+      ],
+      "id": "e8b090e4-6197-4958-b58a-14e9da943903"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType)&pageSize=1000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "List Company PDFs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1136,
+        336
+      ],
+      "id": "b476331c-485c-48d0-b395-a502adde00de",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process PDF list and create ingestion items\nconst companyInfo = $node[\"Initialize Company Processing\"].json;\nconst response = $input.first().json;\n\nconst files = (response && response.files) ? response.files : [];\n\nif (!files || !Array.isArray(files) || files.length === 0) {\n  console.log('❌ No PDF files found in company folder');\n  return {\n    json: {\n      ...companyInfo,\n      error: 'No PDF files found',\n      processing_status: 'no_files_found'\n    }\n  };\n}\n\nconsole.log(`📄 Found ${files.length} PDF files for ingestion`);\nfiles.forEach((file, index) => {\n  console.log(`  ${index + 1}. ${file.name} (${file.size} bytes)`);\n});\n\n// Return each file as separate item for parallel processing\nreturn files.map((file, index) => ({\n  json: {\n    ...companyInfo,\n    file_id: file.id,\n    file_name: file.name,\n    file_size: file.size,\n    file_index: index,\n    total_files: files.length,\n    processing_status: 'ready_for_ingestion'\n  }\n}));"
+      },
+      "name": "Prepare PDF Ingestion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -912,
+        336
+      ],
+      "id": "fe774c07-76c2-4e8a-866e-48fa16ed6ec7"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{ $json.file_id }}",
+        "options": {}
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -688,
+        336
+      ],
+      "id": "1928fbb7-ffa2-4dd9-b527-60d7b00dba92",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        336
+      ],
+      "id": "9b24d773-f2aa-47c2-a834-27f6c1d65b7c"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine all PDF texts into one comprehensive document\nconst allInputs = $input.all();\nconst firstInput = allInputs[0]?.json;\n\n// Extract company information safely\nconst companyInfo = firstInput?.company_info || firstInput;\nconst companyName = companyInfo?.company_name || 'Unknown Company';\nconst companyId = companyInfo?.company_id || 'unknown_company';\n\nconsole.log('📋 COMBINING ALL PDF CONTENT');\nconsole.log('═'.repeat(50));\nconsole.log(`🏢 Company: ${companyName}`);\nconsole.log(`📄 Processing ${allInputs.length} extracted PDF texts`);\n\n// Combine all PDF content\nlet combinedContent = '';\nconst fileContents = [];\n\nallInputs.forEach((input, index) => {\n  if (input.json) {\n    const extractedData = input.json;\n    const fileInfo = input.json.company_info || input.json;\n    \n    let fileText = '';\n    if (extractedData.data) {\n      fileText = extractedData.data;\n    } else if (typeof extractedData === 'string') {\n      fileText = extractedData;\n    }\n    \n    if (fileText && fileText.length > 100) {\n      const fileName = fileInfo?.file_name || `Document_${index + 1}`;\n      fileContents.push({\n        file_name: fileName,\n        content: fileText,\n        length: fileText.length\n      });\n      \n      // Add to combined content with clear separation\n      combinedContent += `\\n\\n=== DOCUMENT: ${fileName} ===\\n\\n`;\n      combinedContent += fileText;\n      combinedContent += `\\n\\n=== END OF ${fileName} ===\\n\\n`;\n      \n      console.log(`📄 Added: ${fileName} (${fileText.length} chars)`);\n    }\n  }\n});\n\nconsole.log(`📊 Combined Content Stats:`);\nconsole.log(`  • Total files: ${fileContents.length}`);\nconsole.log(`  • Combined length: ${combinedContent.length} characters`);\nconsole.log(`  • Average per file: ${Math.round(combinedContent.length / fileContents.length)} chars`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: companyInfo?.company_folder_name || companyName,\n    company_folder_id: companyInfo?.company_folder_id,\n    start_time: companyInfo?.start_time,\n    combined_pdf_content: combinedContent,\n    individual_files: fileContents,\n    total_files: fileContents.length,\n    total_content_length: combinedContent.length,\n    processing_status: 'content_combined',\n    combined_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Combine All PDF Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        160
+      ],
+      "id": "combine-pdf-content"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create text chunks with unique IDs for Pinecone\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Prepare PDF Ingestion\"].json;\n\nconsole.log(`📄 Processing chunks for: ${fileInfo.file_name}`);\n\n// Get extracted text\nlet fullText = '';\nif (extractedData && extractedData.data) {\n  fullText = extractedData.data;\n} else if (typeof extractedData === 'string') {\n  fullText = extractedData;\n}\n\nif (!fullText || fullText.length < 100) {\n  console.error(`❌ Text extraction failed for ${fileInfo.file_name}`);\n  return [{\n    json: {\n      ...fileInfo,\n      error: 'Text extraction failed',\n      processing_status: 'extraction_failed'\n    }\n  }];\n}\n\n// Create chunks with unique IDs\nconst chunkSize = 1000;\nconst overlap = 200;\nconst chunks = [];\nconst timestamp = Date.now();\n\nfor (let i = 0; i < fullText.length; i += (chunkSize - overlap)) {\n  const chunk = fullText.substring(i, i + chunkSize);\n  if (chunk.trim().length > 50) {\n    // Create unique chunk ID: originalFileName + \"_\" + chunkIndex + \"_\" + timestamp\n    const chunkId = `${fileInfo.file_name.replace(/[^a-zA-Z0-9]/g, '_')}_${chunks.length}_${timestamp}`;\n    \n    chunks.push({\n      id: chunkId,\n      content: chunk.trim(),\n      metadata: {\n        company_id: fileInfo.company_id,\n        company_name: fileInfo.company_name,\n        file_name: fileInfo.file_name,\n        file_id: fileInfo.file_id,\n        chunk_index: chunks.length,\n        total_chunks_this_file: Math.ceil(fullText.length / (chunkSize - overlap)),\n        extracted_at: new Date().toISOString(),\n        source_type: 'factual_pdf'\n      }\n    });\n  }\n}\n\nconsole.log(`📦 Created ${chunks.length} chunks for ${fileInfo.file_name}`);\n\n// Return all chunks for this file\nreturn chunks.map(chunk => ({\n  json: {\n    id: chunk.id,\n    pageContent: chunk.content,\n    metadata: chunk.metadata,\n    company_info: fileInfo\n  }\n}));"
+      },
+      "name": "Create Text Chunks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        336
+      ],
+      "id": "33d0742f-5ec0-4fbe-b3af-b38bb35cec76"
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        0,
+        560
+      ],
+      "id": "2faafc20-eec5-4280-98c1-09acad86e65c",
+      "name": "Embeddings Ollama (mxbai-embed-large)",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        176,
+        576
+      ],
+      "id": "8336517d-c01c-43cf-9884-628ea3aed89b",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        336
+      ],
+      "id": "656194d6-c5bf-438e-b687-c80aea30649d",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate ingestion results and prepare for section processing\nconst allInputs = $input.all();\n\n// Safe extraction of company info\nlet companyInfo;\nif (allInputs && allInputs.length > 0 && allInputs[0].json && allInputs[0].json.company_info) {\n  companyInfo = allInputs[0].json.company_info;\n} else if (allInputs && allInputs.length > 0 && allInputs[0].json) {\n  // Fallback: try to extract from first input directly\n  companyInfo = allInputs[0].json;\n} else {\n  console.error('❌ No company info found in inputs');\n  return {\n    json: {\n      error: 'No company information available',\n      processing_status: 'failed'\n    }\n  };\n}\n\n// Safe extraction of company name with fallbacks\nconst companyName = companyInfo?.company_name || companyInfo?.name || 'Unknown Company';\nconst companyId = companyInfo?.company_id || 'unknown_company';\n\nconsole.log('📊 INGESTION COMPLETE');\nconsole.log('═'.repeat(50));\nconsole.log(`🏢 Company: ${companyName}`);\nconsole.log(`🆔 Company ID: ${companyId}`);\n\n// Count chunks by file\nconst fileChunkCounts = {};\nlet totalChunks = 0;\nlet allTextContent = ''; // Combine all PDF text\n\nallInputs.forEach(input => {\n  if (input.json && input.json.metadata) {\n    const fileName = input.json.metadata.file_name;\n    if (!fileChunkCounts[fileName]) {\n      fileChunkCounts[fileName] = 0;\n    }\n    fileChunkCounts[fileName]++;\n    totalChunks++;\n    \n    // Combine all text content\n    if (input.json.pageContent) {\n      allTextContent += input.json.pageContent + '\\n\\n';\n    }\n  }\n});\n\nconsole.log(`📦 Total Chunks Ingested: ${totalChunks}`);\nconsole.log('📄 Files Processed:');\nObject.entries(fileChunkCounts).forEach(([fileName, count]) => {\n  console.log(`  • ${fileName}: ${count} chunks`);\n});\nconsole.log(`📝 Combined content length: ${allTextContent.length} characters`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: companyInfo?.company_folder_name || companyName,\n    company_folder_id: companyInfo?.company_folder_id || companyInfo?.folder_id,\n    combined_pdf_content: allTextContent, // All PDF content combined\n    ingestion_complete: true,\n    total_chunks_ingested: totalChunks,\n    files_processed: Object.keys(fileChunkCounts).length,\n    chunk_counts_by_file: fileChunkCounts,\n    processing_status: 'ready_for_sections',\n    current_step: 'section_generation',\n    ingestion_completed_at: new Date().toISOString(),\n    start_time: companyInfo?.start_time || new Date().toISOString()\n  }\n};"
+      },
+      "name": "Complete Ingestion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        496,
+        352
+      ],
+      "id": "724cdd79-bc08-44d8-abbb-5bfc7cb8bcb2"
+    },
+    {
+      "parameters": {
+        "workflowId": "2StrSzO4YUYk6fhP",
+        "options": {}
+      },
+      "name": "Execute Section 01",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ],
+      "id": "393e634f-6aa1-471b-86ad-f370376833ca"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect all section outputs and prepare for PDF generation\nconst allSections = $input.all();\nconst companyInfo = $node[\"Complete Ingestion\"].json;\n\nconsole.log('📋 COLLECTING SECTION OUTPUTS');\nconsole.log('═'.repeat(50));\n\n// Safe extraction of company information\nconst companyName = companyInfo?.company_name || 'Unknown Company';\nconst companyId = companyInfo?.company_id || 'unknown_company';\n\nconst sectionResults = [];\nlet approvedSections = 0;\nlet failedSections = 0;\n\n// Process only the sections we actually have\nif (allSections && allSections.length > 0) {\n  allSections.forEach((sectionOutput, index) => {\n    const sectionNumber = index + 1;\n    const sectionData = sectionOutput?.json;\n    \n    if (sectionData && sectionData.status === 'approved' && sectionData.content) {\n      sectionResults.push({\n        section_number: sectionNumber,\n        title: sectionData.title || sectionData.section_title || `Section ${sectionNumber}`,\n        content: sectionData.content,\n        status: 'approved',\n        word_count: sectionData.content.length,\n        generated_at: sectionData.approved_at || sectionData.generated_at || new Date().toISOString()\n      });\n      approvedSections++;\n      console.log(`✅ Section ${sectionNumber}: ${sectionData.title || sectionData.section_title || 'Untitled'} (${sectionData.content.length} chars)`);\n    } else {\n      sectionResults.push({\n        section_number: sectionNumber,\n        title: `Section ${sectionNumber} - FAILED`,\n        content: 'ERROR: Section generation failed or was not approved.',\n        status: 'failed',\n        error: sectionData?.error || 'Unknown error'\n      });\n      failedSections++;\n      console.log(`❌ Section ${sectionNumber}: FAILED - ${sectionData?.error || 'Unknown error'}`);\n    }\n  });\n} else {\n  console.log('⚠️ No section outputs received');\n  sectionResults.push({\n    section_number: 1,\n    title: 'No Sections Generated',\n    content: 'No section outputs were received from the section workflows.',\n    status: 'failed',\n    error: 'No section outputs'\n  });\n  failedSections = 1;\n}\n\nconst totalSections = sectionResults.length;\nconst successRate = totalSections > 0 ? ((approvedSections / totalSections) * 100).toFixed(1) : '0.0';\n\nconsole.log('═'.repeat(50));\nconsole.log(`✅ Approved Sections: ${approvedSections}/${totalSections}`);\nconsole.log(`❌ Failed Sections: ${failedSections}/${totalSections}`);\nconsole.log(`📊 Success Rate: ${successRate}%`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: companyInfo?.company_folder_name || companyName,\n    company_folder_id: companyInfo?.company_folder_id,\n    start_time: companyInfo?.start_time,\n    ingestion_completed_at: companyInfo?.ingestion_completed_at,\n    files_processed: companyInfo?.files_processed || 0,\n    total_chunks_ingested: companyInfo?.total_chunks_ingested || 0,\n    sections: sectionResults,\n    total_sections: totalSections,\n    approved_sections: approvedSections,\n    failed_sections: failedSections,\n    success_rate: `${successRate}%`,\n    processing_status: 'ready_for_pdf_generation',\n    current_step: 'pdf_generation',\n    sections_completed_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Collect Section Outputs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        336
+      ],
+      "id": "4d1e1f55-6b2e-49a3-bbd0-20ca28d1a34b"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate final PDF content from all approved sections\nconst data = $input.first().json;\n\nconsole.log('📄 GENERATING FINAL PDF');\nconsole.log('═'.repeat(50));\n\n// Create PDF content structure\nlet pdfContent = '';\n\n// Add title page\npdfContent += `# Due Diligence Report\\n\\n`;\npdfContent += `**Company:** ${data.company_name}\\n\\n`;\npdfContent += `**Generated:** ${new Date().toLocaleDateString()}\\n\\n`;\npdfContent += `**Sections Completed:** ${data.approved_sections}/20 (${data.success_rate})\\n\\n`;\npdfContent += `**Total Files Analyzed:** ${data.files_processed}\\n\\n`;\npdfContent += `**Knowledge Base Chunks:** ${data.total_chunks_ingested}\\n\\n`;\npdfContent += `---\\n\\n`;\n\n// Add table of contents\npdfContent += `## Table of Contents\\n\\n`;\ndata.sections.forEach(section => {\n  pdfContent += `${section.section_number}. ${section.title}\\n`;\n});\npdfContent += `\\n---\\n\\n`;\n\n// Add all sections\ndata.sections.forEach(section => {\n  pdfContent += `## ${section.section_number}. ${section.title}\\n\\n`;\n  pdfContent += `${section.content}\\n\\n`;\n  \n  if (section.status === 'failed') {\n    pdfContent += `*Note: This section could not be generated due to: ${section.error}*\\n\\n`;\n  }\n  \n  pdfContent += `---\\n\\n`;\n});\n\n// Add generation metadata\npdfContent += `## Generation Metadata\\n\\n`;\npdfContent += `- **Company ID:** ${data.company_id}\\n`;\npdfContent += `- **Processing Started:** ${data.start_time}\\n`;\npdfContent += `- **Ingestion Completed:** ${data.ingestion_completed_at}\\n`;\npdfContent += `- **Sections Completed:** ${data.sections_completed_at}\\n`;\npdfContent += `- **PDF Generated:** ${new Date().toISOString()}\\n`;\npdfContent += `- **Total Processing Time:** ${Math.round((new Date() - new Date(data.start_time)) / 1000 / 60)} minutes\\n`;\n\nconsole.log(`📊 PDF Content Generated: ${pdfContent.length} characters`);\nconsole.log(`📄 Sections Included: ${data.sections.length}`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    ...data,\n    pdf_content: pdfContent,\n    pdf_file_name: `Due_Diligence_Report_${data.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.md`,\n    processing_status: 'pdf_content_ready',\n    pdf_generated_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Generate PDF Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        336
+      ],
+      "id": "66e09e94-b436-4773-aacc-576e76d24fc3"
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": "={{ $json.company_folder_id }}",
+        "options": {}
+      },
+      "name": "Upload Final Report",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1920,
+        336
+      ],
+      "id": "9eaa91d7-b92a-4720-915c-1a402c6beebd",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "dd_reports",
+        "columns": {
+          "columnToMatchOn": [
+            {
+              "column": "company_id",
+              "value": "={{ $node[\"Generate PDF Content\"].json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $node[\"Generate PDF Content\"].json.company_name }}"
+            },
+            {
+              "column": "folder_id",
+              "value": "={{ $node[\"Generate PDF Content\"].json.company_folder_id }}"
+            },
+            {
+              "column": "total_sections",
+              "value": "={{ $node[\"Generate PDF Content\"].json.total_sections }}"
+            },
+            {
+              "column": "approved_sections",
+              "value": "={{ $node[\"Generate PDF Content\"].json.approved_sections }}"
+            },
+            {
+              "column": "success_rate",
+              "value": "={{ $node[\"Generate PDF Content\"].json.success_rate }}"
+            },
+            {
+              "column": "pdf_url",
+              "value": "={{ $json.webViewLink }}"
+            },
+            {
+              "column": "pdf_file_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "column": "status",
+              "value": "completed"
+            },
+            {
+              "column": "generated_at",
+              "value": "={{ $node[\"Generate PDF Content\"].json.pdf_generated_at }}"
+            },
+            {
+              "column": "processing_time_minutes",
+              "value": "={{ Math.round((new Date($node[\"Generate PDF Content\"].json.pdf_generated_at) - new Date($node[\"Generate PDF Content\"].json.start_time)) / 1000 / 60) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Save Report to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2128,
+        336
+      ],
+      "id": "b19144a6-b929-42ee-a658-bd9918effb8e"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final completion status and summary\nconst reportData = $node[\"Generate PDF Content\"].json;\nconst uploadData = $node[\"Upload Final Report\"].json;\nconst dbData = $input.first().json;\n\nconst processingTimeMinutes = Math.round((new Date() - new Date(reportData.start_time)) / 1000 / 60);\n\nconsole.log('🎉 DUE DILIGENCE PROCESS COMPLETE!');\nconsole.log('═'.repeat(60));\nconsole.log(`🏢 Company: ${reportData.company_name}`);\nconsole.log(`📁 Company Folder: ${reportData.company_folder_name}`);\nconsole.log(`📄 Files Processed: ${reportData.files_processed}`);\nconsole.log(`📦 Knowledge Chunks: ${reportData.total_chunks_ingested}`);\nconsole.log(`📋 Sections Generated: ${reportData.approved_sections}/20`);\nconsole.log(`✅ Success Rate: ${reportData.success_rate}`);\nconsole.log(`⏱️ Total Processing Time: ${processingTimeMinutes} minutes`);\nconsole.log(`📄 Final Report: ${uploadData.name}`);\nconsole.log(`🔗 Report URL: ${uploadData.webViewLink}`);\nconsole.log('═'.repeat(60));\n\nreturn {\n  json: {\n    processing_complete: true,\n    company_id: reportData.company_id,\n    company_name: reportData.company_name,\n    final_status: 'success',\n    summary: {\n      files_processed: reportData.files_processed,\n      chunks_ingested: reportData.total_chunks_ingested,\n      sections_generated: `${reportData.approved_sections}/20`,\n      success_rate: reportData.success_rate,\n      processing_time_minutes: processingTimeMinutes\n    },\n    final_report: {\n      file_name: uploadData.name,\n      file_id: uploadData.id,\n      download_url: uploadData.webViewLink,\n      folder_id: reportData.company_folder_id\n    },\n    completed_at: new Date().toISOString(),\n    status_message: `✅ Due diligence report generated successfully for ${reportData.company_name}`\n  }\n};"
+      },
+      "name": "Complete Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        336
+      ],
+      "id": "454c8368-d41c-4b3d-855f-2ea055277473"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Company Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Company Processing": {
+      "main": [
+        [
+          {
+            "node": "List Company PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Company PDFs": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF Ingestion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF Ingestion": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Combine All PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine All PDF Content": {
+      "main": [
+        [
+          {
+            "node": "Create Text Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Text Chunks": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama (mxbai-embed-large)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Complete Ingestion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Ingestion": {
+      "main": [
+        [
+          {
+            "node": "Execute Section 01",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Section 01": {
+      "main": [
+        [
+          {
+            "node": "Collect Section Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Section Outputs": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF Content": {
+      "main": [
+        [
+          {
+            "node": "Upload Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Final Report": {
+      "main": [
+        [
+          {
+            "node": "Save Report to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Report to Database": {
+      "main": [
+        [
+          {
+            "node": "Complete Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4ff8e4bc-52ba-49c7-8d4f-17135930b82b",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "q2G5vcIDMNy72hbL",
+  "tags": []
+}

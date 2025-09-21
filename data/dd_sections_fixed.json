@@ -1,0 +1,88 @@
+{
+  "name": "Section 1 Generator - Fixed",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -640,
+        240
+      ],
+      "id": "a55c91e3-b478-4ddd-9a7d-90187945e8eb",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "prompt": "=You are drafting Section 1: Introduction & Engagement Context of a board-grade commercial due diligence report authored by Action Labs.\n\nCRITICAL REQUIREMENTS:\n- NO PLACEHOLDERS like [Target Company], [Client Name], [TICKER] - extract real data only\n- Use ONLY verified information from the provided company data\n- If specific data not available, state: \"Not disclosed in public record\"\n- Extract real company name, ticker, filing dates from source content\n\nCOMPANY DATA PROVIDED:\nCompany Name: {{ $json.company_name }}\nCompany ID: {{ $json.company_id }}\nSource Content: {{ $json.content }}\n\nGenerate Section 1 with this structure:\n\n**Section 1: Introduction & Engagement Context**\n\n**Engagement Summary:** Action Labs was engaged to conduct comprehensive commercial due diligence on [EXTRACT REAL COMPANY NAME] for the purpose of evaluating commercial value realization and strategic investment potential. This engagement focuses on assessing the target's commercial scalability, defensibility, and execution capabilities within the context of potential acquisition or investment.\n\n**Evaluative Lens:** Our analysis applies a commercially focused evaluative lens to assess the company's ability to scale, defend market position, and sustain revenue quality over time. The evaluation tests structural revenue sustainability, competitive moats, operational execution capabilities, and market positioning strength derived from publicly available information.\n\n**Scope of Review:** This assessment encompasses company structure and organizational architecture, business model and revenue mechanisms, market positioning and competitive dynamics, financial performance and capital efficiency, technology assets and intellectual property, regulatory environment and compliance, and risk assessment and mitigation frameworks. Each section is source-cited and reliability-rated.\n\n**Data Sources & Limitations:** This analysis is based exclusively on publicly available information including regulatory filings, investor presentations, and industry reports. Data is current as of the most recent filing date available in sources.\n\n**Authorship:** Prepared independently by Action Labs.\n\n**Appendix Routing:** Validation items and next-step requests are compiled in Appendix A (Management Interview Script) and Appendix B (RFI Template).\n\nREPLACE [EXTRACT REAL COMPANY NAME] with the actual company name from the provided data. Return only the formatted section content.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        240
+      ],
+      "id": "4ea50408-af2b-4d1f-bc14-3c52d3485c1a",
+      "name": "Generate Section 1",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "qLpMfGBBaGdajMG6",
+          "name": "Ollama API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const response = $input.first().json.response || $input.first().json.choices?.[0]?.message?.content || '';\nconst inputData = $node['When Executed by Another Workflow'].json;\n\nconsole.log('Raw LLM Response:', response.substring(0, 200));\nconsole.log('Input Company Name:', inputData.company_name);\n\n// Clean the response\nlet cleanedContent = response\n  .replace(/^.*?\\*\\*Section 1:/gi, '**Section 1:')\n  .replace(/\\[EXTRACT REAL COMPANY NAME\\]/g, inputData.company_name || 'Target Company')\n  .replace(/\\[.*?\\]/g, '') // Remove any remaining brackets\n  .trim();\n\n// Ensure proper HTML formatting\nif (!cleanedContent.includes('<h3>')) {\n  cleanedContent = cleanedContent\n    .replace(/\\*\\*Section 1: Introduction & Engagement Context\\*\\*/g, '<h3>1. Introduction & Engagement Context</h3>')\n    .replace(/\\*\\*Engagement Summary:\\*\\*/g, '<h4>1.1 Engagement Summary</h4><p>')\n    .replace(/\\*\\*Evaluative Lens:\\*\\*/g, '</p><h4>1.2 Evaluative Lens</h4><p>')\n    .replace(/\\*\\*Scope of Review:\\*\\*/g, '</p><h4>1.3 Scope of Review</h4><p>')\n    .replace(/\\*\\*Data Sources & Limitations:\\*\\*/g, '</p><h4>1.4 Data Sources & Limitations</h4><p>')\n    .replace(/\\*\\*Authorship:\\*\\*/g, '</p><h4>1.5 Authorship</h4><p>')\n    .replace(/\\*\\*Appendix Routing:\\*\\*/g, '</p><h4>1.6 Appendix Routing</h4><p>') + '</p>';\n}\n\nconsole.log('Final Section 1 Content:', cleanedContent.substring(0, 200));\n\nreturn {\n  json: {\n    section_content: cleanedContent,\n    company_name: inputData.company_name,\n    company_id: inputData.company_id,\n    section_type: 'introduction_engagement_context'\n  }\n};"
+      },
+      "id": "d81bb3fb-400a-40b3-8b02-7114220a102d",
+      "name": "Process Section 1 Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section 1": {
+      "main": [
+        [
+          {
+            "node": "Process Section 1 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "39c5d210-3a3c-439d-834f-5d68a8432d1c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "G5YYk9XK2tStRIU9",
+  "tags": []
+}

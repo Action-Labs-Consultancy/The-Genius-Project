@@ -7,8 +7,12 @@ const getModules = (user) => {
     { id: 'brains', title: 'AI Brains', icon: '🧠' },
     { id: 'mca-brains', title: 'MCA Brain System', icon: '🧬' },
     { id: 'marketing-lab', title: 'Marketing AI Lab', icon: '🚀' },
+    { id: 'due-diligence', title: 'Due Diligence Generator', icon: '📋' },
+    { id: 'components', title: 'Reforge Growth Dashboard', icon: '📊' },
+    { id: 'folders', title: 'Project Folders', icon: '📁' },
     { id: 'n8n-automation', title: 'n8n Automation', icon: '⚡' },
     { id: 'taiga-pm', title: 'Taiga PM', icon: '📋' },
+    { id: 'my-tasks', title: 'My Tasks', icon: '✅' },
     { id: 'chat', title: 'Chat', icon: '💬' },
     { id: 'llama-rag', title: 'Llama Chat', icon: '🦙' },
     { id: 'workflow-canvas', title: 'Workflow Canvas', icon: '🎨' },
@@ -28,6 +32,12 @@ const getModules = (user) => {
     baseModules.push({ id: 'equipment', title: 'Equipment Management', icon: '📦' });
   }
   baseModules.push({ id: 'equipment-request', title: 'Request Equipment', icon: '📋' });
+
+  // Add HR-specific modules
+  if (user?.is_admin || user?.department === 'HR' || user?.role === 'hr') {
+    baseModules.push({ id: 'requests', title: 'Client Requests', icon: '📋' });
+    baseModules.push({ id: 'hr/client-requests', title: 'HR Client Approval', icon: '✅' });
+  }
 
   // Add feature request modules
   baseModules.push(
@@ -83,6 +93,15 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
     } else if (id === 'marketing-lab') {
       // Navigate to the Marketing AI Tasks Lab
       if (typeof onNavigate === 'function') onNavigate('/marketing-lab');
+    } else if (id === 'due-diligence') {
+      // Navigate to the Due Diligence Generator page
+      if (typeof onNavigate === 'function') onNavigate('/due-diligence');
+    } else if (id === 'components') {
+      // Navigate to the Reforge Growth Dashboard
+      if (typeof onNavigate === 'function') onNavigate('/components');
+    } else if (id === 'folders') {
+      // Navigate to the Project Folders Explorer
+      if (typeof onNavigate === 'function') onNavigate('/folders');
     } else if (id === 'n8n-automation') {
       // Open n8n automation platform in new tab
       console.log('Opening n8n at http://localhost:5678');
@@ -91,6 +110,9 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       // Open Taiga PM in new tab
       console.log('Opening Taiga PM at http://localhost:9000');
       window.open('http://localhost:9000', '_blank');
+    } else if (id === 'my-tasks') {
+      // Navigate to the My Tasks page
+      if (typeof onNavigate === 'function') onNavigate('/my-tasks');
     } else if (id === 'llama-rag') {
       // Navigate to the RAG Chat page
       if (typeof onNavigate === 'function') onNavigate('/llama-rag');
@@ -110,12 +132,16 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
       if (typeof onNavigate === 'function') onNavigate('/equipment');
     } else if (id === 'equipment-request') {
       if (typeof onNavigate === 'function') onNavigate('/equipment-request');
+    } else if (id === 'requests') {
+      if (typeof onNavigate === 'function') onNavigate('/requests');
     } else if (id === 'submit-request') {
       if (typeof onNavigate === 'function') onNavigate('/submit-request');
     } else if (id === 'ice-box') {
       if (typeof onNavigate === 'function') onNavigate('/ice-box');
     } else if (id === 'admin/requests') {
       if (typeof onNavigate === 'function') onNavigate('/admin/requests');
+    } else if (id === 'hr/client-requests') {
+      if (typeof onNavigate === 'function') onNavigate('/hr/client-requests');
     } else {
       onNavigate(`/${id}`);
     }

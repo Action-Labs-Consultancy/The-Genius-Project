@@ -356,7 +356,7 @@ def register_equipment_routes(app, mongo):
 
     @app.route('/api/notifications/<user_name>', methods=['GET', 'OPTIONS'])
     @cross_origin()
-    def get_user_notifications(user_name):
+    def get_equipment_user_notifications(user_name):
         """Get notifications for a user"""
         try:
             if request.method == 'OPTIONS':

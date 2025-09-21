@@ -1,0 +1,160 @@
+{
+  "name": "WORKING Taiga Action Automation",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 30 seconds",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-docker-taiga-back-1:8000/api/v1/auth",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\",\n  \"type\": \"normal\"\n}"
+        }
+      },
+      "id": "auth-node",
+      "name": "Authenticate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-docker-taiga-back-1:8000/api/v1/userstories",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer {{ $('Authenticate').first().json.auth_token }}"
+          },
+          "qs": {
+            "project": "1"
+          }
+        }
+      },
+      "id": "get-stories",
+      "name": "Get User Stories",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stories = $input.all();\nconst actionStories = [];\n\nfor (const story of stories) {\n  if (story.json && Array.isArray(story.json)) {\n    for (const item of story.json) {\n      if (item.subject && item.subject.toLowerCase().includes('action')) {\n        // Check if we already processed this story\n        if (!item.description || !item.description.includes('[AUTO-PROCESSED]')) {\n          actionStories.push({\n            json: {\n              id: item.id,\n              subject: item.subject,\n              description: item.description || '',\n              project: item.project\n            }\n          });\n        }\n      }\n    }\n  }\n}\n\nreturn actionStories;"
+      },
+      "id": "filter-action",
+      "name": "Filter Action Stories",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-docker-taiga-back-1:8000/api/v1/tasks",
+        "options": {
+          "bodyContentType": "json",
+          "headers": {
+            "Authorization": "Bearer {{ $('Authenticate').first().json.auth_token }}"
+          },
+          "jsonBody": "{\n  \"subject\": \"AUTO: {{ $json.subject }}\",\n  \"description\": \"Automatically created task for user story: {{ $json.subject }}\\n\\nStory ID: {{ $json.id }}\",\n  \"project\": {{ $json.project }},\n  \"user_story\": {{ $json.id }}\n}"
+        }
+      },
+      "id": "create-task",
+      "name": "Create Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [980, 220]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-docker-taiga-back-1:8000/api/v1/userstories/{{ $json.id }}",
+        "requestMethod": "PATCH",
+        "options": {
+          "bodyContentType": "json",
+          "headers": {
+            "Authorization": "Bearer {{ $('Authenticate').first().json.auth_token }}"
+          },
+          "jsonBody": "{\n  \"description\": \"{{ $json.description }}\\n\\n[AUTO-PROCESSED] Task automatically created for this story.\",\n  \"version\": 1\n}"
+        }
+      },
+      "id": "update-story",
+      "name": "Update Story",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [980, 380]
+    }
+  ],
+  "connections": {
+    "Every 30 seconds": {
+      "main": [
+        [
+          {
+            "node": "Authenticate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authenticate": {
+      "main": [
+        [
+          {
+            "node": "Get User Stories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Stories": {
+      "main": [
+        [
+          {
+            "node": "Filter Action Stories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Action Stories": {
+      "main": [
+        [
+          {
+            "node": "Create Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-08-11T08:00:00.000Z",
+  "versionId": "working-v1"
+}

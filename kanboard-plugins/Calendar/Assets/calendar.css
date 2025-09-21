@@ -1,0 +1,13 @@
+
+.cal-dp {
+    visibility: hidden;
+}
+
+/* all 4 timepicker inputs */
+input.cal-tp {
+    width: 60px !important;
+}
+
+input.cal-tp + input[type='hidden'] + label {
+    display: inline;
+}

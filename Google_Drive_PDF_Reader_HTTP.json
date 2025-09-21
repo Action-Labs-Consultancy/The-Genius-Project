@@ -1,0 +1,236 @@
+{
+  "name": "Google Drive PDF Reader - HTTP Version",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        240
+      ],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "oAuth2",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "mimeType='application/pdf'"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,mimeType,size,modifiedTime,webViewLink)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get PDF Files via API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        240
+      ],
+      "id": "get-pdf-files-api",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "your-google-drive-credential-id",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Google Drive files and extract company info\nconst files = $input.first().json.files || [];\nconsole.log(`Found ${files.length} PDF files in Google Drive`);\n\nif (files.length === 0) {\n  console.log('No PDF files found in Google Drive');\n  throw new Error('No PDF files found - workflow completed');\n}\n\nconst results = [];\n\nfiles.forEach(file => {\n  console.log(`Processing file: ${file.name}`);\n  \n  // Extract company name from filename\n  let companyName = file.name.replace(/\\.pdf$/i, ''); // Remove .pdf extension\n  \n  // Try to extract company name from various patterns\n  const patterns = [\n    /(?:company research|due diligence)\\s*[-:]\\s*(.+)/i,\n    /(.+?)\\s*[-:]\\s*(?:company research|due diligence)/i,\n    /(.+?)\\s*[-:]\\s*(?:research|analysis|report)/i,\n    /(.+)/  // fallback: use whole filename\n  ];\n  \n  for (const pattern of patterns) {\n    const match = companyName.match(pattern);\n    if (match && match[1]) {\n      companyName = match[1].trim();\n      break;\n    }\n  }\n  \n  // Generate a unique task ID based on file ID\n  const taskId = parseInt(file.id.replace(/\\D/g, '').slice(-8)) || Math.floor(Math.random() * 1000000);\n  \n  results.push({\n    task_id: taskId,\n    company_name: companyName,\n    file_id: file.id,\n    file_name: file.name,\n    file_size: file.size,\n    modified_time: file.modifiedTime,\n    drive_link: file.webViewLink,\n    website: '',\n    description: file.name\n  });\n  \n  console.log(`Prepared: ${companyName} (File: ${file.name})`);\n});\n\nconsole.log(`Processing ${results.length} company files`);\nreturn results.map(item => ({ json: item }));"
+      },
+      "name": "Extract Company Info",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ],
+      "id": "extract-company-info"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.file_id }}?alt=media",
+        "authentication": "oAuth2",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download PDF via API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        240
+      ],
+      "id": "download-pdf-api",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "your-google-drive-credential-id",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "name": "Extract Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        400,
+        240
+      ],
+      "id": "extract-pdf-text"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine PDF text with company data and extract website\nconst companyData = $input.first().json;\nconst pdfData = $input.last().json;\n\nconst pdfText = pdfData.data || 'Could not extract PDF text';\nconsole.log(`Extracted ${pdfText.length} characters from PDF: ${companyData.file_name}`);\n\n// Try to extract website/URL from PDF content\nlet website = '';\nconst urlPatterns = [\n  /(?:website|url|site)\\s*:?\\s*(https?:\\/\\/[^\\s]+)/i,\n  /(?:website|url|site)\\s*:?\\s*(www\\.[^\\s]+)/i,\n  /(?:website|url|site)\\s*:?\\s*([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/i,\n  /(https?:\\/\\/[^\\s]+)/,\n  /(www\\.[^\\s]+)/,\n  /([a-zA-Z0-9.-]+\\.(?:com|org|net|gov|edu|io|co)(?:\\.[a-z]{2})?)/\n];\n\nfor (const pattern of urlPatterns) {\n  const match = pdfText.match(pattern);\n  if (match && match[1]) {\n    website = match[1];\n    if (!website.startsWith('http') && !website.startsWith('www')) {\n      website = 'https://' + website;\n    } else if (website.startsWith('www')) {\n      website = 'https://' + website;\n    }\n    console.log(`Found website in PDF: ${website}`);\n    break;\n  }\n}\n\nif (!website) {\n  console.log('No website found in PDF content');\n}\n\nconst finalData = {\n  task_id: companyData.task_id,\n  company_name: companyData.company_name,\n  website: website,\n  pdf_text: pdfText,\n  file_name: companyData.file_name,\n  file_size: companyData.file_size,\n  drive_link: companyData.drive_link,\n  processed_date: new Date().toISOString()\n};\n\nconsole.log(`Final data prepared for: ${finalData.company_name}`);\nconsole.log(`Website: ${finalData.website || 'Not found'}`);\nconsole.log(`PDF text length: ${finalData.pdf_text.length} characters`);\n\nreturn { json: finalData };"
+      },
+      "name": "Process PDF Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        240
+      ],
+      "id": "process-pdf-content"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "website": "={{ $json.website }}",
+            "description": "={{ $json.pdf_text }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        800,
+        240
+      ],
+      "id": "save-to-db",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get PDF Files via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get PDF Files via API": {
+      "main": [
+        [
+          {
+            "node": "Extract Company Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company Info": {
+      "main": [
+        [
+          {
+            "node": "Download PDF via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF via API": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Process PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process PDF Content": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

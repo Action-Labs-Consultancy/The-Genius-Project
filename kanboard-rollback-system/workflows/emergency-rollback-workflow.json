@@ -1,0 +1,250 @@
+{
+  "name": "🔄 Emergency Rollback Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emergency-rollback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "emergency-webhook",
+      "name": "🚨 Emergency Rollback Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "emergency-rollback-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.taskId }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "validate-input",
+      "name": "✅ Validate Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3001/api/task/{{ $json.taskId }}/versions",
+        "requestMethod": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "get-versions",
+      "name": "📋 Get Task Versions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.versions.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "has-versions",
+      "name": "📦 Has Versions?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "versionId",
+              "value": "={{ $json.versions[0].versionId }}"
+            },
+            {
+              "name": "taskId",
+              "value": "={{ $json.taskId }}"
+            },
+            {
+              "name": "rollbackTimestamp",
+              "value": "={{ $json.versions[0].timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "select-latest-version",
+      "name": "🎯 Select Latest Version",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3001/api/task/{{ $json.taskId }}/restore/{{ $json.versionId }}",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "emergency_system"
+            }
+          ]
+        }
+      },
+      "id": "execute-rollback",
+      "name": "🔄 Execute Emergency Rollback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"Emergency rollback completed successfully\",\n  \"taskId\": $json.taskId,\n  \"versionId\": $json.versionId,\n  \"performanceMs\": $json.performanceMs,\n  \"timestamp\": new Date().toISOString()\n} }}"
+      },
+      "id": "success-response",
+      "name": "✅ Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"No versions available for rollback\",\n  \"taskId\": $json.taskId,\n  \"timestamp\": new Date().toISOString()\n} }}"
+      },
+      "id": "no-versions-response",
+      "name": "❌ No Versions Available",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"Invalid input: taskId is required\",\n  \"timestamp\": new Date().toISOString()\n} }}"
+      },
+      "id": "invalid-input-response",
+      "name": "❌ Invalid Input",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "🚨 Emergency Rollback Trigger": {
+      "main": [
+        [
+          {
+            "node": "✅ Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Validate Input": {
+      "main": [
+        [
+          {
+            "node": "📋 Get Task Versions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Invalid Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Get Task Versions": {
+      "main": [
+        [
+          {
+            "node": "📦 Has Versions?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Has Versions?": {
+      "main": [
+        [
+          {
+            "node": "🎯 Select Latest Version",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ No Versions Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Select Latest Version": {
+      "main": [
+        [
+          {
+            "node": "🔄 Execute Emergency Rollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Execute Emergency Rollback": {
+      "main": [
+        [
+          {
+            "node": "✅ Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "createdAt": "2025-01-14T00:00:00.000Z",
+  "updatedAt": "2025-01-14T00:00:00.000Z",
+  "id": "emergency-rollback-workflow",
+  "tags": ["emergency", "rollback", "kanboard"]
+}

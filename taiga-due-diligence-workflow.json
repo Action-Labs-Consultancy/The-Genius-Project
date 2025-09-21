@@ -1,0 +1,280 @@
+{
+  "name": "Taiga Due Diligence Research Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "taiga-webhook",
+        "options": {}
+      },
+      "id": "e4b2c8f5-1234-4567-8901-abcdef123456",
+      "name": "Taiga Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "taiga-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/auth",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "normal"
+            },
+            {
+              "name": "username",
+              "value": "yourusername"
+            },
+            {
+              "name": "password",
+              "value": "yourpassword"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-5678-9012-3456-789abcdef012",
+      "name": "Auth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "dateTime": [],
+          "number": [],
+          "string": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create",
+              "operation": "equal"
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "task",
+              "operation": "equal"
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "Research on",
+              "operation": "contains"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "b2c3d4e5-6789-0123-4567-890abcdef123",
+      "name": "IF Research Task",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract company name from task subject\nconst subject = $input.first().json.subject || '';\n\n// Remove 'Research on ' prefix and trim\nlet companyName = subject.replace(/^Research on\\s*/i, '').trim();\n\n// Clean up any extra characters\ncompanyName = companyName.replace(/[\"']/g, '');\n\n// If no company name found, use a default\nif (!companyName) {\n  companyName = 'Unknown Company';\n}\n\nreturn {\n  json: {\n    companyName: companyName,\n    originalSubject: subject,\n    taskId: $input.first().json.id,\n    taskVersion: $input.first().json.version || 1\n  }\n};"
+      },
+      "id": "c3d4e5f6-7890-1234-5678-901abcdef234",
+      "name": "Extract Company",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Define the 20 research sections\nconst sections = [\n  'Introduction',\n  'Company Overview',\n  'History and Background',\n  'Mission and Vision',\n  'Organizational Structure',\n  'Management Team',\n  'Products and Services',\n  'Market Analysis',\n  'Competitive Landscape',\n  'Customer Base',\n  'Sales and Marketing Strategy',\n  'Financial Performance',\n  'Revenue and Profitability',\n  'Funding and Investors',\n  'Assets and Liabilities',\n  'Legal Structure and Compliance',\n  'Intellectual Property',\n  'Litigation and Legal Risks',\n  'Operational Risks',\n  'Strategic Risks and Future Outlook'\n];\n\nreturn {\n  json: {\n    sections: sections,\n    companyName: $input.first().json.companyName,\n    taskId: $input.first().json.taskId,\n    taskVersion: $input.first().json.taskVersion\n  }\n};"
+      },
+      "id": "d4e5f6g7-8901-2345-6789-012abcdef345",
+      "name": "Set Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get input data\nconst data = $input.first().json;\nconst companyName = data.companyName;\nconst sections = data.sections;\nconst taskId = data.taskId;\nconst taskVersion = data.taskVersion;\n\n// Generate sample research data for each section\nconst results = sections.map(section => {\n  // 20% chance of being missing\n  const isMissing = Math.random() < 0.2;\n  \n  if (isMissing) {\n    return {\n      section: section,\n      status: 'Missing',\n      data: null,\n      evidence: null\n    };\n  } else {\n    // Generate sample data based on section\n    let sampleData = '';\n    let evidenceFile = '';\n    \n    switch(section) {\n      case 'Introduction':\n        sampleData = `${companyName} is a well-established company operating in its respective industry. This comprehensive research provides an overview of the company's structure, operations, and market position.`;\n        evidenceFile = 'introduction_overview.pdf';\n        break;\n      case 'Company Overview':\n        sampleData = `${companyName} operates as a [INDUSTRY TYPE] company with headquarters located in [LOCATION]. The company serves [TARGET MARKET] and has been in operation since [YEAR].`;\n        evidenceFile = 'company_profile.pdf';\n        break;\n      case 'Financial Performance':\n        sampleData = `Recent financial analysis shows ${companyName} has demonstrated [PERFORMANCE TREND] over the past fiscal year with revenue of approximately [AMOUNT] and a [PROFIT/LOSS] margin.`;\n        evidenceFile = 'financial_statements.xlsx';\n        break;\n      case 'Management Team':\n        sampleData = `The leadership team of ${companyName} consists of experienced professionals with backgrounds in [RELEVANT FIELDS]. Key executives include CEO, CFO, and department heads.`;\n        evidenceFile = 'management_bios.pdf';\n        break;\n      case 'Market Analysis':\n        sampleData = `${companyName} operates in a [MARKET SIZE] market with [GROWTH RATE] annual growth. The company holds approximately [MARKET SHARE]% market share in its primary segment.`;\n        evidenceFile = 'market_research.pdf';\n        break;\n      case 'Competitive Landscape':\n        sampleData = `The competitive environment for ${companyName} includes [NUMBER] major competitors. Key differentiators include [UNIQUE SELLING POINTS].`;\n        evidenceFile = 'competitor_analysis.xlsx';\n        break;\n      case 'Legal Structure and Compliance':\n        sampleData = `${companyName} is incorporated as a [LEGAL ENTITY TYPE] and maintains compliance with [RELEVANT REGULATIONS]. No major legal issues identified.`;\n        evidenceFile = 'legal_documents.pdf';\n        break;\n      case 'Intellectual Property':\n        sampleData = `${companyName} holds [NUMBER] patents, [NUMBER] trademarks, and [NUMBER] copyrights related to its core business operations.`;\n        evidenceFile = 'ip_portfolio.pdf';\n        break;\n      case 'Operational Risks':\n        sampleData = `Key operational risks for ${companyName} include supply chain dependencies, regulatory changes, and market volatility. Mitigation strategies are in place.`;\n        evidenceFile = 'risk_assessment.pdf';\n        break;\n      default:\n        sampleData = `Research data for ${section} shows ${companyName} maintains [POSITIVE/NEGATIVE] indicators in this area. Further analysis may be required for complete assessment.`;\n        evidenceFile = `${section.toLowerCase().replace(/\\s+/g, '_')}_report.pdf`;\n    }\n    \n    return {\n      section: section,\n      status: 'Completed',\n      data: sampleData,\n      evidence: evidenceFile\n    };\n  }\n});\n\n// Create the final research report\nconst researchReport = {\n  company: companyName,\n  results: results,\n  timestamp: new Date().toISOString(),\n  summary: {\n    totalSections: sections.length,\n    completedSections: results.filter(r => r.status === 'Completed').length,\n    missingSections: results.filter(r => r.status === 'Missing').length,\n    completionRate: `${Math.round((results.filter(r => r.status === 'Completed').length / sections.length) * 100)}%`\n  },\n  taskId: taskId,\n  taskVersion: taskVersion\n};\n\nreturn {\n  json: researchReport\n};"
+      },
+      "id": "e5f6g7h8-9012-3456-7890-123abcdef456",
+      "name": "Simulate Research",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/tasks/{{ $json.taskId }}",
+        "authentication": "none",
+        "requestMethod": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Auth'].json.auth_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "version",
+              "value": "={{ $json.taskVersion }}"
+            },
+            {
+              "name": "description",
+              "value": "=## Due Diligence Research Results for {{ $json.company }}\\n\\n**Research Completed:** {{ $json.timestamp }}\\n**Completion Rate:** {{ $json.summary.completionRate }}\\n\\n### Summary\\n- Total Sections: {{ $json.summary.totalSections }}\\n- Completed: {{ $json.summary.completedSections }}\\n- Missing: {{ $json.summary.missingSections }}\\n\\n### Detailed Results\\n\\n{{ $json.results.map(r => `**${r.section}:** ${r.status}${r.status === 'Completed' ? '\\n' + r.data + '\\n*Evidence: ' + r.evidence + '*' : '\\n*Data not available*'}`).join('\\n\\n') }}\\n\\n---\\n*This research was automatically generated by the Due Diligence Workflow*"
+            }
+          ]
+        }
+      },
+      "id": "f6g7h8i9-0123-4567-8901-234abcdef567",
+      "name": "Update Task with Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1560, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "Not a research task"
+            },
+            {
+              "name": "reason",
+              "value": "Webhook payload does not match research task criteria"
+            },
+            {
+              "name": "received_action",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "name": "received_type",
+              "value": "={{ $json.type }}"
+            },
+            {
+              "name": "received_subject",
+              "value": "={{ $json.subject }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "g7h8i9j0-1234-5678-9012-345abcdef678",
+      "name": "No Op",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Taiga Webhook": {
+      "main": [
+        [
+          {
+            "node": "Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth": {
+      "main": [
+        [
+          {
+            "node": "IF Research Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Research Task": {
+      "main": [
+        [
+          {
+            "node": "Extract Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company": {
+      "main": [
+        [
+          {
+            "node": "Set Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Sections": {
+      "main": [
+        [
+          {
+            "node": "Simulate Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate Research": {
+      "main": [
+        [
+          {
+            "node": "Update Task with Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1.0",
+  "id": "taiga-due-diligence-research",
+  "meta": {
+    "instanceId": "your-n8n-instance-id"
+  }
+}

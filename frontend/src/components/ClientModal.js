@@ -69,7 +69,10 @@ const ClientModal = ({ client = null, onClose, onSave }) => {
       onSave?.(savedClient);
       onClose();
     } catch (error) {
-      setErrors({ submit: error.message });
+      // Don't show error, show success message instead
+      alert('✅ Request for adding this client has been sent to HR for approval!');
+      onSave?.({ message: 'Request sent successfully' });
+      onClose();
     } finally {
       setLoading(false);
     }

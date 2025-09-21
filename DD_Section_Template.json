@@ -1,0 +1,746 @@
+{
+  "name": "DD_Section_Template",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "webhook",
+        "webhookId": "section-template-webhook"
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        400
+      ],
+      "id": "webhook-trigger"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Initialize section processing with input validation\nconst inputData = $input.first().json;\n\n// Check if we have input data\nif (!inputData) {\n  throw new Error('No input data received from webhook trigger');\n}\n\n// Extract required inputs with fallbacks\nconst companyId = inputData.company_id || 'unknown_company';\nconst companyName = inputData.company_name || inputData.name || 'Unknown Company';\nconst companyFolderName = inputData.company_folder_name || inputData.folder_name || companyName;\nconst sectionNumber = REPLACE_WITH_SECTION_NUMBER; // Replace with actual section number (1-20)\n\n// Section configuration (customize for each section)\nconst sectionConfig = {\n  1: { title: \"Executive Summary\", description: \"High-level overview and key findings\" },\n  2: { title: \"Company Overview\", description: \"Business model, products, and services\" },\n  3: { title: \"Market Analysis\", description: \"Industry landscape and competitive position\" },\n  4: { title: \"Financial Performance\", description: \"Revenue, profitability, and financial health\" },\n  5: { title: \"Management Team\", description: \"Leadership analysis and organizational structure\" },\n  6: { title: \"Technology & IP\", description: \"Intellectual property and technology assets\" },\n  7: { title: \"Operations\", description: \"Operational efficiency and scalability\" },\n  8: { title: \"Legal & Compliance\", description: \"Legal standing and regulatory compliance\" },\n  9: { title: \"Risk Assessment\", description: \"Key risks and mitigation strategies\" },\n  10: { title: \"Growth Opportunities\", description: \"Expansion potential and market opportunities\" },\n  11: { title: \"Customer Analysis\", description: \"Customer base and satisfaction metrics\" },\n  12: { title: \"Supply Chain\", description: \"Vendor relationships and supply chain resilience\" },\n  13: { title: \"ESG Factors\", description: \"Environmental, social, and governance considerations\" },\n  14: { title: \"Competitive Landscape\", description: \"Competitive analysis and market positioning\" },\n  15: { title: \"Investment Highlights\", description: \"Key investment merits and value proposition\" },\n  16: { title: \"Synergies & Integration\", description: \"Potential synergies and integration considerations\" },\n  17: { title: \"Valuation Analysis\", description: \"Valuation methodologies and fair value assessment\" },\n  18: { title: \"Transaction Structure\", description: \"Deal terms and structure recommendations\" },\n  19: { title: \"Post-Acquisition Plan\", description: \"Integration roadmap and value creation plan\" },\n  20: { title: \"Recommendations\", description: \"Final recommendations and next steps\" }\n};\n\nconst currentSection = sectionConfig[sectionNumber];\n\nif (!currentSection) {\n  throw new Error(`Invalid section number: ${sectionNumber}. Must be between 1-20.`);\n}\n\nconsole.log(`🔄 STARTING SECTION ${sectionNumber}`);\nconsole.log('═'.repeat(50));\nconsole.log(`🏢 Company: ${companyName}`);\nconsole.log(`📋 Section: ${currentSection.title}`);\nconsole.log(`📝 Description: ${currentSection.description}`);\nconsole.log(`🆔 Company ID: ${companyId}`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: companyFolderName,\n    section_number: sectionNumber,\n    section_title: currentSection.title,\n    section_description: currentSection.description,\n    processing_status: 'initialized',\n    attempt_count: 1,\n    max_attempts: 3,\n    started_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Initialize Section",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        400
+      ],
+      "id": "initialize-section"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "dd_sections",
+        "where": {
+          "values": [
+            {
+              "column": "company_id",
+              "condition": "equal",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "section_number",
+              "condition": "lessThan",
+              "value": "={{ $json.section_number }}"
+            },
+            {
+              "column": "status",
+              "condition": "equal", 
+              "value": "approved"
+            }
+          ]
+        },
+        "options": {
+          "sort": {
+            "values": [
+              {
+                "column": "section_number",
+                "direction": "ASC"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Fetch Previous Sections",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -800,
+        400
+      ],
+      "id": "fetch-previous-sections",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "query",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "prompt": "=Analyze {{ $node[\"Initialize Section\"].json.company_name }} for {{ $node[\"Initialize Section\"].json.section_title }}: {{ $node[\"Initialize Section\"].json.section_description }}",
+        "topK": 10,
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "company_id",
+                "value": "={{ $node[\"Initialize Section\"].json.company_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -800,
+        300
+      ],
+      "id": "rag-knowledge-retrieval",
+      "name": "RAG Knowledge Retrieval",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        200
+      ],
+      "id": "embeddings-rag",
+      "name": "Embeddings for RAG",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare context for LLM generation\nconst sectionInfo = $node[\"Initialize Section\"].json;\nconst previousSections = $node[\"Fetch Previous Sections\"].json || [];\nconst ragResults = $node[\"RAG Knowledge Retrieval\"].json || [];\n\n// Build previous sections context\nlet previousSectionsContext = '';\nif (Array.isArray(previousSections) && previousSections.length > 0) {\n  previousSectionsContext = previousSections.map(section => \n    `## Section ${section.section_number}: ${section.title}\\n${section.content}\\n`\n  ).join('\\n');\n} else {\n  previousSectionsContext = 'No previous sections available yet.';\n}\n\n// Build RAG knowledge context\nlet knowledgeContext = '';\nif (Array.isArray(ragResults) && ragResults.length > 0) {\n  knowledgeContext = ragResults.map((result, index) => \n    `Knowledge ${index + 1}: ${result.pageContent}`\n  ).join('\\n\\n');\n} else {\n  knowledgeContext = 'No relevant knowledge found in the company documents.';\n}\n\n// Create comprehensive prompt for the Maker\nconst makerPrompt = `You are a senior due diligence analyst generating Section ${sectionInfo.section_number}: \"${sectionInfo.section_title}\" for ${sectionInfo.company_name}.\n\nSECTION REQUIREMENTS:\n- Title: ${sectionInfo.section_title}\n- Description: ${sectionInfo.section_description}\n- Length: 800-1200 words\n- Format: Professional, well-structured markdown\n- Must be factual and based on available evidence\n\nCOMPANY KNOWLEDGE BASE:\n${knowledgeContext}\n\nPREVIOUS SECTIONS FOR CONTEXT:\n${previousSectionsContext}\n\nGENERATE A COMPREHENSIVE, FACTUAL ANALYSIS FOR THIS SECTION:\n- Use only information from the knowledge base and previous sections\n- Do not make unsupported claims or assumptions\n- Structure with clear headings and bullet points\n- Include specific data points and evidence where available\n- If information is limited, clearly state the limitations\n- Maintain professional tone throughout\n\nGenerate the section content now:`;\n\nconsole.log(`🤖 MAKER STEP - Section ${sectionInfo.section_number}`);\nconsole.log(`📋 Section: ${sectionInfo.section_title}`);\nconsole.log(`📊 Knowledge items: ${Array.isArray(ragResults) ? ragResults.length : 0}`);\nconsole.log(`📚 Previous sections: ${Array.isArray(previousSections) ? previousSections.length : 0}`);\n\nreturn {\n  json: {\n    ...sectionInfo,\n    maker_prompt: makerPrompt,\n    knowledge_items_count: Array.isArray(ragResults) ? ragResults.length : 0,\n    previous_sections_count: Array.isArray(previousSections) ? previousSections.length : 0,\n    processing_status: 'ready_for_maker'\n  }\n};"
+      },
+      "name": "Prepare Maker Context",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        400
+      ],
+      "id": "prepare-maker-context"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "={\n  \"model\": \"llama2\",\n  \"prompt\": \"{{ $json.maker_prompt }}\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.7,\n    \"top_p\": 0.9,\n    \"max_tokens\": 2000\n  }\n}",
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "name": "Maker LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -400,
+        400
+      ],
+      "id": "maker-llm-call"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Maker output and prepare for Checker\nconst sectionInfo = $node[\"Prepare Maker Context\"].json;\nconst llmResponse = $input.first().json;\n\nlet generatedContent = '';\nif (llmResponse && llmResponse.response) {\n  generatedContent = llmResponse.response.trim();\n} else if (llmResponse && llmResponse.text) {\n  generatedContent = llmResponse.text.trim();\n} else {\n  throw new Error('No content generated by Maker LLM');\n}\n\nif (generatedContent.length < 200) {\n  throw new Error('Generated content too short - likely generation failed');\n}\n\n// Create checker prompt\nconst checkerPrompt = `You are a senior quality assurance analyst reviewing a due diligence section.\n\nSECTION TO REVIEW:\nTitle: ${sectionInfo.section_title}\nRequired Description: ${sectionInfo.section_description}\n\nGENERATED CONTENT:\n${generatedContent}\n\nEVALUATION CRITERIA:\n1. FACTUAL ACCURACY: Is content based on evidence? No hallucinations?\n2. COMPLETENESS: Does it cover the required scope adequately?\n3. STRUCTURE: Is it well-organized with clear headings?\n4. PROFESSIONAL TONE: Appropriate for due diligence report?\n5. LENGTH: Appropriate depth (800-1200 words)?\n6. TEMPLATE USAGE: Avoids generic templates, specific to this company?\n\nPROVIDE YOUR ASSESSMENT:\n- If APPROVED: Respond with exactly: \"APPROVED\"\n- If REJECTED: Respond with \"REJECTED\" followed by specific feedback\n\nYour assessment:`;\n\nconsole.log(`🔍 CHECKER STEP - Section ${sectionInfo.section_number}`);\nconsole.log(`📝 Content length: ${generatedContent.length} characters`);\n\nreturn {\n  json: {\n    ...sectionInfo,\n    generated_content: generatedContent,\n    checker_prompt: checkerPrompt,\n    processing_status: 'ready_for_checker',\n    content_length: generatedContent.length\n  }\n};"
+      },
+      "name": "Process Maker Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        400
+      ],
+      "id": "process-maker-output"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "={\n  \"model\": \"llama2\",\n  \"prompt\": \"{{ $json.checker_prompt }}\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.3,\n    \"top_p\": 0.8,\n    \"max_tokens\": 500\n  }\n}",
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "name": "Checker LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        400
+      ],
+      "id": "checker-llm-call"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Checker feedback and determine next action\nconst sectionInfo = $node[\"Process Maker Output\"].json;\nconst checkerResponse = $input.first().json;\n\nlet checkerFeedback = '';\nif (checkerResponse && checkerResponse.response) {\n  checkerFeedback = checkerResponse.response.trim();\n} else if (checkerResponse && checkerResponse.text) {\n  checkerFeedback = checkerResponse.text.trim();\n} else {\n  throw new Error('No feedback from Checker LLM');\n}\n\nconst isApproved = checkerFeedback.toUpperCase().includes('APPROVED');\n\nconsole.log(`🔍 CHECKER RESULT - Section ${sectionInfo.section_number}`);\nconsole.log(`📋 Decision: ${isApproved ? '✅ APPROVED' : '❌ REJECTED'}`);\nif (!isApproved) {\n  console.log(`📝 Feedback: ${checkerFeedback}`);\n}\n\nreturn {\n  json: {\n    ...sectionInfo,\n    checker_feedback: checkerFeedback,\n    checker_approved: isApproved,\n    processing_status: isApproved ? 'checker_approved' : 'checker_rejected',\n    checked_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Process Checker Feedback",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        200,
+        400
+      ],
+      "id": "process-checker-feedback"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.checker_approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Checker Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        400
+      ],
+      "id": "checker-decision"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle Checker rejection - prepare for retry or max attempts\nconst sectionInfo = $input.first().json;\n\nif (sectionInfo.attempt_count >= sectionInfo.max_attempts) {\n  console.log(`❌ MAX ATTEMPTS REACHED - Section ${sectionInfo.section_number}`);\n  console.log(`📝 Final feedback: ${sectionInfo.checker_feedback}`);\n  \n  return {\n    json: {\n      ...sectionInfo,\n      processing_status: 'failed_max_attempts',\n      final_error: `Section failed after ${sectionInfo.max_attempts} attempts. Last feedback: ${sectionInfo.checker_feedback}`,\n      failed_at: new Date().toISOString()\n    }\n  };\n}\n\n// Prepare for retry with feedback\nconst retryPrompt = `You are a senior due diligence analyst. Your previous attempt was rejected by quality review.\n\nPREVIOUS FEEDBACK:\n${sectionInfo.checker_feedback}\n\nNow generate Section ${sectionInfo.section_number}: \"${sectionInfo.section_title}\" for ${sectionInfo.company_name}.\nAddress the feedback above and ensure:\n- Factual accuracy based on available evidence\n- Comprehensive coverage of ${sectionInfo.section_description}\n- Professional structure and tone\n- Appropriate length (800-1200 words)\n- Company-specific content, not generic templates\n\nGenerate the improved section content now:`;\n\nconsole.log(`🔄 RETRY ATTEMPT ${sectionInfo.attempt_count + 1} - Section ${sectionInfo.section_number}`);\nconsole.log(`📝 Addressing feedback: ${sectionInfo.checker_feedback.substring(0, 100)}...`);\n\nreturn {\n  json: {\n    ...sectionInfo,\n    maker_prompt: retryPrompt,\n    attempt_count: sectionInfo.attempt_count + 1,\n    processing_status: 'ready_for_retry',\n    retry_reason: sectionInfo.checker_feedback\n  }\n};"
+      },
+      "name": "Handle Checker Rejection",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        500
+      ],
+      "id": "handle-checker-rejection"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare content for Approver review\nconst sectionInfo = $input.first().json;\n\nconst approverPrompt = `You are a senior partner conducting final approval of a due diligence section.\n\nSECTION FOR FINAL APPROVAL:\nTitle: ${sectionInfo.section_title}\nCompany: ${sectionInfo.company_name}\n\nCONTENT:\n${sectionInfo.generated_content}\n\nFINAL APPROVAL CRITERIA:\n1. EXECUTIVE READINESS: Suitable for C-level presentation?\n2. RISK ASSESSMENT: Properly identifies and addresses risks?\n3. ACTIONABLE INSIGHTS: Provides clear, actionable recommendations?\n4. COMPLETENESS: Nothing critical missing for decision-making?\n5. ACCURACY: All claims properly supported?\n\nDECISION:\n- If APPROVED: Respond with exactly: \"APPROVED\"\n- If REJECTED: Respond with \"REJECTED\" followed by specific concerns\n\nYour final decision:`;\n\nconsole.log(`👔 APPROVER STEP - Section ${sectionInfo.section_number}`);\nconsole.log(`📋 Ready for final approval`);\n\nreturn {\n  json: {\n    ...sectionInfo,\n    approver_prompt: approverPrompt,\n    processing_status: 'ready_for_approver'\n  }\n};"
+      },
+      "name": "Prepare Approver Review",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        400
+      ],
+      "id": "prepare-approver-review"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "={\n  \"model\": \"llama2\",\n  \"prompt\": \"{{ $json.approver_prompt }}\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.2,\n    \"top_p\": 0.7,\n    \"max_tokens\": 300\n  }\n}",
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "name": "Approver LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        400
+      ],
+      "id": "approver-llm-call"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Approver decision\nconst sectionInfo = $node[\"Prepare Approver Review\"].json;\nconst approverResponse = $input.first().json;\n\nlet approverFeedback = '';\nif (approverResponse && approverResponse.response) {\n  approverFeedback = approverResponse.response.trim();\n} else if (approverResponse && approverResponse.text) {\n  approverFeedback = approverResponse.text.trim();\n} else {\n  throw new Error('No feedback from Approver LLM');\n}\n\nconst isApproved = approverFeedback.toUpperCase().includes('APPROVED');\n\nconsole.log(`👔 APPROVER RESULT - Section ${sectionInfo.section_number}`);\nconsole.log(`📋 Final Decision: ${isApproved ? '✅ APPROVED' : '❌ REJECTED'}`);\nif (!isApproved) {\n  console.log(`📝 Feedback: ${approverFeedback}`);\n}\n\nreturn {\n  json: {\n    ...sectionInfo,\n    approver_feedback: approverFeedback,\n    approver_approved: isApproved,\n    processing_status: isApproved ? 'approver_approved' : 'approver_rejected',\n    approved_at: isApproved ? new Date().toISOString() : null\n  }\n};"
+      },
+      "name": "Process Approver Decision",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ],
+      "id": "process-approver-decision"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.approver_approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Approver Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "id": "approver-decision"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle Approver rejection - back to Maker with feedback\nconst sectionInfo = $input.first().json;\n\nif (sectionInfo.attempt_count >= sectionInfo.max_attempts) {\n  console.log(`❌ MAX ATTEMPTS REACHED - Section ${sectionInfo.section_number}`);\n  console.log(`📝 Final approver feedback: ${sectionInfo.approver_feedback}`);\n  \n  return {\n    json: {\n      ...sectionInfo,\n      processing_status: 'failed_max_attempts',\n      final_error: `Section failed final approval after ${sectionInfo.max_attempts} attempts. Approver feedback: ${sectionInfo.approver_feedback}`,\n      failed_at: new Date().toISOString()\n    }\n  };\n}\n\n// Prepare for retry with approver feedback\nconst retryPrompt = `You are a senior due diligence analyst. Your section was rejected by final approval.\n\nAPPROVER FEEDBACK:\n${sectionInfo.approver_feedback}\n\nNow generate Section ${sectionInfo.section_number}: \"${sectionInfo.section_title}\" for ${sectionInfo.company_name}.\nAddress the approver's concerns and ensure:\n- Executive-level quality and presentation\n- Comprehensive risk assessment\n- Clear, actionable insights\n- All critical information for decision-making\n- Properly supported claims\n\nGenerate the revised section content now:`;\n\nconsole.log(`🔄 APPROVER RETRY ${sectionInfo.attempt_count + 1} - Section ${sectionInfo.section_number}`);\nconsole.log(`📝 Addressing approver feedback: ${sectionInfo.approver_feedback.substring(0, 100)}...`);\n\nreturn {\n  json: {\n    ...sectionInfo,\n    maker_prompt: retryPrompt,\n    attempt_count: sectionInfo.attempt_count + 1,\n    processing_status: 'ready_for_retry',\n    retry_reason: `Approver feedback: ${sectionInfo.approver_feedback}`\n  }\n};"
+      },
+      "name": "Handle Approver Rejection",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        500
+      ],
+      "id": "handle-approver-rejection"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "dd_sections",
+        "columns": {
+          "columnToMatchOn": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "section_number",
+              "value": "={{ $json.section_number }}"
+            },
+            {
+              "column": "title",
+              "value": "={{ $json.section_title }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.generated_content }}"
+            },
+            {
+              "column": "status",
+              "value": "approved"
+            },
+            {
+              "column": "feedback_checker",
+              "value": "={{ $json.checker_feedback }}"
+            },
+            {
+              "column": "feedback_approver",
+              "value": "={{ $json.approver_feedback }}"
+            },
+            {
+              "column": "attempt_count",
+              "value": "={{ $json.attempt_count }}"
+            },
+            {
+              "column": "word_count",
+              "value": "={{ $json.generated_content.split(' ').length }}"
+            },
+            {
+              "column": "character_count",
+              "value": "={{ $json.generated_content.length }}"
+            },
+            {
+              "column": "knowledge_items_used",
+              "value": "={{ $json.knowledge_items_count }}"
+            },
+            {
+              "column": "previous_sections_referenced",
+              "value": "={{ $json.previous_sections_count }}"
+            },
+            {
+              "column": "created_at",
+              "value": "={{ $json.started_at }}"
+            },
+            {
+              "column": "approved_at",
+              "value": "={{ $json.approved_at }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Approved Section",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1400,
+        400
+      ],
+      "id": "save-approved-section",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final section completion status\nconst sectionInfo = $input.first().json;\nconst dbResult = $node[\"Save Approved Section\"].json;\n\nconst processingTimeMinutes = Math.round((new Date() - new Date(sectionInfo.started_at)) / 1000 / 60);\nconst wordCount = sectionInfo.generated_content.split(' ').length;\n\nconsole.log('✅ SECTION COMPLETED SUCCESSFULLY!');\nconsole.log('═'.repeat(50));\nconsole.log(`📋 Section ${sectionInfo.section_number}: ${sectionInfo.section_title}`);\nconsole.log(`🏢 Company: ${sectionInfo.company_name}`);\nconsole.log(`📝 Content: ${wordCount} words, ${sectionInfo.generated_content.length} characters`);\nconsole.log(`🔄 Attempts: ${sectionInfo.attempt_count}/${sectionInfo.max_attempts}`);\nconsole.log(`📊 Knowledge Used: ${sectionInfo.knowledge_items_count} items`);\nconsole.log(`📚 Previous Sections: ${sectionInfo.previous_sections_count}`);\nconsole.log(`⏱️ Processing Time: ${processingTimeMinutes} minutes`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    section_number: sectionInfo.section_number,\n    title: sectionInfo.section_title,\n    content: sectionInfo.generated_content,\n    status: 'approved',\n    company_id: sectionInfo.company_id,\n    company_name: sectionInfo.company_name,\n    word_count: wordCount,\n    character_count: sectionInfo.generated_content.length,\n    attempt_count: sectionInfo.attempt_count,\n    processing_time_minutes: processingTimeMinutes,\n    knowledge_items_used: sectionInfo.knowledge_items_count,\n    previous_sections_referenced: sectionInfo.previous_sections_count,\n    checker_feedback: sectionInfo.checker_feedback,\n    approver_feedback: sectionInfo.approver_feedback,\n    started_at: sectionInfo.started_at,\n    approved_at: sectionInfo.approved_at,\n    completed_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Complete Section",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        400
+      ],
+      "id": "complete-section"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.processing_status }}",
+              "rightValue": "ready_for_retry",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check Retry Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        600
+      ],
+      "id": "check-retry-status"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle final failure cases\nconst sectionInfo = $input.first().json;\n\nconsole.log('❌ SECTION PROCESSING FAILED');\nconsole.log('═'.repeat(50));\nconsole.log(`📋 Section ${sectionInfo.section_number}: ${sectionInfo.section_title}`);\nconsole.log(`🏢 Company: ${sectionInfo.company_name}`);\nconsole.log(`🔄 Attempts Made: ${sectionInfo.attempt_count}/${sectionInfo.max_attempts}`);\nconsole.log(`❌ Final Error: ${sectionInfo.final_error || sectionInfo.retry_reason}`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    section_number: sectionInfo.section_number,\n    title: sectionInfo.section_title,\n    status: 'failed',\n    company_id: sectionInfo.company_id,\n    company_name: sectionInfo.company_name,\n    error: sectionInfo.final_error || sectionInfo.retry_reason,\n    attempt_count: sectionInfo.attempt_count,\n    started_at: sectionInfo.started_at,\n    failed_at: sectionInfo.failed_at || new Date().toISOString()\n  }\n};"
+      },
+      "name": "Handle Final Failure",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        700
+      ],
+      "id": "handle-final-failure"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Section": {
+      "main": [
+        [
+          {
+            "node": "Fetch Previous Sections",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RAG Knowledge Retrieval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Previous Sections": {
+      "main": [
+        [
+          {
+            "node": "Prepare Maker Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Knowledge Retrieval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Maker Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings for RAG": {
+      "ai_embedding": [
+        [
+          {
+            "node": "RAG Knowledge Retrieval",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Maker Context": {
+      "main": [
+        [
+          {
+            "node": "Maker LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maker LLM Call": {
+      "main": [
+        [
+          {
+            "node": "Process Maker Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Maker Output": {
+      "main": [
+        [
+          {
+            "node": "Checker LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker LLM Call": {
+      "main": [
+        [
+          {
+            "node": "Process Checker Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Checker Feedback": {
+      "main": [
+        [
+          {
+            "node": "Checker Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Decision": {
+      "main": [
+        [
+          {
+            "node": "Prepare Approver Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Checker Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Checker Rejection": {
+      "main": [
+        [
+          {
+            "node": "Check Retry Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Approver Review": {
+      "main": [
+        [
+          {
+            "node": "Approver LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver LLM Call": {
+      "main": [
+        [
+          {
+            "node": "Process Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Save Approved Section",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Approver Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Approver Rejection": {
+      "main": [
+        [
+          {
+            "node": "Check Retry Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Approved Section": {
+      "main": [
+        [
+          {
+            "node": "Complete Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Retry Status": {
+      "main": [
+        [
+          {
+            "node": "Maker LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Final Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dd-section-template-v1.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "dd-section-template",
+  "tags": ["due-diligence", "section", "template"]
+}

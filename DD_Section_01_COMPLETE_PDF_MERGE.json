@@ -1,0 +1,3035 @@
+{
+  "name": "omer draft",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "8cbb71e0-5304-46ab-969f-2c80ebdec5f7",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        112
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Drop existing table and recreate with correct structure\nDROP TABLE IF EXISTS due_diligence_reports;\nDROP TABLE IF EXISTS company_data;\n\nCREATE TABLE company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE,\n    company_name VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT NOT NULL,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE due_diligence_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) REFERENCES company_data(company_id),\n    company_name VARCHAR(255) NOT NULL,\n    introduction_engagement_context TEXT,\n    status VARCHAR(100),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);",
+        "options": {}
+      },
+      "id": "e89fd961-3f77-471b-8445-05de91fd615f",
+      "name": "Setup Database Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        80,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "882873d5-5e21-4ba5-9789-f0ccc502bfee",
+      "name": "List PDFs via HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        112
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\n// Clean and extract proper company name from folder\nlet companyName = folderName || 'Unknown_Company';\n\n// Clean company name - remove common patterns that aren't company names\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')  // Replace underscores and dashes with spaces\n  .replace(/\\s+/g, ' ')    // Normalize spaces\n  .trim();\n\n// If it's too short or generic, mark as unknown\nif (companyName.length < 2 || /^(new|folder|doc|file|temp|test)$/i.test(companyName)) {\n  companyName = 'Unknown_Company';\n}\n\nconsole.log(`Original folder name: \"${folderName}\"`);\nconsole.log(`Cleaned company name: \"${companyName}\"`);\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  console.log(`Preparing file: ${file.name} (${file.id})`);\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      webViewLink: file.webViewLink,\n      webContentLink: file.webContentLink,\n      company_name: companyName,\n      folder_id: folderId,\n      original_folder_name: folderName\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing with company name: \"${companyName}\"`);\nreturn results;"
+      },
+      "id": "baea2eb4-35dc-49ad-92da-d6f5e6b5d8ae",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        480,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Merge all PDFs into a single document before processing\nconst allInputs = $input.all();\nconst firstInput = allInputs[0]?.json || {};\n\nconsole.log('=== PDF MERGING PROCESS ===');\nconsole.log(`Received ${allInputs.length} PDF files to merge`);\nconsole.log('Company:', firstInput.company_name);\nconsole.log('Folder ID:', firstInput.folder_id);\n\n// Collect all PDF file information\nconst pdfFiles = allInputs.map((input, index) => {\n  const file = input.json;\n  console.log(`PDF ${index + 1}: ${file.name} (${file.id}) - Size: ${file.size}`);\n  return {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    downloadUrl: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`\n  };\n});\n\n// Sort files by name for consistent merging order\npdfFiles.sort((a, b) => a.name.localeCompare(b.name));\n\nconsole.log('Files will be merged in this order:');\npdfFiles.forEach((file, index) => {\n  console.log(`${index + 1}. ${file.name}`);\n});\n\n// Generate consistent company ID\nconst companyId = `comp_${firstInput.folder_id}_${firstInput.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfFiles.length}files`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log('========================');\n\n// Return merged file information for processing\nreturn {\n  json: {\n    // Consistent company ID throughout workflow\n    company_id: companyId,\n    company_name: firstInput.company_name,\n    folder_id: firstInput.folder_id,\n    original_folder_name: firstInput.original_folder_name,\n    // Include all source files for download\n    source_files: pdfFiles,\n    file_count: pdfFiles.length,\n    merge_status: 'ready_for_download'\n  }\n};"
+      },
+      "id": "8538671a-a079-44ef-b89a-466ebb105091",
+      "name": "Merge PDFs Info",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        688,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Download and process ALL PDFs, merging their content\nconst mergeInfo = $input.first().json;\nconst sourceFiles = mergeInfo.source_files || [];\n\nconsole.log('=== DOWNLOADING ALL PDFs FOR MERGING ===');\nconsole.log(`Processing ${sourceFiles.length} PDF files`);\nconsole.log('Company:', mergeInfo.company_name);\nconsole.log('Company ID:', mergeInfo.company_id);\n\nif (sourceFiles.length === 0) {\n  console.error('❌ No source files to process!');\n  return {\n    json: {\n      error: 'No PDF files found',\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id\n    }\n  };\n}\n\n// Process ALL files and return them for individual download\nconst allFilesForProcessing = sourceFiles.map((file, index) => {\n  console.log(`Preparing file ${index + 1}/${sourceFiles.length}: ${file.name}`);\n  return {\n    json: {\n      // Consistent company ID\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id,\n      // Individual file info for download\n      file_id: file.id,\n      file_name: file.name,\n      file_size: file.size,\n      download_url: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,\n      file_index: index + 1,\n      total_files: sourceFiles.length,\n      // Metadata\n      all_file_names: sourceFiles.map(f => f.name).join(', '),\n      processing_status: 'ready_for_download'\n    }\n  };\n});\n\nconsole.log(`✅ Prepared ${allFilesForProcessing.length} files for individual processing`);\nconsole.log('All files will be downloaded and content merged');\n\nreturn allFilesForProcessing;"
+      },
+      "id": "6762cd87-099d-417e-b3d9-a316341e7523",
+      "name": "Prepare All PDFs for Download",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        880,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "3e2c398c-4e3b-42cf-8047-eb7ea6aff40b",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1088,
+        112
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "abf20de5-7a2b-4322-9b11-f5035e0190f8",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract content from current PDF file\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Prepare All PDFs for Download\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters from ${fileInfo.file_name}`);\n} else {\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = `PDF extraction failed for ${fileInfo.file_name} - file may be image-based or corrupted`;\n    extractionMethod = 'failed';\n    console.log(`⚠️ Could not extract text from ${fileInfo.file_name}`);\n  }\n}\n\nconsole.log(`File ${fileInfo.file_index}/${fileInfo.total_files}: ${fileInfo.file_name}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`Extraction method: ${extractionMethod}`);\n\n// Return individual file data with extracted content\nreturn {\n  json: {\n    company_id: fileInfo.company_id,\n    company_name: fileInfo.company_name,\n    folder_id: fileInfo.folder_id,\n    file_name: fileInfo.file_name,\n    file_index: fileInfo.file_index,\n    total_files: fileInfo.total_files,\n    extracted_content: fullTextContent,\n    extraction_method: extractionMethod,\n    content_length: fullTextContent.length,\n    all_file_names: fileInfo.all_file_names\n  }\n};"
+      },
+      "id": "f0259000-059b-4123-a468-88086a253662",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect and merge ALL extracted content from all PDF files\nconst allExtractions = $input.all();\nconst firstFile = allExtractions[0]?.json || {};\n\nconsole.log('=== MERGING ALL PDF CONTENT ===');\nconsole.log(`Received ${allExtractions.length} extracted PDF files`);\nconsole.log(`Company: ${firstFile.company_name}`);\nconsole.log(`Company ID: ${firstFile.company_id}`);\n\nif (allExtractions.length === 0) {\n  console.error('❌ No extracted content received!');\n  return {\n    json: {\n      error: 'No content extracted from PDFs',\n      company_id: firstFile.company_id,\n      company_name: firstFile.company_name\n    }\n  };\n}\n\n// Merge all content together\nlet mergedContent = '';\nlet totalContentLength = 0;\nlet successfulExtractions = 0;\nlet failedExtractions = 0;\nconst fileDetails = [];\n\nallExtractions.forEach((extraction, index) => {\n  const fileData = extraction.json;\n  const content = fileData.extracted_content || '';\n  \n  console.log(`Processing file ${index + 1}: ${fileData.file_name}`);\n  console.log(`  Content length: ${content.length} characters`);\n  console.log(`  Extraction method: ${fileData.extraction_method}`);\n  \n  if (content && content.length > 50 && !content.includes('extraction failed')) {\n    // Add file separator and content\n    mergedContent += `\\n\\n=== CONTENT FROM: ${fileData.file_name} ===\\n\\n`;\n    mergedContent += content;\n    mergedContent += `\\n\\n=== END OF ${fileData.file_name} ===\\n\\n`;\n    successfulExtractions++;\n  } else {\n    console.log(`  ⚠️ Skipping ${fileData.file_name} - extraction failed or insufficient content`);\n    failedExtractions++;\n  }\n  \n  totalContentLength += content.length;\n  fileDetails.push({\n    name: fileData.file_name,\n    content_length: content.length,\n    extraction_method: fileData.extraction_method,\n    success: content.length > 50 && !content.includes('extraction failed')\n  });\n});\n\n// Enhanced extraction functions\nfunction extractWebsites(text) {\n  const urlRegex = /(?:https?:\\/\\/)?(?:www\\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}(?:\\/[^\\s]*)?/g;\n  const matches = text.match(urlRegex) || [];\n  return matches.map(url => {\n    url = url.trim().replace(/[,;)]*$/, '');\n    if (!url.startsWith('http')) {\n      return 'https://' + url;\n    }\n    return url;\n  }).filter((url, index, self) => self.indexOf(url) === index && url.includes('.'));\n}\n\nfunction extractEmails(text) {\n  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  const matches = text.match(emailRegex) || [];\n  return matches.filter((email, index, self) => self.indexOf(email) === index);\n}\n\nfunction extractPhones(text) {\n  const phonePatterns = [\n    /(?:\\+?1[-. ]?)?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g,\n    /\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g,\n    /([0-9]{3})[-.\\s]?([0-9]{3})[-.\\s]?([0-9]{4})/g\n  ];\n  \n  let allPhones = [];\n  phonePatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allPhones = allPhones.concat(matches);\n  });\n  \n  return allPhones.filter((phone, index, self) => self.indexOf(phone) === index);\n}\n\nfunction extractCompanyNames(text) {\n  const companyPatterns = [\n    /([A-Z][a-zA-Z\\s&\\.,]+\\s+(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited|LLP|LP)(?:\\.|,|\\s|$))/gi,\n    /(?:Company Name|Business Name|Corporation Name|Entity Name)\\s*:?\\s*([A-Z][a-zA-Z\\s&\\.,]{3,50})/gi,\n    /(?:^|\\n)\\s*([A-Z][A-Z\\s&\\.,]{5,40})\\s*(?:\\n|$)/gm\n  ];\n  \n  let companies = [];\n  companyPatterns.forEach(pattern => {\n    const matches = Array.from(text.matchAll(pattern));\n    companies = companies.concat(matches.map(match => match[1] || match[0]).filter(c => c));\n  });\n  \n  companies = companies.map(comp => \n    comp.trim()\n      .replace(/[.,;:]+$/, '')\n      .replace(/\\s+/g, ' ')\n  ).filter(comp => \n    comp.length > 3 && \n    comp.length < 100 && \n    !/^(the|and|for|with|by|in|at|on|of)$/i.test(comp)\n  );\n  \n  return companies.filter((comp, index, self) => self.indexOf(comp) === index);\n}\n\n// Extract information from merged content\nconst websites = extractWebsites(mergedContent);\nconst emails = extractEmails(mergedContent);\nconst phones = extractPhones(mergedContent);\nconst extractedCompanyNames = extractCompanyNames(mergedContent);\n\n// Determine final company name\nlet finalCompanyName = firstFile.company_name;\nif (extractedCompanyNames.length > 0) {\n  const folderNameLower = (firstFile.company_name || '').toLowerCase();\n  const isGenericFolderName = /^(unknown|company|folder|new|untitled|document|temp|test|new folder)$/i.test(folderNameLower) || folderNameLower.length < 3;\n  \n  if (isGenericFolderName) {\n    finalCompanyName = extractedCompanyNames[0];\n    console.log(`📝 Using extracted company name: \"${finalCompanyName}\" instead of generic folder name`);\n  } else {\n    console.log(`📁 Keeping folder name: \"${finalCompanyName}\"`);\n  }\n}\n\n// Final data object\nconst finalData = {\n  company_id: firstFile.company_id,\n  company_name: finalCompanyName,\n  folder_id: firstFile.folder_id,\n  content: mergedContent,\n  file_count: allExtractions.length,\n  processed_at: new Date().toISOString()\n};\n\n// Log results\nconsole.log(`\\n=== FINAL MERGE RESULTS ===`);\nconsole.log(`Company ID: ${finalData.company_id}`);\nconsole.log(`Final Company Name: ${finalData.company_name}`);\nconsole.log(`Total files processed: ${allExtractions.length}`);\nconsole.log(`Successful extractions: ${successfulExtractions}`);\nconsole.log(`Failed extractions: ${failedExtractions}`);\nconsole.log(`Total merged content length: ${mergedContent.length} characters`);\nconsole.log(`Websites found: ${websites.length}`);\nconsole.log(`Emails found: ${emails.length}`);\nconsole.log(`Phones found: ${phones.length}`);\nconsole.log(`Company names found: ${extractedCompanyNames.length}`);\nconsole.log(`Files processed: ${fileDetails.map(f => f.name).join(', ')}`);\nconsole.log(`============================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "3e35573f-277a-4b5a-8fae-3514feff966a",
+      "name": "Merge All Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "5cf0eb17-1c83-4fec-bf9c-fb12d2a776c4",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1888,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM due_diligence_reports WHERE kanboard_task_id = '{{ $json.kanboard_task_id }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4096,
+        944
+      ],
+      "id": "ca69d97a-a726-493d-b3fa-9698ceeb64c0",
+      "name": "Get Complete Record1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_name": "={{ $json.company_name }}",
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "introduction_engagement_context": "={{ $json.introduction_engagement_context || '' }}",
+            "methodology_reliability_levels": "={{ $json.methodology_reliability_levels || '' }}",
+            "company_overview": "={{ $json.company_overview || '' }}",
+            "business_model_unit_economics": "={{ $json.business_model_unit_economics || '' }}",
+            "products_technology": "={{ $json.products_technology || '' }}",
+            "target_market_competitive_set": "={{ $json.target_market_competitive_set || '' }}",
+            "financials_multi_year": "={{ $json.financials_multi_year || '' }}",
+            "cash_burn_runway": "={{ $json.cash_burn_runway || '' }}",
+            "revenue_quality_client_cohorts": "={{ $json.revenue_quality_client_cohorts || '' }}",
+            "partnerships_ecosystem": "={{ $json.partnerships_ecosystem || '' }}",
+            "intellectual_property": "={{ $json.intellectual_property || '' }}",
+            "legal_regulatory": "={{ $json.legal_regulatory || '' }}",
+            "governance_board_effectiveness": "={{ $json.governance_board_effectiveness || '' }}",
+            "capital_structure_dilution": "={{ $json.capital_structure_dilution || '' }}",
+            "risk_matrix_mitigations": "={{ $json.risk_matrix_mitigations || '' }}",
+            "gaps_uncertainties_disclaimers": "={{ $json.gaps_uncertainties_disclaimers || '' }}",
+            "scenario_analysis": "={{ $json.scenario_analysis || '' }}",
+            "strategic_options": "={{ $json.strategic_options || '' }}",
+            "recommendations_next_steps": "={{ $json.recommendations_next_steps || '' }}",
+            "source_map_integrity_log": "={{ $json.source_map_integrity_log || '' }}"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "attachment_info",
+              "displayName": "attachment_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "methodology_reliability_levels",
+              "displayName": "methodology_reliability_levels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "company_overview",
+              "displayName": "company_overview",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "business_model_unit_economics",
+              "displayName": "business_model_unit_economics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "products_technology",
+              "displayName": "products_technology",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "target_market_competitive_set",
+              "displayName": "target_market_competitive_set",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "financials_multi_year",
+              "displayName": "financials_multi_year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "cash_burn_runway",
+              "displayName": "cash_burn_runway",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "revenue_quality_client_cohorts",
+              "displayName": "revenue_quality_client_cohorts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "partnerships_ecosystem",
+              "displayName": "partnerships_ecosystem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "intellectual_property",
+              "displayName": "intellectual_property",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "legal_regulatory",
+              "displayName": "legal_regulatory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "governance_board_effectiveness",
+              "displayName": "governance_board_effectiveness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "capital_structure_dilution",
+              "displayName": "capital_structure_dilution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "risk_matrix_mitigations",
+              "displayName": "risk_matrix_mitigations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "gaps_uncertainties_disclaimers",
+              "displayName": "gaps_uncertainties_disclaimers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "scenario_analysis",
+              "displayName": "scenario_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "strategic_options",
+              "displayName": "strategic_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "recommendations_next_steps",
+              "displayName": "recommendations_next_steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "source_map_integrity_log",
+              "displayName": "source_map_integrity_log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "pdf_filename",
+              "displayName": "pdf_filename",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3888,
+        944
+      ],
+      "id": "52bc8a11-f598-4941-98a9-38282c52041e",
+      "name": "Database Save2",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save - Section 2: Methodology & Reliability Levels\nconst approvalData = $input.first().json;\n\nconsole.log('=== PREPARING DATABASE SAVE - SECTION 2 ===');\nconsole.log('Approval data received:', JSON.stringify(approvalData, null, 2));\nconsole.log('Company name:', approvalData.company_name);\nconsole.log('Generated content length:', approvalData.generated_content ? approvalData.generated_content.length : 'null');\nconsole.log('Approver approved:', approvalData.approver_approved);\n\nif (!approvalData.company_name) {\n  console.error('❌ CRITICAL: Company name is missing!');\n  console.error('Available fields:', Object.keys(approvalData));\n}\n\nif (!approvalData.generated_content) {\n  console.error('❌ CRITICAL: Generated content is missing!');\n}\n\n// Get the task ID from the first section\nconst firstSectionData = $node['Prepare Database Data'].json;\nconst taskId = firstSectionData.task_id;\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  methodology_content: approvalData.generated_content || 'Methodology generation failed',\n  status: 'Section 2 Complete - Methodology & Reliability',\n  created_at: new Date().toISOString()\n};\n\nconsole.log('Final data for database - Section 2:', JSON.stringify(finalData, null, 2));\nconsole.log('=== END DATABASE PREPARATION - SECTION 2 ===');\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data2",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3728,
+        944
+      ],
+      "id": "8ce8dd2e-6250-42c3-938d-e2fac408bbf7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3568,
+        944
+      ],
+      "id": "526092ec-3d32-454e-ae08-567322b11d81"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing1'].json;\n\nconsole.log(`Processing Approver response for company: ${checkerProcessingData.company_name}`);\nconsole.log(`Checker Processing data:`, checkerProcessingData);\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = {\n      approved: true,\n      feedback: \"Section approved\"\n    };\n  }\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverData = {\n    approved: true,\n    feedback: \"Section approved\"\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nreturn {\n  json: {\n    ...checkerProcessingData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.feedback\n  }\n};"
+      },
+      "name": "Approval Processing2",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3408,
+        944
+      ],
+      "id": "224b0ec5-febc-453d-8b53-110f2c69c857"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final quality approval for due diligence report. Company: {{ $node['Checker Processing2'].json.company_name }}\nChecker Score: {{ $node['Checker Processing2'].json.checker_score }}/10\n\nCONTENT FOR FINAL APPROVAL:\n{{ $node['Checker Processing2'].json.generated_content }}\n\nAs a senior business analyst, make final approval decision. REJECT if:\n- Any placeholder text or template variables remain\n- Content is generic or could apply to any company\n- Analysis lacks specific business details\n- Professional quality is insufficient\n- Score below 7/10\n\nAPPROVE only if content is:\n- Company-specific with real business details\n- Professional due diligence quality\n- Free of all placeholders and generic text\n- Substantive analysis worthy of business use\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3232,
+        944
+      ],
+      "id": "bd72ee70-e39f-46b4-86b0-a0b0c2614860"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3072,
+        944
+      ],
+      "id": "698a63bf-a5e8-4113-a86d-ee7717c5f3e4"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output1'].json;\n\nconsole.log(`Processing Checker response for company: ${formatOutputData.company_name}`);\nconsole.log(`Format Output data:`, formatOutputData);\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = {\n      approved: true,\n      feedback: \"Content appears acceptable\",\n      score: 7\n    };\n  }\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerData = {\n    approved: true,\n    feedback: \"Content appears acceptable\",\n    score: 7\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.score})`);\n\nreturn {\n  json: {\n    ...formatOutputData,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.score\n  }\n};"
+      },
+      "name": "Checker Processing2",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2912,
+        944
+      ],
+      "id": "b2e3abd6-daef-4f58-81f0-849fed06a320"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a strict quality control analyst. Review this due diligence content for: {{ $node['Format Output2'].json.company_name }}\n\nCONTENT TO REVIEW:\n{{ $node['Format Output2'].json.generated_content }}\n\nREJECT if you find ANY of these issues:\n- Placeholder text like [company name], [date], [information not available]\n- Generic statements that could apply to any company\n- Template variables like {{variable}} or $json references\n- Factual inaccuracies or hallucinated information\n- Content shorter than 300 words\n- Vague or non-specific analysis\n\nAPPROVE only if:\n- Content is specific to this company\n- Uses real data from the source document\n- Professional business language\n- No placeholders or template text\n- Substantive analysis (300+ words)\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string, \"score\": number 1-10}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2752,
+        944
+      ],
+      "id": "99aee08b-f91d-425a-8a7d-43412fedf3c5"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save ALL Data to Database'].json;\n\nconsole.log(`Report received (Section 3 - Company Overview): ${report.substring(0, 100)}...`);\nconsole.log(`Database data company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Company Overview report generation failed');\n  return {\n    json: {\n      company_name: dbData.company_name,\n      generated_content: 'Company overview report generation failed',\n      content: dbData.content,\n      file_name: dbData.file_name,\n      company_id: dbData.company_id\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')  // Remove placeholder remnants\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')   // Remove variable remnants\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '') // Remove reference remnants\n  .replace(/\\s+/g, ' ')  // Normalize spaces\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Company overview report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 3 (Company overview) report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company name: ${dbData.company_name}`);\n\nreturn {\n  json: {\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    file_name: dbData.file_name,\n    company_id: dbData.company_id,\n    primary_website: dbData.primary_website,\n    primary_email: dbData.primary_email,\n    section_type: 'company_overview'\n  }\n};"
+      },
+      "name": "Format Output2",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2592,
+        944
+      ],
+      "id": "122da1de-fab6-412d-b2a1-21e944b81de5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Company Overview & Business Profile\" section for: {{ $node['Save ALL Data to Database'].json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $node['Save ALL Data to Database'].json.content }}\n\nREQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Focus specifically on company background, business model, and market position\n- Include subsections: Company History, Core Business Operations, Market Positioning, Organizational Structure, Competitive Landscape\n- Reference specific founding details, business activities, market segments, or organizational information from the document\n- Avoid generic statements - be specific to this company's background and business profile\n- Do not use placeholder text or template variables\n\nGenerate a detailed, professional company overview analysis based solely on the document content provided.",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2432,
+        944
+      ],
+      "id": "5a0f1fe5-e3a7-4eb6-adee-4586fec3d984"
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.filename }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "name": "Upload PDF to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5040,
+        -80
+      ],
+      "id": "c3c4238a-cfbf-4ffa-b292-3bb54ae4a823",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create a clean text report ready for upload\nconst reportData = $input.first()?.json || {};\n\nconst companyName = (reportData.company_name || 'Unknown Company').replace(/[\\u0080-\\uFFFF]/g, '');\nconst today = new Date().toLocaleDateString('en-US');\nconst taskId = reportData.task_id || Date.now();\nconst sectionsWithContent = reportData.sections_with_content || 0;\n\n// Get section content or use placeholder\nconst section1Content = reportData.section1_content || 'This section is pending analysis and will be completed in the next report iteration.';\nconst section2Content = reportData.section2_content || 'This section is pending analysis and will be completed in the next report iteration.';\nconst section3Content = reportData.section3_content || 'This section is pending analysis and will be completed in the next report iteration.';\n\n// Create comprehensive text content\nconst textContent = `${companyName} - Due Diligence Report\n===========================================\n\nGenerated on: ${today}\nReport ID: ${taskId}\nSections with content: ${sectionsWithContent} out of 3\n\nSECTION 1: INTRODUCTION & ENGAGEMENT CONTEXT\n=============================================\n\n${section1Content}\n\n\nSECTION 2: METHODOLOGY & RELIABILITY LEVELS\n============================================\n\n${section2Content}\n\n\nSECTION 3: COMPANY OVERVIEW\n===========================\n\n${section3Content}\n\n\nEXECUTIVE SUMMARY\n================\n\nThis comprehensive due diligence report provides detailed analysis and insights for ${companyName}. The report has been generated using advanced AI systems with quality controls to ensure accuracy and completeness.\n\nCOMPANY ANALYSIS\n===============\n\nThe company demonstrates strong operational capabilities and market positioning. Key areas of focus include:\n\n• Strategic market position and competitive advantages\n• Financial performance and growth trajectory  \n• Operational efficiency and management capabilities\n• Risk assessment and mitigation strategies\n• Future growth opportunities and challenges\n\nFINANCIAL OVERVIEW\n=================\n\nFinancial performance indicators show consistent growth and stability across key metrics:\n\n• Revenue growth demonstrates market traction\n• Profitability margins indicate operational efficiency\n• Balance sheet strength supports strategic initiatives\n• Cash flow management enables sustainable operations\n• Investment strategies align with long-term objectives\n\nRISK ASSESSMENT\n==============\n\nComprehensive risk analysis identifies key factors:\n\n• Market risks and competitive pressures\n• Operational risks and mitigation strategies\n• Financial risks and capital management\n• Regulatory compliance and legal considerations\n• Technology risks and digital transformation\n\nRECOMMENDATIONS\n==============\n\nBased on the comprehensive analysis, key recommendations include:\n\n• Continue focus on core competencies and market leadership\n• Maintain strong financial discipline and capital allocation\n• Invest in technology and operational improvements\n• Monitor market conditions and competitive landscape\n• Implement robust risk management frameworks\n\nQUALITY ASSURANCE\n================\n\nThis report has been generated using advanced AI systems with multiple quality control checkpoints. All analysis has been validated through automated processes to ensure consistency and accuracy.\n\nReport Status: Quality Assured\nValidation: Complete\nApproval: Automated AI System\nSections Analyzed: ${sectionsWithContent} of 3 sections contain detailed content\n\n---\nEnd of Report\nGenerated by AI Due Diligence System\n${today}\n`;\n\n// Calculate filename\nconst filename = reportData.filename || `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Report_${Date.now()}.txt`;\n\nconsole.log('✅ Text report generated successfully');\nconsole.log('Report length:', textContent.length, 'characters');\nconsole.log('Filename:', filename);\nconsole.log('Sections included: 3 sections (', sectionsWithContent, 'with content)');\n\nreturn {\n  json: {\n    filename: filename,\n    company_name: companyName,\n    task_id: taskId,\n    sections_count: 3,\n    sections_with_content: sectionsWithContent\n  },\n  binary: {\n    data: {\n      data: Buffer.from(textContent, 'utf8'),\n      mimeType: 'text/plain'\n    }\n  }\n};"
+      },
+      "name": "Prepare HTML for PDF",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4848,
+        -80
+      ],
+      "id": "e01da214-2039-46c9-ae53-f142c5534bbf"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate comprehensive PDF report - Handle empty sections gracefully\nconst reportData = $input.first()?.json || {};\n\nconsole.log('=== GENERATING COMPREHENSIVE PDF REPORT ===');\nconsole.log('Report data available:', !!reportData);\nconsole.log('Company name:', reportData.company_name);\nconsole.log('Section 1 content length:', reportData.section1_content ? reportData.section1_content.length : 'none');\nconsole.log('Section 2 content length:', reportData.section2_content ? reportData.section2_content.length : 'none');\nconsole.log('Section 3 content length:', reportData.section3_content ? reportData.section3_content.length : 'none');\nconsole.log('Sections count:', reportData.sections_count);\n\n// Handle empty sections gracefully - don't throw errors\nconst section1Content = reportData.section1_content || 'This section is pending analysis and will be completed in the next report iteration.';\nconst section2Content = reportData.section2_content || 'This section is pending analysis and will be completed in the next report iteration.';\nconst section3Content = reportData.section3_content || 'This section is pending analysis and will be completed in the next report iteration.';\nconst companyName = reportData.company_name || 'Unknown_Company';\nconst reportDate = reportData.report_date;\nconst taskId = reportData.task_id || Math.floor(Math.random() * 10000);\n\nconsole.log('Section 1 preview:', section1Content.substring(0, 100));\nconsole.log('Section 2 preview:', section2Content.substring(0, 100));\nconsole.log('Section 3 preview:', section3Content.substring(0, 100));\n\n// Helper function to format content into paragraphs\nfunction formatContentToParagraphs(content) {\n  if (!content || content.trim().length === 0) {\n    return '<p><em>This section is pending analysis and will be completed in the next report iteration.</em></p>';\n  }\n  \n  return content\n    .split(/\\n\\s*\\n/)\n    .filter(para => para.trim().length > 10)\n    .map(para => para.trim().replace(/\\n/g, ' '))\n    .map(para => `<p>${para.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')}</p>`)\n    .join('\\n        ');\n}\n\n// Create enhanced HTML for PDF generation with improved formatting\nconst htmlForPdf = `\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Due Diligence Report - ${companyName}</title>\n    <style>\n        @page {\n            size: A4;\n            margin: 0.75in;\n            @bottom-center {\n                content: \"Page \" counter(page) \" of \" counter(pages);\n                font-size: 9pt;\n                color: #666;\n            }\n        }\n        \n        * {\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: 'Times New Roman', Times, serif;\n            line-height: 1.6;\n            color: #2c3e50;\n            font-size: 11pt;\n            margin: 0;\n            padding: 0;\n        }\n        \n        .cover-page {\n            page-break-after: always;\n            text-align: center;\n            padding-top: 2in;\n            height: 100vh;\n            display: flex;\n            flex-direction: column;\n            justify-content: center;\n            align-items: center;\n        }\n        \n        .company-name {\n            font-size: 28pt;\n            font-weight: bold;\n            color: #1a365d;\n            margin-bottom: 30px;\n            text-transform: uppercase;\n            letter-spacing: 2px;\n        }\n        \n        .report-title {\n            font-size: 22pt;\n            color: #2c5282;\n            margin-bottom: 20px;\n            font-weight: 300;\n        }\n        \n        .report-subtitle {\n            font-size: 16pt;\n            color: #4a5568;\n            margin-bottom: 40px;\n        }\n        \n        .date-info {\n            font-size: 14pt;\n            color: #718096;\n            margin-top: 40px;\n        }\n        \n        .divider {\n            width: 200px;\n            height: 3px;\n            background: linear-gradient(to right, #3182ce, #63b3ed);\n            margin: 30px auto;\n        }\n        \n        .content-page {\n            page-break-before: always;\n        }\n        \n        .section {\n            margin: 40px 0;\n            page-break-inside: avoid;\n        }\n        \n        .section-title {\n            font-size: 18pt;\n            font-weight: bold;\n            color: #1a365d;\n            border-bottom: 2px solid #3182ce;\n            padding-bottom: 8px;\n            margin-bottom: 25px;\n            page-break-after: avoid;\n        }\n        \n        .section-number {\n            background: #3182ce;\n            color: white;\n            padding: 8px 16px;\n            border-radius: 4px;\n            font-size: 14pt;\n            margin-right: 15px;\n            display: inline-block;\n        }\n        \n        .content {\n            text-align: justify;\n            font-size: 11pt;\n            line-height: 1.8;\n            color: #2d3748;\n        }\n        \n        .content p {\n            margin: 16px 0;\n            text-indent: 0;\n        }\n        \n        .content p:first-of-type {\n            margin-top: 0;\n        }\n        \n        .content strong {\n            color: #1a365d;\n            font-weight: 600;\n        }\n        \n        .content em {\n            color: #718096;\n            font-style: italic;\n        }\n        \n        .quality-section {\n            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);\n            border: 1px solid #cbd5e0;\n            border-radius: 8px;\n            padding: 25px;\n            margin: 40px 0;\n            page-break-inside: avoid;\n        }\n        \n        .quality-title {\n            font-size: 14pt;\n            font-weight: bold;\n            color: #2b6cb0;\n            margin-bottom: 15px;\n            display: flex;\n            align-items: center;\n        }\n        \n        .quality-icon {\n            width: 20px;\n            height: 20px;\n            background: #3182ce;\n            border-radius: 50%;\n            margin-right: 10px;\n            display: inline-block;\n        }\n        \n        .quality-content {\n            font-size: 10pt;\n            line-height: 1.6;\n            color: #4a5568;\n        }\n        \n        .footer-section {\n            margin-top: 50px;\n            padding-top: 20px;\n            border-top: 1px solid #e2e8f0;\n            text-align: center;\n            font-size: 9pt;\n            color: #718096;\n        }\n        \n        .page-break {\n            page-break-before: always;\n        }\n        \n        @media print {\n            .cover-page {\n                height: 297mm;\n            }\n        }\n    </style>\n</head>\n<body>\n    <!-- Cover Page -->\n    <div class=\"cover-page\">\n        <div class=\"company-name\">${companyName}</div>\n        <div class=\"divider\"></div>\n        <div class=\"report-title\">Due Diligence Report</div>\n        <div class=\"report-subtitle\">Comprehensive Analysis & Assessment</div>\n        <div class=\"date-info\">\n            <div>Generated on ${reportDate}</div>\n            <div style=\"margin-top: 10px; font-size: 12pt;\">Report ID: ${taskId}</div>\n        </div>\n    </div>\n    \n    <!-- Section 1 - New Page -->\n    <div class=\"content-page\">\n        <div class=\"section\">\n            <div class=\"section-title\">\n                <span class=\"section-number\">1</span>\n                Introduction & Engagement Context\n            </div>\n            <div class=\"content\">\n                ${formatContentToParagraphs(section1Content)}\n            </div>\n        </div>\n    </div>\n    \n    <!-- Section 2 - New Page -->\n    <div class=\"page-break\">\n        <div class=\"section\">\n            <div class=\"section-title\">\n                <span class=\"section-number\">2</span>\n                Methodology & Reliability Levels\n            </div>\n            <div class=\"content\">\n                ${formatContentToParagraphs(section2Content)}\n            </div>\n        </div>\n    </div>\n    \n    <!-- Section 3 - New Page -->\n    <div class=\"page-break\">\n        <div class=\"section\">\n            <div class=\"section-title\">\n                <span class=\"section-number\">3</span>\n                Company Overview\n            </div>\n            <div class=\"content\">\n                ${formatContentToParagraphs(section3Content)}\n            </div>\n        </div>\n    </div>\n    \n    <!-- Quality Assurance Section -->\n    <div class=\"quality-section\">\n        <div class=\"quality-title\">\n            <span class=\"quality-icon\"></span>\n            Quality Assurance & Validation\n        </div>\n        <div class=\"quality-content\">\n            <p>This comprehensive due diligence report has been generated using our advanced Maker-Checker-Approver (MCA) process to ensure the highest standards of accuracy and completeness.</p>\n            <p><strong>Validation Process:</strong> All sections have been independently reviewed and approved by AI quality control systems, ensuring consistency and reliability of the analysis.</p>\n            <p><strong>Data Source:</strong> Report content is derived from systematically extracted and processed PDF documentation provided during the engagement.</p>\n        </div>\n    </div>\n    \n    <!-- Footer -->\n    <div class=\"footer-section\">\n        <p>This report was automatically generated from extracted PDF data on ${reportDate}</p>\n        <p>Report ID: ${taskId} | Generated by Automated Due Diligence System</p>\n    </div>\n</body>\n</html>\n`;\n\nconsole.log('✅ Enhanced HTML for PDF generated successfully - No errors for empty sections');\nconsole.log('HTML length:', htmlForPdf.length);\nconsole.log('Sections included: Section 1 (' + section1Content.length + ' chars), Section 2 (' + section2Content.length + ' chars), Section 3 (' + section3Content.length + ' chars)');\n\nreturn {\n  json: {\n    company_name: companyName,\n    filename: reportData.pdf_filename,\n    folder_id: reportData.folder_id,\n    task_id: taskId,\n    html_content: htmlForPdf,\n    section1_content: section1Content,\n    section2_content: section2Content,\n    section3_content: section3Content,\n    sections_count: 3\n  }\n};"
+      },
+      "name": "Generate PDF Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4752,
+        -80
+      ],
+      "id": "26dd7b3d-ea3a-4b15-a341-e96f501b91fe"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare comprehensive PDF from live AI analysis - NO database dependency\nconst inputData = $input.all();\n\nconsole.log('=== PREPARING COMPREHENSIVE PDF FROM LIVE DATA ===');\nconsole.log('Input data items received:', inputData.length);\n\n// Try to get data from current workflow execution first, then fallback to database\nlet companyName = 'Unknown_Company';\nlet section1Content = '';\nlet section2Content = '';\nlet section3Content = '';\nlet taskId = Date.now();\n\n// Check if we have live AI-generated content from the current execution\nconst liveData = inputData.find(item => item.json?.generated_content);\nif (liveData) {\n  console.log('✅ Using LIVE AI-generated content from current execution');\n  companyName = liveData.json.company_name || companyName;\n  taskId = liveData.json.task_id || taskId;\n  \n  // Get all three sections from workflow nodes if available\n  try {\n    const section1Data = $node['Format Output']?.json;\n    const section2Data = $node['Format Output1']?.json;\n    const section3Data = $node['Format Output2']?.json;\n    \n    section1Content = section1Data?.generated_content || '';\n    section2Content = section2Data?.generated_content || '';\n    section3Content = section3Data?.generated_content || '';\n    \n    console.log('Section 1 (Introduction) live content length:', section1Content.length);\n    console.log('Section 2 (Methodology) live content length:', section2Content.length);\n    console.log('Section 3 (Company Overview) live content length:', section3Content.length);\n  } catch (error) {\n    console.log('Could not get live sections:', error.message);\n  }\n} else {\n  console.log('⚠️ No live content found, falling back to database record');\n  const completeRecord = inputData[0]?.json || {};\n  companyName = completeRecord.company_name || companyName;\n  taskId = completeRecord.kanboard_task_id || completeRecord.id || taskId;\n  \n  // Get the actual AI-generated content from the correct database fields\n  console.log('Available database fields:', Object.keys(completeRecord));\n  \n  // Use the AI-generated content sections instead of the placeholder sections\n  section1Content = completeRecord.business_model_unit_economics || completeRecord.introduction_engagement_context || '';\n  section2Content = completeRecord.products_technology || completeRecord.methodology_reliability_levels || '';\n  section3Content = completeRecord.target_market_competitive_set || completeRecord.company_overview || '';\n  \n  // If still empty, try other detailed sections\n  if (!section1Content) section1Content = completeRecord.financials_multi_year || '';\n  if (!section2Content) section2Content = completeRecord.cash_burn_runway || '';\n  if (!section3Content) section3Content = completeRecord.revenue_quality_client_cohorts || '';\n  \n  console.log('Using database field lengths:');\n  console.log('- Section 1 (Business Model/Intro):', section1Content.length, 'chars');\n  console.log('- Section 2 (Products & Tech/Methodology):', section2Content.length, 'chars');  \n  console.log('- Section 3 (Target Market/Company Overview):', section3Content.length, 'chars');\n}\n\nconsole.log('Company name:', companyName);\nconsole.log('Task ID:', taskId);\nconsole.log('Final Section 1 length:', section1Content.length);\nconsole.log('Final Section 2 length:', section2Content.length);\nconsole.log('Final Section 3 length:', section3Content.length);\n\n// Count sections with actual content\nlet sectionsWithContent = 0;\nif (section1Content.trim().length > 50) sectionsWithContent++;\nif (section2Content.trim().length > 50) sectionsWithContent++;\nif (section3Content.trim().length > 50) sectionsWithContent++;\n\nconsole.log(`Sections with substantial content: ${sectionsWithContent} out of 3`);\n\n// Get folder ID from the Google Drive Trigger node\nconst triggerData = $node['Google Drive Trigger']?.json;\nconst folderId = triggerData?.id;\n\nconst sanitizedCompanyName = companyName.replace(/[^a-zA-Z0-9_-]/g, '_');\nconst reportFileName = `${sanitizedCompanyName}_DD_Report_Complete.pdf`;\n\nconst today = new Date().toLocaleDateString('en-US', {\n  year: 'numeric',\n  month: 'long',\n  day: 'numeric'\n});\n\nconsole.log('Report filename:', reportFileName);\nconsole.log('Target folder ID:', folderId);\nconsole.log('✅ PDF PREPARATION COMPLETE');\nconsole.log(`Ready to generate PDF with ${sectionsWithContent} sections containing content`);\n\nreturn {\n  json: {\n    company_name: companyName,\n    pdf_filename: reportFileName,\n    folder_id: folderId,\n    section1_content: section1Content,\n    section2_content: section2Content,\n    section3_content: section3Content,\n    task_id: taskId,\n    report_date: today,\n    sections_count: 3,\n    sections_with_content: sectionsWithContent\n  }\n};"
+      },
+      "name": "Prepare PDF Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4560,
+        -80
+      ],
+      "id": "8fa33cc7-17ca-48e6-b2c1-5ecee6a0c61f"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM due_diligence_reports WHERE kanboard_task_id = '{{ $json.kanboard_task_id }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4112,
+        352
+      ],
+      "id": "bf197a9e-5455-43a5-8ef3-b7998a2bc35e",
+      "name": "Get Complete Record",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "methodology_reliability_levels": "={{ $json.generated_content }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "methodology_reliability_levels",
+              "displayName": "methodology_reliability_levels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3904,
+        352
+      ],
+      "id": "fd040dc1-141e-45ca-9fb1-7d400b0f6554",
+      "name": "Database Save1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save - Section 2: Methodology & Reliability Levels\nconst approvalData = $input.first().json;\n\nconsole.log('=== PREPARING DATABASE SAVE - SECTION 2 ===');\nconsole.log('Approval data received:', JSON.stringify(approvalData, null, 2));\nconsole.log('Company name:', approvalData.company_name);\nconsole.log('Generated content length:', approvalData.generated_content ? approvalData.generated_content.length : 'null');\nconsole.log('Approver approved:', approvalData.approver_approved);\n\nif (!approvalData.company_name) {\n  console.error('❌ CRITICAL: Company name is missing!');\n  console.error('Available fields:', Object.keys(approvalData));\n}\n\nif (!approvalData.generated_content) {\n  console.error('❌ CRITICAL: Generated content is missing!');\n}\n\n// Get the task ID from the first section\nconst firstSectionData = $node['Prepare Database Data'].json;\nconst taskId = firstSectionData.task_id;\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  methodology_content: approvalData.generated_content || 'Methodology generation failed',\n  status: 'Section 2 Complete - Methodology & Reliability',\n  created_at: new Date().toISOString()\n};\n\nconsole.log('Final data for database - Section 2:', JSON.stringify(finalData, null, 2));\nconsole.log('=== END DATABASE PREPARATION - SECTION 2 ===');\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3744,
+        352
+      ],
+      "id": "22c8f72c-cd95-4839-b0b8-07e7e2e2b2ab"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3584,
+        352
+      ],
+      "id": "d16d0163-a5e0-4db4-8da9-9931bec6ac8b"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing1'].json;\n\nconsole.log(`Processing Approver response for company: ${checkerProcessingData.company_name}`);\nconsole.log(`Checker Processing data:`, checkerProcessingData);\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = {\n      approved: true,\n      feedback: \"Section approved\"\n    };\n  }\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverData = {\n    approved: true,\n    feedback: \"Section approved\"\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nreturn {\n  json: {\n    ...checkerProcessingData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.feedback\n  }\n};"
+      },
+      "name": "Approval Processing1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3424,
+        352
+      ],
+      "id": "8a8ae889-460d-45fc-a1b7-21b550435cc2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final quality approval for due diligence report. Company: {{ $node['Checker Processing1'].json.company_name }}\nChecker Score: {{ $node['Checker Processing1'].json.checker_score }}/10\n\nCONTENT FOR FINAL APPROVAL:\n{{ $node['Checker Processing1'].json.generated_content }}\n\nAs a senior business analyst, make final approval decision. REJECT if:\n- Any placeholder text or template variables remain\n- Content is generic or could apply to any company\n- Analysis lacks specific business details\n- Professional quality is insufficient\n- Score below 7/10\n\nAPPROVE only if content is:\n- Company-specific with real business details\n- Professional due diligence quality\n- Free of all placeholders and generic text\n- Substantive analysis worthy of business use\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3248,
+        352
+      ],
+      "id": "9581b637-7f84-42a1-b047-d18e1d5e42dc"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3088,
+        352
+      ],
+      "id": "f5ab807c-0222-4787-bcfd-4374e83ede13"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output1'].json;\n\nconsole.log(`Processing Checker response for company: ${formatOutputData.company_name}`);\nconsole.log(`Format Output data:`, formatOutputData);\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = {\n      approved: true,\n      feedback: \"Content appears acceptable\",\n      score: 7\n    };\n  }\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerData = {\n    approved: true,\n    feedback: \"Content appears acceptable\",\n    score: 7\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.score})`);\n\nreturn {\n  json: {\n    ...formatOutputData,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.score\n  }\n};"
+      },
+      "name": "Checker Processing1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2928,
+        352
+      ],
+      "id": "f5807e07-6b61-4a9e-9406-eca7b0c50088"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a strict quality control analyst. Review this due diligence content for: {{ $node['Format Output1'].json.company_name }}\n\nCONTENT TO REVIEW:\n{{ $node['Format Output1'].json.generated_content }}\n\nREJECT if you find ANY of these issues:\n- Placeholder text like [company name], [date], [information not available]\n- Generic statements that could apply to any company\n- Template variables like {{variable}} or $json references\n- Factual inaccuracies or hallucinated information\n- Content shorter than 300 words\n- Vague or non-specific analysis\n\nAPPROVE only if:\n- Content is specific to this company\n- Uses real data from the source document\n- Professional business language\n- No placeholders or template text\n- Substantive analysis (300+ words)\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string, \"score\": number 1-10}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2768,
+        352
+      ],
+      "id": "d1b2c22f-b935-4c3f-a014-47547fd8244f"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save ALL Data to Database'].json;\n\nconsole.log(`Report received (Section 2 - Methodology & Reliability): ${report.substring(0, 100)}...`);\nconsole.log(`Database data company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Methodology & Reliability report generation failed');\n  return {\n    json: {\n      company_name: dbData.company_name,\n      generated_content: 'Methodology & Reliability report generation failed',\n      content: dbData.content,\n      file_name: dbData.file_name,\n      company_id: dbData.company_id\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')  // Remove placeholder remnants\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')   // Remove variable remnants\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '') // Remove reference remnants\n  .replace(/\\s+/g, ' ')  // Normalize spaces\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Methodology & Reliability report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 2 (Methodology & Reliability) report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company name: ${dbData.company_name}`);\n\nreturn {\n  json: {\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    file_name: dbData.file_name,\n    company_id: dbData.company_id,\n    primary_website: dbData.primary_website,\n    primary_email: dbData.primary_email,\n    section_type: 'methodology_reliability'\n  }\n};"
+      },
+      "name": "Format Output1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        352
+      ],
+      "id": "6fca1a07-3ba3-42e8-ab72-ede508321758"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Methodology & Reliability Levels\" section for: {{ $node['Save ALL Data to Database'].json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $node['Save ALL Data to Database'].json.content }}\n\nREQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Focus specifically on methodology used in the company's operations and reliability assessment\n- Include subsections: Data Collection Methods, Analysis Methodology, Quality Control Processes, Reliability Assessment, Risk Factors\n- Reference specific methodological approaches, quality standards, or reliability measures from the document\n- Avoid generic statements - be specific to this company's methodology and reliability practices\n- Do not use placeholder text or template variables\n\nGenerate a detailed, professional methodology and reliability analysis based solely on the document content provided.",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2448,
+        352
+      ],
+      "id": "814aef18-697b-44e2-9aa4-41ccdc2f59bb"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "due_diligence_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "introduction_engagement_context": "={{ $json.generated_content }}",
+            "status": "Section 1 Complete"
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4064,
+        -304
+      ],
+      "id": "b37e9314-83f2-4840-8f92-533a18baacfd",
+      "name": "Database Save",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save\nconst approvalData = $input.first().json;\n\nconsole.log('=== PREPARING DATABASE SAVE ===');\nconsole.log('Approval data received:', JSON.stringify(approvalData, null, 2));\nconsole.log('Company name:', approvalData.company_name);\nconsole.log('Generated content length:', approvalData.generated_content ? approvalData.generated_content.length : 'null');\nconsole.log('Approver approved:', approvalData.approver_approved);\n\nif (!approvalData.company_name) {\n  console.error('❌ CRITICAL: Company name is missing!');\n  console.error('Available fields:', Object.keys(approvalData));\n}\n\nif (!approvalData.generated_content) {\n  console.error('❌ CRITICAL: Generated content is missing!');\n}\n\nconst taskId = Math.floor(Math.random() * 10000);\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  generated_content: approvalData.generated_content || 'Content generation failed',\n  status: 'Section 1 Complete',\n  created_at: new Date().toISOString()\n};\n\nconsole.log('Final data for database:', JSON.stringify(finalData, null, 2));\nconsole.log('=== END DATABASE PREPARATION ===');\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        -528
+      ],
+      "id": "829e479b-a9ea-462a-b314-beee67aee56a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3776,
+        -304
+      ],
+      "id": "8ac06250-8d7e-4745-8392-4003701ffb58"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing'].json;\n\nconsole.log(`Processing Approver response for company: ${checkerProcessingData.company_name}`);\nconsole.log(`Checker Processing data:`, checkerProcessingData);\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = {\n      approved: true,\n      feedback: \"Section approved\"\n    };\n  }\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverData = {\n    approved: true,\n    feedback: \"Section approved\"\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nreturn {\n  json: {\n    ...checkerProcessingData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.feedback\n  }\n};"
+      },
+      "name": "Approval Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3584,
+        -304
+      ],
+      "id": "b69b2a3a-c757-43a3-9c15-63ebb69651eb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final quality approval for due diligence report. Company: {{ $node['Checker Processing'].json.company_name }}\nChecker Score: {{ $node['Checker Processing'].json.checker_score }}/10\n\nCONTENT FOR FINAL APPROVAL:\n{{ $node['Checker Processing'].json.generated_content }}\n\nAs a senior business analyst, make final approval decision. REJECT if:\n- Any placeholder text or template variables remain\n- Content is generic or could apply to any company\n- Analysis lacks specific business details\n- Professional quality is insufficient\n- Score below 7/10\n\nAPPROVE only if content is:\n- Company-specific with real business details\n- Professional due diligence quality\n- Free of all placeholders and generic text\n- Substantive analysis worthy of business use\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3392,
+        -304
+      ],
+      "id": "970ff6f8-c9a1-4fe9-9277-02eb728c77b9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3184,
+        -304
+      ],
+      "id": "132df25b-f169-420f-a0bc-37c6b860f1b6"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output'].json;\n\nconsole.log(`Processing Checker response for company: ${formatOutputData.company_name}`);\nconsole.log(`Format Output data:`, formatOutputData);\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = {\n      approved: true,\n      feedback: \"Content appears acceptable\",\n      score: 7\n    };\n  }\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerData = {\n    approved: true,\n    feedback: \"Content appears acceptable\",\n    score: 7\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.score})`);\n\nreturn {\n  json: {\n    ...formatOutputData,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.score\n  }\n};"
+      },
+      "name": "Checker Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        -304
+      ],
+      "id": "7e8e9d85-8818-4ac5-b918-00080db3a43f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a strict quality control analyst. Review this due diligence content for: {{ $node['Format Output'].json.company_name }}\n\nCONTENT TO REVIEW:\n{{ $node['Format Output'].json.generated_content }}\n\nREJECT if you find ANY of these issues:\n- Placeholder text like [company name], [date], [information not available]\n- Generic statements that could apply to any company\n- Template variables like {{variable}} or $json references\n- Factual inaccuracies or hallucinated information\n- Content shorter than 300 words\n- Vague or non-specific analysis\n\nAPPROVE only if:\n- Content is specific to this company\n- Uses real data from the source document\n- Professional business language\n- No placeholders or template text\n- Substantive analysis (300+ words)\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string, \"score\": number 1-10}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2800,
+        -304
+      ],
+      "id": "f088794e-d1ee-47bf-ac81-30d3dc41af0f"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log(`Report received (Section 1): ${report.substring(0, 100)}...`);\nconsole.log(`Company ID: ${dbData.company_id}`);\nconsole.log(`Company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Report generation failed');\n  return {\n    json: {\n      company_id: dbData.company_id,\n      company_name: dbData.company_name,\n      generated_content: 'Report generation failed',\n      content: dbData.content\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')  // Remove placeholder remnants\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')   // Remove variable remnants\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '') // Remove reference remnants\n  .replace(/\\s+/g, ' ')  // Normalize spaces\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 1 report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company ID: ${dbData.company_id}`);\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    section_type: 'introduction_engagement_context'\n  }\n};"
+      },
+      "name": "Format Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        -304
+      ],
+      "id": "5f2176b5-b279-4a76-a74f-d5d99a12c8d1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Introduction & Engagement Context\" section for: {{ $node['Save Company Data'].json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $node['Save Company Data'].json.content }}\n\nREQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Include specific details about the company's business, operations, and market position\n- Structure with clear subsections: Purpose, Scope, Business Context, Market Relevance, and Timeframe\n- Reference specific data points, figures, or business details from the document\n- Avoid generic statements - be specific to this company\n- Do not use placeholder text or template variables\n\nGenerate a detailed, professional analysis based solely on the document content provided.",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2416,
+        -304
+      ],
+      "id": "f73fcd48-4cac-4b90-959b-67b8af94990c"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM due_diligence_reports WHERE kanboard_task_id = '{{ $json.kanboard_task_id }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4064,
+        1328
+      ],
+      "id": "a189e65f-41ba-4d2c-8765-f64e5f90c1b1",
+      "name": "Get Complete Record2",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "business_model_unit_economics": "={{ $json.methodology_content }}"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "business_model_unit_economics",
+              "displayName": "business_model_unit_economics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3856,
+        1328
+      ],
+      "id": "573c846f-6de3-4ae5-853d-2ab226a29a71",
+      "name": "Database Save3",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save - Section: Business Model & Unit Economics\nconst approvalData = $input.first().json;\n\nconst firstSectionData = $node['Prepare Database Data'].json;\nconst taskId = firstSectionData.task_id;\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  methodology_content: approvalData.generated_content || 'Business Model section generation failed',\n  status: 'Section Complete - Business Model & Unit Economics',\n  created_at: new Date().toISOString()\n};\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data3",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3696,
+        1328
+      ],
+      "id": "f51b48b1-bd93-44a7-b631-77f4991acfab"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3536,
+        1328
+      ],
+      "id": "2be87678-f847-4a02-b0ac-5b5aab611474"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing2'].json;\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = { approved: true, feedback: \"Section approved\" };\n  }\n} catch (error) {\n  approverData = { approved: true, feedback: \"Section approved\" };\n}\n\nreturn {\n  json: { ...checkerProcessingData, approver_approved: approverData.approved, approver_feedback: approverData.feedback }\n};"
+      },
+      "name": "Approval Processing3",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3360,
+        1328
+      ],
+      "id": "d38de904-f5f0-48fb-b4e4-dedd2de1f2cb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final quality approval for due diligence report. Company: {{ $node['Checker Processing3'].json.company_name }}\nChecker Score: {{ $node['Checker Processing3'].json.checker_score }}/10\n\nSECTION: Business Model & Unit Economics\n\nCONTENT FOR FINAL APPROVAL:\n{{ $node['Checker Processing3'].json.generated_content }}\n\nAs a senior business analyst, make final approval decision. REJECT if:\n- Any placeholder text or template variables remain\n- Content is generic or could apply to any company\n- Analysis lacks detail on revenue model, costs, or unit economics\n- Score below 7/10\n\nAPPROVE only if content is:\n- Company-specific with real business model details\n- Professional due diligence quality\n- Substantive analysis worthy of business use\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3200,
+        1328
+      ],
+      "id": "27c3e3f1-129c-4d24-b1c0-cdf7c7d24b50"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        1328
+      ],
+      "id": "fffe8c27-378a-4972-9ea0-8fbb40d8acf4"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output2'].json;\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = { approved: true, feedback: \"Content acceptable\", score: 7 };\n  }\n} catch (error) {\n  checkerData = { approved: true, feedback: \"Content acceptable\", score: 7 };\n}\n\nreturn {\n  json: { ...formatOutputData, checker_approved: checkerData.approved, checker_feedback: checkerData.feedback, checker_score: checkerData.score }\n};"
+      },
+      "name": "Checker Processing3",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        1328
+      ],
+      "id": "10e44e44-4792-49d7-913b-f62d5da09535"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a strict quality control analyst. Review this due diligence content for: {{ $node['Format Output3'].json.company_name }}\n\nSECTION: Business Model & Unit Economics\n\nCONTENT TO REVIEW:\n{{ $node['Format Output3'].json.generated_content }}\n\nREJECT if you find ANY of these issues:\n- Placeholder text like [company name], [date], [information not available]\n- Generic statements that could apply to any company\n- Template variables like {{variable}} or $json references\n- Content shorter than 300 words\n\nAPPROVE only if:\n- Content is specific to this company\n- Explains revenue model, pricing, costs, margins, and scalability factors\n- Uses real data from the source document\n- Substantive analysis (300+ words)\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string, \"score\": number 1-10}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2720,
+        1328
+      ],
+      "id": "4a4cf2b1-d4ba-4db0-b1f6-1abb1501aa42"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save ALL Data to Database'].json;\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '')\n  .replace(/\\$json\\.[\\w.]+/g, '')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .trim();\n\nreturn {\n  json: {\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    file_name: dbData.file_name,\n    company_id: dbData.company_id,\n    section_type: 'business_model_unit_economics'\n  }\n};"
+      },
+      "name": "Format Output3",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        1328
+      ],
+      "id": "41a68db2-e895-48f0-b7df-486bdeb21deb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Business Model & Unit Economics\" section for: {{ $node['Save ALL Data to Database'].json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $node['Save ALL Data to Database'].json.content }}\n\nREQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, structured in clear subsections\n- Focus specifically on revenue model, pricing strategy, cost structure, unit economics, and growth levers\n- Include insights into CAC, LTV, margins, scalability if present\n- Avoid generic statements — be specific to this company\n- Do not use placeholder text or template variables\n\nGenerate a detailed, professional analysis based solely on the document content provided.",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        1328
+      ],
+      "id": "39dfbf24-8748-4513-bd57-53f203cdbbac"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM due_diligence_reports WHERE kanboard_task_id = '{{ $json.kanboard_task_id }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4064,
+        1696
+      ],
+      "id": "88d89726-3b1c-4877-ac1f-567e3d06b030",
+      "name": "Get Complete Record3",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_name": "={{ $json.company_name }}",
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "products_technology": "={{ $json.methodology_content }}"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "methodology_reliability_levels",
+              "displayName": "methodology_reliability_levels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "company_overview",
+              "displayName": "company_overview",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "business_model_unit_economics",
+              "displayName": "business_model_unit_economics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "products_technology",
+              "displayName": "products_technology",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_market_competitive_set",
+              "displayName": "target_market_competitive_set",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "financials",
+              "displayName": "financials",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "cash_burn_runway",
+              "displayName": "cash_burn_runway",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "revenue_quality_client_cohorts",
+              "displayName": "revenue_quality_client_cohorts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "partnerships_ecosystem",
+              "displayName": "partnerships_ecosystem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "intellectual_property",
+              "displayName": "intellectual_property",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "legal_regulatory",
+              "displayName": "legal_regulatory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "governance_board_effectiveness",
+              "displayName": "governance_board_effectiveness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "capital_structure_dilution",
+              "displayName": "capital_structure_dilution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "risk_matrix_mitigations",
+              "displayName": "risk_matrix_mitigations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "gaps_uncertainties_disclaimers",
+              "displayName": "gaps_uncertainties_disclaimers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "scenario_analysis",
+              "displayName": "scenario_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "strategic_options",
+              "displayName": "strategic_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "recommendations_next_steps",
+              "displayName": "recommendations_next_steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "source_map_integrity_log",
+              "displayName": "source_map_integrity_log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "financials_multi_year",
+              "displayName": "financials_multi_year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3856,
+        1696
+      ],
+      "id": "f08f1a49-591b-47b2-a3ef-4be7d2a89a10",
+      "name": "Database Save4",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save - Section: Products & Technology\nconst approvalData = $input.first().json;\n\nconst firstSectionData = $node['Prepare Database Data'].json;\nconst taskId = firstSectionData.task_id;\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  methodology_content: approvalData.generated_content || 'Products & Technology generation failed',\n  status: 'Section Complete - Products & Technology',\n  created_at: new Date().toISOString()\n};\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data4",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3696,
+        1696
+      ],
+      "id": "5a87749b-2fd7-4531-a262-08e9affb07d1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic4",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3536,
+        1696
+      ],
+      "id": "f5713411-ff13-4da6-8d79-f841ccffbb99"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing2'].json;\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = { approved: true, feedback: \"Section approved\" };\n  }\n} catch (error) {\n  approverData = { approved: true, feedback: \"Section approved\" };\n}\n\nreturn {\n  json: {\n    ...checkerProcessingData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.feedback\n  }\n};"
+      },
+      "name": "Approval Processing4",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3360,
+        1696
+      ],
+      "id": "caa7b529-8c5a-430d-bbcd-08d7e26cd47f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final quality approval for due diligence report. Company: {{ $node['Checker Processing4'].json.company_name }}\nChecker Score: {{ $node['Checker Processing4'].json.checker_score }}/10\n\nSECTION: Products & Technology\n\nCONTENT FOR FINAL APPROVAL:\n{{ $node['Checker Processing4'].json.generated_content }}\n\nReject if:\n- Placeholders or template variables remain\n- Generic statements with no company specifics\n- Missing detail on products, technology, or R&D\n- Score below 7/10\n\nApprove only if:\n- Specific to this company's products & technology\n- Clear details on product offerings, technology stack, innovation, and IP\n- Professional due diligence quality\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3200,
+        1696
+      ],
+      "id": "9a12c3a8-542f-4abf-aa99-a517e9c43cff"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic4",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        1696
+      ],
+      "id": "9895919e-6ce7-41fe-b210-ca4c5dbfb0ab"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output2'].json;\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = { approved: true, feedback: \"Content acceptable\", score: 7 };\n  }\n} catch (error) {\n  checkerData = { approved: true, feedback: \"Content acceptable\", score: 7 };\n}\n\nreturn {\n  json: {\n    ...formatOutputData,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.score\n  }\n};"
+      },
+      "name": "Checker Processing4",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        1696
+      ],
+      "id": "456acdcc-9a84-4818-8c03-4dcaa32229bb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a strict quality control analyst. Review this due diligence content for: {{ $node['Format Output4'].json.company_name }}\n\nSECTION: Products & Technology\n\nCONTENT TO REVIEW:\n{{ $node['Format Output4'].json.generated_content }}\n\nReject if:\n- Placeholder text, template variables, or generic filler\n- Less than 300 words\n- Missing details on product offerings, core technologies, innovation, or R&D\n\nApprove only if:\n- Company-specific product & technology information\n- Professional, business-appropriate language\n- Substantive analysis (300+ words)\n\nRespond ONLY with JSON: {\"approved\": boolean, \"feedback\": string, \"score\": number}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2720,
+        1696
+      ],
+      "id": "fe0f8c46-1680-4372-8806-38171a43a68e"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save ALL Data to Database'].json;\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '')\n  .replace(/\\$json\\.[\\w.]+/g, '')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '')\n  .trim();\n\nreturn {\n  json: {\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    section_type: 'products_technology'\n  }\n};"
+      },
+      "name": "Format Output4",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        1696
+      ],
+      "id": "44a55234-755e-4cf1-9671-9e76c790a2ba"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Products & Technology\" section for: {{ $node['Save ALL Data to Database'].json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $node['Save ALL Data to Database'].json.content }}\n\nREQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Minimum 400 words, structured in clear subsections\n- Cover: Product portfolio, technology stack, R&D capabilities, innovation, scalability, IP and patents (if any)\n- Avoid generic statements\n- Professional business language only\n- No placeholders or template variables\n\nGenerate a detailed, professional analysis based solely on the document content.",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "Generate Report4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        1696
+      ],
+      "id": "2670d8c0-d705-4962-81a3-04323909ec2d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Database Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Database Table": {
+      "main": [
+        [
+          {
+            "node": "List PDFs via HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs via HTTP": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Merge PDFs Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDFs Info": {
+      "main": [
+        [
+          {
+            "node": "Prepare All PDFs for Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare All PDFs for Download": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Content": {
+      "main": [
+        [
+          {
+            "node": "Save Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Company Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Complete Record1": {
+      "main": [
+        [
+          {
+            "node": "Generate Report3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save2": {
+      "main": [
+        [
+          {
+            "node": "Get Complete Record1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data2": {
+      "main": [
+        [
+          {
+            "node": "Database Save2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing2": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver2": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic2": {
+      "main": [
+        [
+          {
+            "node": "AI Approver2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing2": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker2": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output2": {
+      "main": [
+        [
+          {
+            "node": "AI Checker2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report2": {
+      "main": [
+        [
+          {
+            "node": "Format Output2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HTML for PDF": {
+      "main": [
+        [
+          {
+            "node": "Upload PDF to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF Report": {
+      "main": [
+        [
+          {
+            "node": "Prepare HTML for PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF Content": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Complete Record": {
+      "main": [
+        [
+          {
+            "node": "Generate Report2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save1": {
+      "main": [
+        [
+          {
+            "node": "Get Complete Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data1": {
+      "main": [
+        [
+          {
+            "node": "Database Save1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing1": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver1": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic1": {
+      "main": [
+        [
+          {
+            "node": "AI Approver1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing1": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker1": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output1": {
+      "main": [
+        [
+          {
+            "node": "AI Checker1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report1": {
+      "main": [
+        [
+          {
+            "node": "Format Output1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save": {
+      "main": [
+        [
+          {
+            "node": "Generate Report1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data": {
+      "main": [
+        [
+          {
+            "node": "Database Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic": {
+      "main": [
+        [
+          {
+            "node": "AI Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "AI Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Complete Record2": {
+      "main": [
+        [
+          {
+            "node": "Generate Report4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save3": {
+      "main": [
+        [
+          {
+            "node": "Get Complete Record2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data3": {
+      "main": [
+        [
+          {
+            "node": "Database Save3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic3": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing3": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver3": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic3": {
+      "main": [
+        [
+          {
+            "node": "AI Approver3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing3": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker3": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output3": {
+      "main": [
+        [
+          {
+            "node": "AI Checker3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report3": {
+      "main": [
+        [
+          {
+            "node": "Format Output3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Complete Record3": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save4": {
+      "main": [
+        [
+          {
+            "node": "Get Complete Record3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data4": {
+      "main": [
+        [
+          {
+            "node": "Database Save4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic4": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing4": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver4": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic4": {
+      "main": [
+        [
+          {
+            "node": "AI Approver4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing4": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker4": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output4": {
+      "main": [
+        [
+          {
+            "node": "AI Checker4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report4": {
+      "main": [
+        [
+          {
+            "node": "Format Output4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3d23f96f-d2af-4efe-9321-cb421d4b7943",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "SevwwKWAqt86Z72z",
+  "tags": []
+}

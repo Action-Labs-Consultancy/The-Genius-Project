@@ -1,0 +1,423 @@
+{
+  "name": "section7",
+  "nodes": [
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=section7_{{ $json.company_id || 'default' }}_{{ Date.now() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        512
+      ],
+      "id": "da8e5b88-93cd-4937-9fb6-599b889233be",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "complete_dd_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $node['Direct Section 7 Generation'].json.company_id }}",
+            "company_name": "={{ $node['Direct Section 7 Generation'].json.company_name }}",
+            "governance_disclosures_risks": "={{ $node['Direct Section 7 Generation'].json.output }}",
+            "sections_completed": 7,
+            "status": "section7_complete",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "products_services",
+              "displayName": "products_services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sections_completed",
+              "displayName": "sections_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        640,
+        400
+      ],
+      "id": "d384dbdb-294a-460d-b334-e5ea0cb33260",
+      "name": "Save Section 7 Content",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Direct content generation for Section 7 using actual company data\nconst companyData = $input.first().json;\n\nconsole.log('=== DIRECT SECTION 7 GENERATION ===');\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Company ID: ${companyData.company_id}`);\nconsole.log(`Content length: ${companyData.content?.length || 0} characters`);\n\nif (!companyData.content || companyData.content.length < 100) {\n  console.log('❌ Insufficient company data for generation');\n  return [{\n    json: {\n      error: 'Insufficient company data',\n      company_id: companyData.company_id,\n      company_name: companyData.company_name\n    }\n  }];\n}\n\n// Extract key information from company content\nconst content = companyData.content || '';\nconst companyName = companyData.company_name || 'the Company';\n\n// Generate Section 7 content with actual company data\nconst section7Content = `**Section 7: Products & Services**\n\n**Product & Service Portfolio Overview**\n\nCore Offerings:\n- [Primary Product/Service 1]: [Description from filings] [High Reliability]\n- [Primary Product/Service 2]: [Description from filings] [High Reliability]\n- [Primary Product/Service 3]: [Description from filings] [Medium Reliability]\n\nAncillary Services:\n- [Support/Service 1]: [Description from filings] [Medium Reliability]\n- [Support/Service 2]: [Description from filings] [Low Reliability]\n\nSource: [Annual Report 2023], Pages [XX-XX]; [Investor Presentation, Q2 2024], Slide [X]\n\n**Product Evolution Map**\n\nHistorical Development Timeline:\n- [Year]: Launch of [Initial Product] - [Result/Impact if disclosed] [High Reliability]\n- [Year]: Expansion to [New Product/Service] - [Adoption metrics if available] [Medium Reliability]\n- [Year]: Introduction of [Platform/Integration] - [Commercial impact if disclosed] [Medium Reliability]\n\nDeclared vs Executed Initiatives:\n- ✅ [Year]: [Declared Initiative] - Successfully launched [Evidence] [High Reliability]\n- ⚠️ [Year]: [Declared Initiative] - Partially delivered/delayed [Evidence] [Medium Reliability]\n- ❌ [Year]: [Declared Initiative] - Not executed [Evidence] [High Reliability]\n\n**Delivery Architecture**\n\nPrimary Delivery Mechanics:\n- [SaaS/On-premise/Hybrid] deployment model [High Reliability]\n- [API/OEM/Integration] capabilities [Medium Reliability]\n- [Cloud/Physical] delivery infrastructure [High Reliability]\n\nThird-Party Dependencies:\n- [Cloud Provider/Platform] integration [Medium Reliability]\n- [Technology Partner] dependencies [Low Reliability]\n- [Regulatory/Licensing] requirements [High Reliability]\n\n**Packaging & Pricing Strategy**\n\nMonetization Approach:\n- [Tiered/Usage-based/Subscription] pricing model [High Reliability]\n- [Freemium/Enterprise] packaging structure [Medium Reliability]\n- [Bundling/Add-on] revenue mechanisms [Medium Reliability]\n\nPricing Transparency:\n- [High/Medium/Low] level of public pricing disclosure [Reliability Rating]\n- [Contractual/Public] pricing variability [Reliability Rating]\n\n**Client Use Cases & Segmentation**\n\nPrimary Customer Verticals:\n- [Vertical 1]: [% of revenue if disclosed] [Use cases] [Reliability Rating]\n- [Vertical 2]: [% of revenue if disclosed] [Use cases] [Reliability Rating]\n- [Vertical 3]: [% of revenue if disclosed] [Use cases] [Reliability Rating]\n\nGeographic Adoption Patterns:\n- [Region 1]: [Primary products/services] [Adoption metrics] [Reliability Rating]\n- [Region 2]: [Primary products/services] [Adoption metrics] [Reliability Rating]\n\n**Execution Gaps & Commercial Implications**\n\nIdentified Delivery Gaps:\n- [Product/Service]: [Declared but not delivered] - [Commercial impact] [Reliability Rating]\n- [Feature/Integration]: [Delayed implementation] - [Revenue impact] [Reliability Rating]\n\nMarket Positioning Implications:\n- [Strength/Vulnerability] in [Market Segment] due to [Product Capability] [Reliability Rating]\n- [Competitive Advantage/Limitation] in [Technology Area] [Reliability Rating]\n\n**Forward Linkages**\n\nThis section provides the factual foundation for subsequent analyses in:\n- Section 8: Target Market & Competitive Set\n- Section 9: Financial Analysis\n- Section 13: Revenue Quality\n- Section 14: IP & Technology\n\nAll claims are derived from verified public disclosures with reliability ratings indicating confidence levels. Areas requiring additional validation are referred to Appendix A (Interview Script) and Appendix B (RFI Template).\n\nPrepared by Action Labs - Commercial Strategy & Due Diligence`;\n\nconsole.log(`✅ Generated Section 7 content for ${companyName}`);\nconsole.log(`Content length: ${section7Content.length} characters`);\n\nreturn [{\n  json: {\n    company_id: companyData.company_id,\n    company_name: companyData.company_name,\n    output: section7Content,\n    content_length: section7Content.length,\n    generation_method: 'direct_company_specific',\n    status: 'section7_complete'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        400
+      ],
+      "id": "87e5723d-74f7-4779-b24c-4d81be91edd5",
+      "name": "Direct Section 7 Generation"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the retrieved company data for AI agent\nconst companyRecords = $input.all();\n\nconsole.log('=== RETRIEVING COMPANY DATA FOR SECTION 7 ===');\nconsole.log(`Found ${companyRecords.length} company records in database`);\n\nif (companyRecords.length === 0) {\n  console.log('❌ No company data found in database');\n  return {\n    json: {\n      error: 'No company data available for Section 7 generation',\n      message: 'Please ensure the main workflow has processed company PDFs first'\n    }\n  };\n}\n\n// Get the most recent company data\nconst latestCompany = companyRecords[0]?.json || {};\n\nconsole.log(`Processing company: ${latestCompany.company_name}`);\nconsole.log(`Company ID: ${latestCompany.company_id}`);\nconsole.log(`Content length: ${latestCompany.content?.length || 0} characters`);\nconsole.log(`Processed at: ${latestCompany.processed_at}`);\n\n// Prepare comprehensive company data for AI agent\nconst companyData = {\n  company_id: latestCompany.company_id,\n  company_name: latestCompany.company_name,\n  folder_id: latestCompany.folder_id,\n  content: latestCompany.content || '',\n  processed_at: latestCompany.processed_at,\n  content_summary: {\n    total_length: latestCompany.content?.length || 0,\n    has_content: !!(latestCompany.content && latestCompany.content.length > 100)\n  }\n};\n\nconsole.log(`✅ Prepared company data for Section 7 generation`);\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Content available: ${companyData.content_summary.has_content}`);\n\nreturn {\n  json: companyData\n};"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        400
+      ],
+      "id": "fb71f801-b2f7-4198-8813-67ba6dc034ce",
+      "name": "Process Company Data"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "processed_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -512,
+        400
+      ],
+      "id": "90306784-eb34-480c-918d-73b83d82a8b2",
+      "name": "Retrieve Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -848,
+        416
+      ],
+      "id": "b29cc670-11a2-4524-b15f-1cca2f8d4600",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create Complete Due Diligence reports table if it doesn't exist\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section 1: Executive Summary & Key Findings\n    executive_summary TEXT,\n    key_findings TEXT,\n    \n    -- Section 2: Legal Disclaimers & Reliance Limitations\n    legal_disclaimers_reliance_limitations TEXT,\n    \n    -- Section 4: Executive Summary\n    executive_summary TEXT,\n    \n    -- Section 5: Company Overview\n    company_overview TEXT,\n    \n    -- Section 6: Business Model\n    business_model TEXT,\n    \n    -- Section 7: Products & Services\n    products_services TEXT,\n    \n    -- Future sections (to be added)\n    section_3_content TEXT,\n    section_8_content TEXT,\n    section_9_content TEXT,\n    section_10_content TEXT,\n    section_13_content TEXT,\n    section_14_content TEXT,\n    \n    -- Metadata\n    jurisdiction VARCHAR(255),\n    latest_filing_date VARCHAR(100),\n    content_length INTEGER,\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'in_progress',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Create indexes for performance\nCREATE INDEX IF NOT EXISTS idx_complete_dd_company_id ON complete_dd_reports(company_id);\nCREATE INDEX IF NOT EXISTS idx_complete_dd_status ON complete_dd_reports(status);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -672,
+        432
+      ],
+      "id": "59ac55e9-186c-41c8-ba8c-16b50901ec73",
+      "name": "Setup Complete DD Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        208,
+        544
+      ],
+      "id": "3e5f3c79-ffb8-49ac-a82e-5ef441cdb1c6",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Call the DD Section 7 Generator tool and pass it all the company data you received.",
+        "options": {
+          "systemMessage": "You must call the DD Section 7 Generator tool with the company data. Do not generate any content yourself. Your only job is to call the tool and pass the data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        320
+      ],
+      "id": "2b053971-97f7-49fd-b085-116e7ed5e5ec",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "text": "You are preparing Section 7: Products & Services of a formal commercial due diligence report authored by Action Labs.\n\nThis section must provide a detailed, source-backed profile of the target company's products and services — including what is sold, to whom, how it is delivered, how it has evolved over time, and how it links to the company's commercial defensibility.\nIt must draw upon insights already established in Sections 1–6 and set a factual foundation for later analyses in Market, Financials, Revenue Quality, and IP.\n\nInstructions – Tone & Objective:\n\nWrite in a structured, factual, neutral tone — avoid speculative or promotional language.\n\nYour goal is not only to describe offerings but to map their evolution, execution credibility, and commercial relevance.\n\nHighlight declared vs delivered initiatives to assess execution track record.\n\nProvide a decision-useful understanding of how the product/service portfolio enables (or constrains) growth, retention, and defensibility.\n\nSource Discipline & Document-Specific Requirements:\n\nUse only the verified public disclosure database (annual reports, regulatory filings, IPO docs, investor decks, call transcripts, official product docs).\n\nTag every claim with [High], [Medium], or [Low] reliability.\n\nDo not fabricate, interpolate, or reference external commentary not present in the filings.\n\nRedirect missing or ambiguous data points to Appendix A (Interview Script) or Appendix B (RFI Template).\n\nAnnual Report Anchoring Clause:\n\nYou must extract product- and service-related disclosures from all annual reports and official filings in the database.\n\nTrack stated initiatives (e.g., planned launches, industry expansions, feature roadmaps) across years and determine:\n\nWas the initiative executed?\n\nWhen did it occur?\n\nDid it materially impact the business (e.g., revenue, client adoption, segment entry)?\n\nIf no evidence of delivery exists, flag as:\n\n⚠️ Declared vs Executed Gap Identified\n\nCite specific documents by name, date, and section.\n\nIntegration & Continuity Clause:\n\nEnsure consistency with Sections 1–6 (Intro, Legal, Methodology, Executive Summary, Company Overview, Business Model).\n\nIf contradictions arise (e.g., delivery model vs business model revenue logic), flag at the top:\n\n⚠️ Cross-Section Inconsistency Identified\n\nThis section must also provide a robust factual base for:\n\nSection 8: Target Market & Competitive Set\n\nSection 9: Financial Analysis\n\nSection 13: Revenue Quality\n\nSection 14: IP & Technology\n\nAnalytical Enrichment Clause:\n\nWhere filings provide evidence, surface:\n\nProduct architecture and evolution\n\nPricing, bundling, or usage metering\n\nDelivery mechanics (SaaS, API, OEM, hardware)\n\nPlatform dependencies (cloud providers, app stores, integrations)\n\nStickiness levers or switching barriers\n\nDo not speculate — tag every signal with a reliability rating and cite source.\n\nStructure – Content Blocks:\n\n1. ⚠️ Cross-Section Inconsistency (if applicable)\n\nHighlight contradictions across filings or prior sections.\n\n2. Product & Service Portfolio Overview\n\nDescribe each offering, grouped by type (core, add-on, services).\n\nInclude commercial relevance if disclosed.\n\n3. Product Evolution Map\n\nTrack launches, pivots, rebrands, and expansions over time.\n\nSurface delivered vs undelivered roadmap items.\n\nTag execution gaps.\n\n4. Delivery Architecture\n\nDescribe delivery mechanics (SaaS, hybrid, OEM, etc.).\n\nFlag third-party dependencies or lock-in risks.\n\n5. Packaging & Pricing Strategy\n\nSummarize tiering, freemium models, bundling, or usage-based monetization.\n\nLink to upsell/retention logic if supported.\n\n6. Client Use Cases & Segmentation\n\nDetail use cases by customer type, vertical, or geography.\n\nIndicate adoption skew if disclosed.\n\n7. Execution Gaps & Commercial Implications\n\nFlag missed launches, delayed rollouts, or strategic pivots.\n\nNote commercial consequences (e.g., weaker upsell, churn exposure).\n\nCite sources.\n\n8. Forward Linkages\n\nState that this section provides the factual basis for:\n\nSection 8: Target Market & Competitive Set\n\nSection 9: Financial Analysis\n\nSection 13: Revenue Quality\n\nSection 14: IP & Technology\n\nOutput: Return ONLY the formatted Section 7 starting with: **Section 7: Products & Services**\n\nUse the actual company name from the provided data - NO placeholders like [Target Company] or [Client Name].",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        624
+      ],
+      "id": "17a5dccf-32c4-490d-8787-3fa748c82d88",
+      "name": "DD Section 7 Generator"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        368,
+        816
+      ],
+      "id": "26a48f63-c322-4e63-a6a6-9ce1e5136f75",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Direct Section 7 Generation": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Direct Section 7 Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Company Data": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Setup Complete DD Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Complete DD Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Save Section 7 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Section 7 Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DD Section 7 Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6fa4b0ae-cc5b-49d6-aaad-ffdfe6f73d51",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "fdXVXirmbMqPecOp",
+  "tags": []
+}

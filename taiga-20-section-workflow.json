@@ -1,0 +1,413 @@
+{
+  "name": "20-Section Due Diligence Automation System",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "taiga-webhook",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Taiga Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "taiga-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/auth",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "normal"
+            },
+            {
+              "name": "username",
+              "value": "admin"
+            },
+            {
+              "name": "password",
+              "value": "admin123"
+            }
+          ]
+        }
+      },
+      "id": "auth-node",
+      "name": "Auth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "dateTime": [],
+          "number": [],
+          "string": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create",
+              "operation": "equal"
+            },
+            {
+              "id": "condition2", 
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "task",
+              "operation": "equal"
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "Research on",
+              "operation": "contains"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "if-node",
+      "name": "IF Research Task",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract company name and prepare due diligence structure\nconst subject = $input.first().json.subject || '';\nconst companyName = subject.replace(/^Research on\\s*/i, '').trim() || 'Unknown Company';\nconst projectId = $input.first().json.project?.id || $input.first().json.project;\n\n// Define 20-section due diligence structure\nconst sections = [\n  {\n    id: 1,\n    name: 'Executive Summary',\n    tasks: ['Company overview snapshot', 'Key findings summary', 'Investment recommendation', 'Risk assessment summary'],\n    roles: { maker: 'senior_analyst', checker: 'lead_analyst', approver: 'director', qa: 'compliance_officer', integrity_checker: 'audit_manager' }\n  },\n  {\n    id: 2,\n    name: 'Company Overview',\n    tasks: ['Company history and founding', 'Mission, vision, values', 'Corporate structure', 'Geographic presence'],\n    roles: { maker: 'analyst', checker: 'senior_analyst', approver: 'lead_analyst', qa: 'compliance_officer', integrity_checker: 'audit_manager' }\n  },\n  {\n    id: 3,\n    name: 'Financial Analysis',\n    tasks: ['Revenue analysis (3-year trend)', 'Profitability metrics', 'Cash flow analysis', 'Debt and liquidity position', 'Financial ratios calculation'],\n    roles: { maker: 'financial_analyst', checker: 'senior_financial_analyst', approver: 'cfo_equivalent', qa: 'finance_compliance', integrity_checker: 'external_auditor' }\n  },\n  {\n    id: 4,\n    name: 'Market Position',\n    tasks: ['Market size and growth analysis', 'Competitive landscape mapping', 'Market share assessment', 'Competitive advantages identification'],\n    roles: { maker: 'market_analyst', checker: 'senior_analyst', approver: 'strategy_director', qa: 'research_quality_lead', integrity_checker: 'independent_researcher' }\n  },\n  {\n    id: 5,\n    name: 'Management Team',\n    tasks: ['Leadership team backgrounds', 'Track record analysis', 'Compensation structure review', 'Board composition assessment'],\n    roles: { maker: 'hr_analyst', checker: 'senior_analyst', approver: 'hr_director', qa: 'governance_specialist', integrity_checker: 'background_verification_team' }\n  },\n  {\n    id: 6,\n    name: 'Products and Services',\n    tasks: ['Product portfolio mapping', 'Service offerings analysis', 'Innovation pipeline review', 'Customer feedback analysis'],\n    roles: { maker: 'product_analyst', checker: 'senior_product_manager', approver: 'product_director', qa: 'quality_assurance_lead', integrity_checker: 'customer_validation_team' }\n  },\n  {\n    id: 7,\n    name: 'Technology and Innovation',\n    tasks: ['Technology stack assessment', 'R&D investment analysis', 'Patent portfolio review', 'Innovation capabilities evaluation'],\n    roles: { maker: 'tech_analyst', checker: 'senior_tech_lead', approver: 'cto_equivalent', qa: 'tech_compliance_officer', integrity_checker: 'external_tech_auditor' }\n  },\n  {\n    id: 8,\n    name: 'Legal and Regulatory',\n    tasks: ['Corporate legal structure', 'Regulatory compliance status', 'Litigation history review', 'Intellectual property audit'],\n    roles: { maker: 'legal_analyst', checker: 'senior_counsel', approver: 'general_counsel', qa: 'compliance_director', integrity_checker: 'external_legal_counsel' }\n  },\n  {\n    id: 9,\n    name: 'Risk Assessment',\n    tasks: ['Market risk evaluation', 'Operational risk assessment', 'Financial risk analysis', 'Regulatory risk review', 'Reputational risk evaluation'],\n    roles: { maker: 'risk_analyst', checker: 'senior_risk_manager', approver: 'chief_risk_officer', qa: 'risk_compliance_lead', integrity_checker: 'independent_risk_assessor' }\n  },\n  {\n    id: 10,\n    name: 'ESG and Sustainability',\n    tasks: ['Environmental impact assessment', 'Social responsibility review', 'Governance structure analysis', 'Sustainability reporting evaluation'],\n    roles: { maker: 'esg_analyst', checker: 'sustainability_manager', approver: 'esg_director', qa: 'esg_compliance_officer', integrity_checker: 'esg_verification_auditor' }\n  },\n  {\n    id: 11,\n    name: 'Operations and Supply Chain',\n    tasks: ['Operational efficiency analysis', 'Supply chain mapping', 'Vendor relationship assessment', 'Quality control systems review'],\n    roles: { maker: 'operations_analyst', checker: 'senior_operations_manager', approver: 'operations_director', qa: 'quality_assurance_manager', integrity_checker: 'supply_chain_auditor' }\n  },\n  {\n    id: 12,\n    name: 'Human Resources',\n    tasks: ['Workforce composition analysis', 'Employee satisfaction assessment', 'Training and development programs', 'Compensation and benefits review'],\n    roles: { maker: 'hr_analyst', checker: 'senior_hr_manager', approver: 'hr_director', qa: 'hr_compliance_officer', integrity_checker: 'employee_relations_auditor' }\n  },\n  {\n    id: 13,\n    name: 'Customer Analysis',\n    tasks: ['Customer base segmentation', 'Customer acquisition costs', 'Customer lifetime value analysis', 'Customer satisfaction metrics'],\n    roles: { maker: 'customer_analyst', checker: 'senior_customer_success_manager', approver: 'customer_experience_director', qa: 'customer_data_analyst', integrity_checker: 'customer_feedback_auditor' }\n  },\n  {\n    id: 14,\n    name: 'Strategic Partnerships',\n    tasks: ['Key partnership mapping', 'Partnership value assessment', 'Strategic alliance analysis', 'Joint venture evaluation'],\n    roles: { maker: 'partnership_analyst', checker: 'senior_business_development_manager', approver: 'partnerships_director', qa: 'strategic_alliances_manager', integrity_checker: 'partnership_audit_specialist' }\n  },\n  {\n    id: 15,\n    name: 'Growth Strategy',\n    tasks: ['Growth strategy assessment', 'Market expansion plans', 'Product development roadmap', 'Acquisition strategy review'],\n    roles: { maker: 'strategy_analyst', checker: 'senior_strategy_consultant', approver: 'strategy_director', qa: 'strategic_planning_manager', integrity_checker: 'strategy_validation_expert' }\n  },\n  {\n    id: 16,\n    name: 'Digital Transformation',\n    tasks: ['Digital maturity assessment', 'Technology adoption analysis', 'Digital transformation roadmap', 'Cybersecurity posture review'],\n    roles: { maker: 'digital_analyst', checker: 'senior_digital_strategist', approver: 'digital_transformation_director', qa: 'digital_compliance_officer', integrity_checker: 'cybersecurity_auditor' }\n  },\n  {\n    id: 17,\n    name: 'Competitive Intelligence',\n    tasks: ['Competitor identification and profiling', 'Competitive positioning analysis', 'Competitive threat assessment', 'Market disruption risk evaluation'],\n    roles: { maker: 'competitive_intelligence_analyst', checker: 'senior_market_researcher', approver: 'competitive_intelligence_director', qa: 'market_research_quality_manager', integrity_checker: 'independent_market_analyst' }\n  },\n  {\n    id: 18,\n    name: 'Valuation Analysis',\n    tasks: ['DCF model construction', 'Comparable company analysis', 'Precedent transaction analysis', 'Valuation sensitivity analysis'],\n    roles: { maker: 'valuation_analyst', checker: 'senior_valuation_specialist', approver: 'valuation_director', qa: 'valuation_quality_controller', integrity_checker: 'independent_valuation_expert' }\n  },\n  {\n    id: 19,\n    name: 'Investment Recommendation',\n    tasks: ['Investment thesis development', 'Risk-return analysis', 'Investment structure recommendation', 'Exit strategy planning'],\n    roles: { maker: 'investment_analyst', checker: 'senior_investment_manager', approver: 'investment_committee_chair', qa: 'investment_compliance_officer', integrity_checker: 'independent_investment_advisor' }\n  },\n  {\n    id: 20,\n    name: 'Final Review and Sign-off',\n    tasks: ['Comprehensive review compilation', 'Quality assurance verification', 'Stakeholder sign-off collection', 'Final documentation preparation'],\n    roles: { maker: 'senior_analyst', checker: 'lead_analyst', approver: 'managing_director', qa: 'chief_compliance_officer', integrity_checker: 'external_audit_firm' }\n  }\n];\n\nreturn {\n  json: {\n    companyName: companyName,\n    projectId: projectId,\n    sections: sections,\n    taskId: $input.first().json.id,\n    taskVersion: $input.first().json.version || 1,\n    originalSubject: subject,\n    totalSections: sections.length,\n    currentSection: 0\n  }\n};"
+      },
+      "id": "prepare-dd-structure",
+      "name": "Prepare DD Structure",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-sections",
+      "name": "Split Into Sections",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral"
+            },
+            {
+              "name": "prompt",
+              "value": "=Generate a comprehensive due diligence analysis for {{ $node['Prepare DD Structure'].json.companyName }} specifically for the section: {{ $json.name }}.\n\nSection Focus: {{ $json.name }}\nRequired Tasks: {{ $json.tasks.join(', ') }}\n\nProvide detailed, factual analysis covering:\n1. Current status and assessment\n2. Key findings and insights\n3. Strengths and opportunities\n4. Risks and concerns\n5. Recommendations and next steps\n\nBe comprehensive, professional, and specific. Include relevant metrics, data points, and actionable insights. Format as professional due diligence report section."
+            },
+            {
+              "name": "stream",
+              "value": false
+            }
+          ]
+        }
+      },
+      "id": "generate-section-analysis",
+      "name": "Generate Section Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1340, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Auth'].json.auth_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "={{ $node['Split Into Sections'].json.id }}. {{ $node['Split Into Sections'].json.name }}"
+            },
+            {
+              "name": "description",
+              "value": "=# 📋 Due Diligence Section: {{ $node['Split Into Sections'].json.name }}\n\n**Company:** {{ $node['Prepare DD Structure'].json.companyName }}  \n**Section {{ $node['Split Into Sections'].json.id }} of {{ $node['Prepare DD Structure'].json.totalSections }}**\n\n## 🎯 Objectives\n{{ $node['Split Into Sections'].json.tasks.join('\\n- ') }}\n\n## 👥 Assigned Roles\n- **Maker:** {{ $node['Split Into Sections'].json.roles.maker }}\n- **Checker:** {{ $node['Split Into Sections'].json.roles.checker }}\n- **Approver:** {{ $node['Split Into Sections'].json.roles.approver }}\n- **QA:** {{ $node['Split Into Sections'].json.roles.qa }}\n- **Integrity Checker:** {{ $node['Split Into Sections'].json.roles.integrity_checker }}\n\n## 🔬 AI-Generated Analysis\n\n{{ $json.response }}\n\n## ⚠️ Compliance Requirements\n\n1. **Evidence Required**: All findings must be supported by documented evidence\n2. **No Simulation Data**: Only real, verifiable information accepted\n3. **Audit Trail**: All actions must be logged with timestamps\n4. **Sequential Validation**: Maker → Checker → Approver → QA → Integrity Checker\n5. **Issues Escalation**: Missing data or compliance failures must create Issues\n\n## 📎 Required Evidence\n- Supporting documentation for all claims\n- Data sources and verification\n- Cross-reference materials\n- Third-party validations\n\n---\n\n*Generated by AI Due Diligence System | {{ new Date().toISOString() }}*"
+            },
+            {
+              "name": "project",
+              "value": "={{ $node['Prepare DD Structure'].json.projectId }}"
+            },
+            {
+              "name": "status",
+              "value": 1
+            },
+            {
+              "name": "priority",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "create-user-story",
+      "name": "Create User Story",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1560, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create individual tasks for each section requirement\nconst sectionData = $node['Split Into Sections'].json;\nconst userStoryId = $json.id;\nconst companyName = $node['Prepare DD Structure'].json.companyName;\nconst authToken = $node['Auth'].json.auth_token;\n\nconst tasks = sectionData.tasks.map((task, index) => ({\n  subject: `${sectionData.name}: ${task}`,\n  description: `**Task ${index + 1} for ${sectionData.name}**\\n\\n**Company:** ${companyName}\\n**Objective:** ${task}\\n\\n**Assigned Roles:**\\n- Maker: ${sectionData.roles.maker}\\n- Checker: ${sectionData.roles.checker}\\n- Approver: ${sectionData.roles.approver}\\n- QA: ${sectionData.roles.qa}\\n- Integrity Checker: ${sectionData.roles.integrity_checker}\\n\\n**Status:** Awaiting Research\\n**Evidence Required:** Yes\\n**Compliance Status:** Pending`,\n  user_story: userStoryId,\n  project: $node['Prepare DD Structure'].json.projectId,\n  status: 1,\n  priority: 1,\n  severity: 1,\n  type: 1\n}));\n\nreturn tasks.map(task => ({ json: { task, authToken } }));"
+      },
+      "id": "prepare-tasks",
+      "name": "Prepare Individual Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/tasks",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.authToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "={{ $json.task.subject }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.task.description }}"
+            },
+            {
+              "name": "user_story",
+              "value": "={{ $json.task.user_story }}"
+            },
+            {
+              "name": "project",
+              "value": "={{ $json.task.project }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.task.status }}"
+            },
+            {
+              "name": "priority",
+              "value": "={{ $json.task.priority }}"
+            },
+            {
+              "name": "severity",
+              "value": "={{ $json.task.severity }}"
+            },
+            {
+              "name": "type",
+              "value": "={{ $json.task.type }}"
+            }
+          ]
+        }
+      },
+      "id": "create-tasks",
+      "name": "Create Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2000, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "Not a research task - workflow skipped"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "name": "type", 
+              "value": "={{ $json.type }}"
+            },
+            {
+              "name": "subject",
+              "value": "={{ $json.subject }}"
+            }
+          ]
+        }
+      },
+      "id": "skip-node",
+      "name": "Skip Non-Research",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Taiga Webhook": {
+      "main": [
+        [
+          {
+            "node": "Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth": {
+      "main": [
+        [
+          {
+            "node": "IF Research Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Research Task": {
+      "main": [
+        [
+          {
+            "node": "Prepare DD Structure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Non-Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare DD Structure": {
+      "main": [
+        [
+          {
+            "node": "Split Into Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Sections": {
+      "main": [
+        [
+          {
+            "node": "Generate Section Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section Analysis": {
+      "main": [
+        [
+          {
+            "node": "Create User Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User Story": {
+      "main": [
+        [
+          {
+            "node": "Prepare Individual Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Individual Tasks": {
+      "main": [
+        [
+          {
+            "node": "Create Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "20-section-dd-1.0",
+  "id": "taiga-20-section-due-diligence"
+}

@@ -1,0 +1,130 @@
+{
+  "name": "Simple Due Diligence Test",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "taiga-webhook",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/auth",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "normal"
+            },
+            {
+              "name": "username", 
+              "value": "admin"
+            },
+            {
+              "name": "password",
+              "value": "admin123"
+            }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "Auth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/userstories",
+        "authentication": "none", 
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Auth'].json.auth_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "=TEST: Due Diligence for {{ $json.subject }}"
+            },
+            {
+              "name": "description", 
+              "value": "=This is a test User Story created by the n8n workflow for {{ $json.subject }}. The system is working!"
+            },
+            {
+              "name": "project",
+              "value": "={{ $json.project || 1 }}"
+            },
+            {
+              "name": "status",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Create Test Story",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 3,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth": {
+      "main": [
+        [
+          {
+            "node": "Create Test Story",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}

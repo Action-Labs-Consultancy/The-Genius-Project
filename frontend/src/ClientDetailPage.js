@@ -381,6 +381,10 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
   const [openCard, setOpenCard] = useState(null);
   const [userType, setUserType] = useState('employee');
   const [showAccessManagement, setShowAccessManagement] = useState(false);
+  const [clientContracts, setClientContracts] = useState([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [showContractViewer, setShowContractViewer] = useState(false);
+  const [selectedContract, setSelectedContract] = useState(null);
 
   const fetchCards = async () => {
     try {
@@ -391,13 +395,31 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
     }
   };
 
+  const fetchClientContracts = async () => {
+    setContractsLoading(true);
+    try {
+      const res = await fetch(`http://localhost:10000/api/clients/${client.id}/contracts`);
+      if (res.ok) {
+        const contracts = await res.json();
+        console.log('Fetched contracts:', contracts);
+        setClientContracts(contracts.contracts || contracts);
+      } else {
+        console.error('Failed to fetch contracts:', res.status, res.statusText);
+      }
+    } catch (err) {
+      console.error('Error fetching contracts:', err);
+    }
+    setContractsLoading(false);
+  };
+
   useEffect(() => {
     fetchCards();
+    fetchClientContracts();
     // Fetch user type
     if (user?.id) {
       fetchUserType();
     }
-  }, [user]);
+  }, [client.id, user]);
 
   // Handle navigation context (e.g., returning from AI content generator)
   useEffect(() => {
@@ -426,6 +448,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
       { type: 'calendar', title: 'SM Content Calendar', icon: '📅', subtitle: 'Plan content' },
       { type: 'influencers', title: 'Influencers', icon: '🤝', subtitle: 'Manage influencers' },
       { type: 'dashboard', title: 'Data Dashboard', icon: '📈', subtitle: 'Track metrics' },
+      { type: 'contracts', title: 'Contracts', icon: '📋', subtitle: 'View client contracts' },
     ].find(c => c.type === type);
     
     try {
@@ -485,7 +508,7 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
   return (
     <div style={{ minHeight: '100vh', background: '#111', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
       {/* Restore style block for client and card grid page, only when not in calendar or dashboard */}
-      {!(openCard && (openCard.type === 'calendar' || openCard.type === 'dashboard')) && (
+      {!(openCard && (openCard.type === 'calendar' || openCard.type === 'dashboard' || openCard.type === 'contracts')) && (
         <style>{`
           .header-bar-client {
             width: 100vw;
@@ -769,6 +792,106 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
             </div>
           </div>
         </>
+      ) : openCard && openCard.type === 'contracts' ? (
+        <>
+          {/* Contracts Card Content */}
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', minHeight: '80vh' }}>
+            <div style={{ maxWidth: 900, width: '100%', margin: '0 auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', margin: '32px 0 24px 0' }}>
+                <button className="arrow-btn" onClick={() => setOpenCard(null)} title="Back">
+                  <span style={{ fontSize: '2.2rem', display: 'flex', alignItems: 'center' }}>&larr;</span>
+                </button>
+                <div style={{ fontSize: 28, fontWeight: 900, color: '#FFD600', marginLeft: 16 }}>{client.name} – Contracts</div>
+              </div>
+              
+              {/* Contracts List */}
+              <div style={{ background: '#181818', borderRadius: 12, padding: '2rem', border: '2px solid #333' }}>
+                {/* Debug Info */}
+                <div style={{ color: '#666', fontSize: 12, marginBottom: '1rem' }}>
+                  Debug: Contracts array length: {clientContracts.length} | Loading: {contractsLoading.toString()}
+                </div>
+                
+                {contractsLoading ? (
+                  <div style={{ textAlign: 'center', color: '#FFD600', fontSize: 18 }}>Loading contracts...</div>
+                ) : clientContracts && clientContracts.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {clientContracts.map((contract, index) => (
+                      <div key={index} style={{
+                        background: '#222',
+                        borderRadius: 8,
+                        padding: '1.5rem',
+                        border: '1px solid #444',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ color: '#FFD600', fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
+                            Contract #{index + 1}
+                          </div>
+                          <div style={{ color: '#ccc', fontSize: 14 }}>
+                            Generated: {new Date(contract.generated_at).toLocaleDateString()} at {new Date(contract.generated_at).toLocaleTimeString()}
+                          </div>
+                          <div style={{ color: '#ccc', fontSize: 14 }}>
+                            By: {contract.generated_by}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            onClick={() => {
+                              setSelectedContract(contract);
+                              setShowContractViewer(true);
+                            }}
+                            style={{
+                              background: '#FFD600',
+                              color: '#111',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '8px 16px',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                          >
+                            View
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const blob = new Blob([contract.content], { type: 'text/plain' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${client.name}_Contract_${index + 1}.txt`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }}
+                            style={{
+                              background: '#333',
+                              color: '#FFD600',
+                              border: '1px solid #FFD600',
+                              borderRadius: 6,
+                              padding: '8px 16px',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#ccc', fontSize: 18 }}>
+                    No contracts available for this client.
+                    <div style={{ color: '#666', fontSize: 14, marginTop: '0.5rem' }}>
+                      Client ID: {client.id} | Contracts data: {JSON.stringify(clientContracts)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       ) : (
         <>
           <header className="header-bar-client">
@@ -906,6 +1029,146 @@ export default function ClientDetailPage({ client, user, onBack, onNavigate, nav
           </div>
         </div>
       )}
+      
+      {/* Contract Viewer Modal */}
+      {showContractViewer && selectedContract && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.8)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          zIndex: 1000,
+          padding: '2rem'
+        }}>
+          <div style={{ 
+            background: '#181818', 
+            color: '#fff', 
+            borderRadius: 12, 
+            padding: '2rem', 
+            maxWidth: '90vw', 
+            maxHeight: '90vh',
+            width: '800px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            border: '2px solid #FFD600'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: '1.5rem',
+              paddingBottom: '1rem',
+              borderBottom: '1px solid #333'
+            }}>
+              <h3 style={{ color: '#FFD600', fontWeight: 700, fontSize: 24, margin: 0 }}>
+                Contract for {client.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowContractViewer(false);
+                  setSelectedContract(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#FFD600',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#333'}
+                onMouseLeave={(e) => e.target.style.background = 'none'}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ 
+              color: '#ccc', 
+              fontSize: 14, 
+              marginBottom: '1rem',
+              display: 'flex',
+              gap: '2rem'
+            }}>
+              <span>Generated: {new Date(selectedContract.generated_at).toLocaleDateString()} at {new Date(selectedContract.generated_at).toLocaleTimeString()}</span>
+              <span>By: {selectedContract.generated_by}</span>
+            </div>
+            
+            <div style={{ 
+              flex: 1, 
+              overflow: 'auto', 
+              background: '#222', 
+              borderRadius: 8, 
+              padding: '1.5rem',
+              border: '1px solid #444',
+              marginBottom: '1.5rem'
+            }}>
+              <pre style={{ 
+                whiteSpace: 'pre-wrap', 
+                color: '#fff', 
+                fontSize: '14px', 
+                lineHeight: '1.6',
+                margin: 0,
+                fontFamily: 'inherit'
+              }}>
+                {selectedContract.content}
+              </pre>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => {
+                  const blob = new Blob([selectedContract.content], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${client.name}_Contract.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                style={{
+                  background: '#333',
+                  color: '#FFD600',
+                  border: '1px solid #FFD600',
+                  borderRadius: 6,
+                  padding: '12px 24px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '16px'
+                }}
+              >
+                Download as Text
+              </button>
+              <button 
+                onClick={() => {
+                  window.print();
+                }}
+                style={{
+                  background: '#FFD600',
+                  color: '#111',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '12px 24px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '16px'
+                }}
+              >
+                Print Contract
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Move any reusable business logic to core/businessLogic.js for architecture consistency */}
     </div>
   );

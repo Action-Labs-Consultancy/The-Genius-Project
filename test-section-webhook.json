@@ -1,0 +1,1610 @@
+{
+  "name": "My workflow 87",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-section",
+        "options": {}
+      },
+      "id": "c050ca32-ef6c-4537-88a7-e5cef9fdb6d1",
+      "name": "Website Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -3200,
+        3280
+      ],
+      "webhookId": "generate-section"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create tables if they don't exist\nCREATE TABLE IF NOT EXISTS company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    company_description TEXT,\n    contact_email VARCHAR(255),\n    contact_phone VARCHAR(100),\n    website_url VARCHAR(500),\n    industry VARCHAR(255),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS uploaded_files (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) NOT NULL,\n    file_name VARCHAR(500) NOT NULL,\n    file_path VARCHAR(1000) NOT NULL,\n    file_size BIGINT,\n    mime_type VARCHAR(255),\n    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);\n\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section content columns\n    introduction_engagement_context TEXT,\n    legal_disclaimers_reliance_limitations TEXT,\n    methodology_source_validation TEXT,\n    financial_trajectory_revenue_quality TEXT,\n    partnerships_ecosystem_alliances TEXT,\n    intellectual_property_technology TEXT,\n    governance_disclosures_risks TEXT,\n    appendix_management_rfi TEXT,\n    \n    -- Additional sections for full 20-section report\n    section_9 TEXT,\n    section_10 TEXT,\n    section_11 TEXT,\n    section_12 TEXT,\n    section_13 TEXT,\n    section_14 TEXT,\n    section_15 TEXT,\n    section_16 TEXT,\n    section_17 TEXT,\n    section_18 TEXT,\n    section_19 TEXT,\n    section_20 TEXT,\n    \n    -- Metadata\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'pending',\n    consolidated_report TEXT,\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    \n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);",
+        "options": {}
+      },
+      "id": "590d70d8-aa5b-4046-abb8-cf0f5bd59bad",
+      "name": "Initialize Database Tables",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -3008,
+        3280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process incoming webhook data from website\nconst webhookData = $node[\"Website Webhook Trigger\"].json;\n\nconsole.log('=== WEBSITE WEBHOOK RECEIVED ===');\nconsole.log('Webhook data:', JSON.stringify(webhookData, null, 2));\n\n// Extract company information\nconst companyInfo = webhookData.companyInfo || {};\nconst uploadedFiles = webhookData.uploadedFiles || [];\nconst requestId = webhookData.requestId || `req_${Date.now()}`;\n\n// Generate company ID\nconst companyId = companyInfo.company_id || `comp_${Date.now()}_${companyInfo.companyName?.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log(`Company Name: ${companyInfo.companyName}`);\nconsole.log(`Files uploaded: ${uploadedFiles.length}`);\n\n// Validate required data\nif (!companyInfo.companyName) {\n  throw new Error('Company name is required');\n}\n\n// Process uploaded files\nconst processedFiles = uploadedFiles.map((file, index) => {\n  console.log(`File ${index + 1}: ${file.name} (${file.size} bytes)`);\n  return {\n    id: file.id || `file_${Date.now()}_${index}`,\n    name: file.name,\n    size: file.size,\n    type: file.type,\n    content: file.content, // Base64 or file path\n    uploadPath: file.uploadPath || `/uploads/${companyId}/${file.name}`\n  };\n});\n\nconsole.log('=== PROCESSING SUMMARY ===');\nconsole.log(`Request ID: ${requestId}`);\nconsole.log(`Company: ${companyInfo.companyName}`);\nconsole.log(`Files to process: ${processedFiles.length}`);\nconsole.log('===========================');\n\n// Return processed data for next node\nreturn {\n  json: {\n    // Company information\n    company_id: companyId,\n    company_name: companyInfo.companyName,\n    company_description: companyInfo.description || '',\n    contact_email: companyInfo.contactEmail || '',\n    contact_phone: companyInfo.contactPhone || '',\n    website_url: companyInfo.websiteUrl || '',\n    industry: companyInfo.industry || 'Technology',\n    \n    // File information\n    uploaded_files: processedFiles,\n    file_count: processedFiles.length,\n    \n    // Request metadata\n    request_id: requestId,\n    processing_started_at: new Date().toISOString(),\n    source: 'website_upload'\n  }\n};"
+      },
+      "id": "fdcbc575-31e3-45cf-a40d-59f17cb5b8f6",
+      "name": "Process Website Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2800,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process uploaded files from website\nconst websiteData = $input.first().json;\nconst uploadedFiles = websiteData.uploaded_files || [];\n\nconsole.log('=== PROCESSING UPLOADED FILES ===');\nconsole.log(`Received ${uploadedFiles.length} files from website`);\nconsole.log('Company:', websiteData.company_name);\nconsole.log('Company ID:', websiteData.company_id);\n\nif (uploadedFiles.length === 0) {\n  console.error('❌ No uploaded files to process!');\n  return {\n    json: {\n      error: 'No files uploaded',\n      company_id: websiteData.company_id,\n      company_name: websiteData.company_name\n    }\n  };\n}\n\n// Process uploaded files information\nconst processedFiles = uploadedFiles.map((file, index) => {\n  console.log(`File ${index + 1}: ${file.name} - Size: ${file.size} bytes`);\n  return {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    type: file.type,\n    content: file.content, // Base64 or file path\n    uploadPath: file.uploadPath\n  };\n});\n\n// Sort files by name for consistent processing order\nprocessedFiles.sort((a, b) => a.name.localeCompare(b.name));\n\nconsole.log('Files will be processed in this order:');\nprocessedFiles.forEach((file, index) => {\n  console.log(`${index + 1}. ${file.name}`);\n});\n\nconsole.log(`Company ID: ${websiteData.company_id}`);\nconsole.log('==============================');\n\n// Return file information for processing\nreturn {\n  json: {\n    // Consistent company ID throughout workflow\n    company_id: websiteData.company_id,\n    company_name: websiteData.company_name,\n    company_description: websiteData.company_description,\n    contact_email: websiteData.contact_email,\n    contact_phone: websiteData.contact_phone,\n    website_url: websiteData.website_url,\n    industry: websiteData.industry,\n    // Include all source files for processing\n    source_files: processedFiles,\n    file_count: processedFiles.length,\n    processing_status: 'ready_for_extraction',\n    source: 'website_upload'\n  }\n};"
+      },
+      "id": "01356678-e067-4512-9172-95f92bec9a04",
+      "name": "Process Uploaded Files",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2400,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare uploaded files for content extraction\nconst fileInfo = $input.first().json;\nconst sourceFiles = fileInfo.source_files || [];\n\nconsole.log('=== PREPARING UPLOADED FILES FOR PROCESSING ===');\nconsole.log(`Processing ${sourceFiles.length} uploaded files`);\nconsole.log('Company:', fileInfo.company_name);\nconsole.log('Company ID:', fileInfo.company_id);\n\nif (sourceFiles.length === 0) {\n  console.error('❌ No source files to process!');\n  return {\n    json: {\n      error: 'No files uploaded',\n      company_id: fileInfo.company_id,\n      company_name: fileInfo.company_name\n    }\n  };\n}\n\n// Process ALL files and return them for individual content extraction\nconst allFilesForProcessing = sourceFiles.map((file, index) => {\n  console.log(`Preparing file ${index + 1}/${sourceFiles.length}: ${file.name}`);\n  return {\n    json: {\n      // Consistent company data\n      company_id: fileInfo.company_id,\n      company_name: fileInfo.company_name,\n      company_description: fileInfo.company_description,\n      contact_email: fileInfo.contact_email,\n      contact_phone: fileInfo.contact_phone,\n      website_url: fileInfo.website_url,\n      industry: fileInfo.industry,\n      // Individual file info for processing\n      file_id: file.id,\n      file_name: file.name,\n      file_size: file.size,\n      file_type: file.type,\n      file_content: file.content, // Base64 or file path\n      upload_path: file.uploadPath,\n      file_index: index + 1,\n      total_files: sourceFiles.length,\n      // Metadata\n      all_file_names: sourceFiles.map(f => f.name).join(', '),\n      processing_status: 'ready_for_extraction',\n      source: 'website_upload'\n    }\n  };\n});\n\nconsole.log(`✅ Prepared ${allFilesForProcessing.length} files for content extraction`);\nconsole.log('All files will be processed for text extraction');\n\nreturn allFilesForProcessing;"
+      },
+      "id": "7a94a015-9051-4f23-8459-4181a2a80ec6",
+      "name": "Prepare Files for Extraction",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2208,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process uploaded file content for text extraction\nconst fileData = $input.first().json;\n\nconsole.log('=== PROCESSING UPLOADED FILE CONTENT ===');\nconsole.log(`File: ${fileData.file_name}`);\nconsole.log(`Size: ${fileData.file_size} bytes`);\nconsole.log(`Type: ${fileData.file_type}`);\nconsole.log(`Company: ${fileData.company_name}`);\n\n// Handle different file content types\nlet fileContent = null;\nlet processingMethod = 'unknown';\n\nif (fileData.file_content) {\n  if (typeof fileData.file_content === 'string') {\n    // Base64 encoded content\n    if (fileData.file_content.startsWith('data:')) {\n      // Data URL format: data:application/pdf;base64,JVBERi0xLjQ...\n      const base64Data = fileData.file_content.split(',')[1];\n      fileContent = Buffer.from(base64Data, 'base64');\n      processingMethod = 'data_url_base64';\n    } else if (fileData.file_content.match(/^[A-Za-z0-9+/]+=*$/)) {\n      // Pure base64 string\n      fileContent = Buffer.from(fileData.file_content, 'base64');\n      processingMethod = 'pure_base64';\n    } else if (fileData.file_content.startsWith('/') || fileData.file_content.includes('uploads')) {\n      // File path - we'll need to read it\n      processingMethod = 'file_path';\n      fileContent = fileData.file_content; // Keep as path for now\n    } else {\n      // Direct text content\n      fileContent = fileData.file_content;\n      processingMethod = 'direct_text';\n    }\n  } else if (Buffer.isBuffer(fileData.file_content)) {\n    // Already a buffer\n    fileContent = fileData.file_content;\n    processingMethod = 'buffer';\n  }\n}\n\nconsole.log(`Processing method: ${processingMethod}`);\nconsole.log(`Content type: ${typeof fileContent}`);\n\nif (!fileContent) {\n  console.error('❌ No file content available for processing');\n  return {\n    json: {\n      ...fileData,\n      extracted_content: 'ERROR: No file content available',\n      extraction_method: 'failed_no_content',\n      processing_status: 'failed'\n    }\n  };\n}\n\n// Return file data with content ready for PDF processing\nreturn {\n  json: {\n    ...fileData,\n    file_content_processed: fileContent,\n    processing_method: processingMethod,\n    processing_status: 'ready_for_pdf_extraction',\n    content_available: true\n  }\n};"
+      },
+      "id": "f1eacd0e-42f7-4078-ac51-acc0d4064808",
+      "name": "Process File Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "5c1692c3-daa9-4e33-9b0f-98c7b4ccba6b",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1808,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract content from current PDF file\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Prepare All PDFs for Download\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters from ${fileInfo.file_name}`);\n} else {\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = `PDF extraction failed for ${fileInfo.file_name} - file may be image-based or corrupted`;\n    extractionMethod = 'failed';\n    console.log(`⚠️ Could not extract text from ${fileInfo.file_name}`);\n  }\n}\n\nconsole.log(`File ${fileInfo.file_index}/${fileInfo.total_files}: ${fileInfo.file_name}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`Extraction method: ${extractionMethod}`);\n\n// Return individual file data with extracted content\nreturn {\n  json: {\n    company_id: fileInfo.company_id,\n    company_name: fileInfo.company_name,\n    folder_id: fileInfo.folder_id,\n    file_name: fileInfo.file_name,\n    file_index: fileInfo.file_index,\n    total_files: fileInfo.total_files,\n    extracted_content: fullTextContent,\n    extraction_method: extractionMethod,\n    content_length: fullTextContent.length,\n    all_file_names: fileInfo.all_file_names\n  }\n};"
+      },
+      "id": "7111a92d-c410-4f69-8578-a7ed5cee51ad",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect and merge ALL extracted content from all uploaded files\nconst allExtractions = $input.all();\nconst firstFile = allExtractions[0]?.json || {};\n\nconsole.log('=== MERGING ALL UPLOADED FILE CONTENT ===');\nconsole.log(`Received ${allExtractions.length} extracted files`);\nconsole.log(`Company: ${firstFile.company_name}`);\nconsole.log(`Company ID: ${firstFile.company_id}`);\n\nif (allExtractions.length === 0) {\n  console.error('❌ No extracted content received!');\n  return {\n    json: {\n      error: 'No content extracted from uploaded files',\n      company_id: firstFile.company_id,\n      company_name: firstFile.company_name\n    }\n  };\n}\n\n// Merge all content together\nlet mergedContent = '';\nlet totalContentLength = 0;\nlet successfulExtractions = 0;\nlet failedExtractions = 0;\nconst fileDetails = [];\n\nallExtractions.forEach((extraction, index) => {\n  const fileData = extraction.json;\n  const content = fileData.extracted_content || '';\n  \n  console.log(`Processing file ${index + 1}: ${fileData.file_name}`);\n  console.log(`  Content length: ${content.length} characters`);\n  console.log(`  Extraction method: ${fileData.extraction_method}`);\n  \n  if (content && content.length > 50 && !content.includes('extraction failed')) {\n    // Add file separator and content\n    mergedContent += `\\n\\n=== CONTENT FROM: ${fileData.file_name} ===\\n\\n`;\n    mergedContent += content;\n    mergedContent += `\\n\\n=== END OF ${fileData.file_name} ===\\n\\n`;\n    successfulExtractions++;\n  } else {\n    console.log(`  ⚠️ Skipping ${fileData.file_name} - extraction failed or insufficient content`);\n    failedExtractions++;\n  }\n  \n  totalContentLength += content.length;\n  fileDetails.push({\n    name: fileData.file_name,\n    content_length: content.length,\n    extraction_method: fileData.extraction_method,\n    success: content.length > 50 && !content.includes('extraction failed')\n  });\n});\n\n// Final data object\nconst finalData = {\n  company_id: firstFile.company_id,\n  company_name: firstFile.company_name,\n  company_description: firstFile.company_description,\n  contact_email: firstFile.contact_email,\n  contact_phone: firstFile.contact_phone,\n  website_url: firstFile.website_url,\n  industry: firstFile.industry,\n  content: mergedContent,\n  processed_at: new Date().toISOString(),\n  source: 'website_upload'\n};\n\n// Log results\nconsole.log(`\\n=== FINAL MERGE RESULTS ===`);\nconsole.log(`Company ID: ${finalData.company_id}`);\nconsole.log(`Final Company Name: ${finalData.company_name}`);\nconsole.log(`Total files processed: ${allExtractions.length}`);\nconsole.log(`Successful extractions: ${successfulExtractions}`);\nconsole.log(`Failed extractions: ${failedExtractions}`);\nconsole.log(`Total merged content length: ${mergedContent.length} characters`);\nconsole.log(`Files processed: ${fileDetails.map(f => f.name).join(', ')}`);\nconsole.log(`============================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "5aaaa2d6-2711-45bb-b783-e00a0871f6ca",
+      "name": "Merge All Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "company_description": "={{ $json.company_description }}",
+            "contact_email": "={{ $json.contact_email }}",
+            "contact_phone": "={{ $json.contact_phone }}",
+            "website_url": "={{ $json.website_url }}",
+            "industry": "={{ $json.industry }}"
+          },
+          "matchingColumns": [
+            "company_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "4bcc0196-999d-4509-8e96-141163772471",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1200,
+        3280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are preparing Section 1: Introduction & Engagement Context of a formal commercial due diligence report authored by Action Labs.\n\n{{ $json.retry_count ? ('🔄 REVISION ATTEMPT #' + $json.retry_count + ' - Previous content was rejected. ') : '' }}{{ $json.quality_feedback ? ('⚠️ FEEDBACK TO ADDRESS: ' + $json.quality_feedback + ' ') : '' }}\n\n🎯 CRITICAL SUCCESS CRITERIA:\n1. NO PLACEHOLDERS - Extract actual company name from source\n2. Board-grade professional tone throughout\n3. Strategic commercial focus (not generic company description)\n4. Proper HTML structure with clear headings\n5. Evidence-based analysis from source documents\n\n📋 REQUIRED HTML STRUCTURE:\n\n<h3>1.1 Engagement Summary</h3>\n<p>Action Labs was engaged by [CLIENT NAME - extract from context] to conduct comprehensive commercial due diligence on [FULL LEGAL COMPANY NAME from source] ([TICKER if public]) for the purpose of evaluating commercial value realization and deal viability. This engagement focuses on assessing the target's commercial scalability, defensibility, and execution friction within the context of potential acquisition or strategic investment.</p>\n\n<h3>1.2 Strategic Framing & Evaluative Lens</h3>\n<p>Our work applies a commercially focused evaluative lens to assess [COMPANY NAME]'s ability to scale, defend market position, and sustain revenue quality over time, under publicly visible constraints. The analysis tests structural revenue sustainability, competitive moats, operational execution capabilities, and market positioning strength. This commercial risk validation examines the target's capacity to deliver consistent returns and maintain strategic advantages in evolving market conditions.</p>\n\n<h3>1.3 Scope of Review</h3>\n<p>This assessment encompasses the following domains, each addressed in dedicated sections with public source citations and reliability ratings:</p>\n<ul>\n<li>Company structure and organizational architecture</li>\n<li>Product model and technology positioning</li>\n<li>Go-to-market strategy and execution</li>\n<li>Market position and competitive dynamics</li>\n<li>Revenue structure and customer behavior</li>\n<li>Financial trajectory and capital efficiency</li>\n<li>Intellectual property and ecosystem positioning</li>\n<li>Regulatory exposure and compliance posture</li>\n<li>Risk pathing and mitigation frameworks</li>\n</ul>\n\n<h3>1.4 Data Cutoff & Limitations</h3>\n<p>This analysis is based exclusively on publicly available information without management access, with data current as of [EXTRACT LATEST FILING DATE from source]. All forward-looking interpretations regarding churn risk, margin structure, and strategic roadmap are evaluated solely to the extent permitted by public documentation. Items requiring management validation are catalogued in Appendix A: Management Interview Script and Appendix B: Diligence RFI Template.</p>\n\n<h3>1.5 Authorship & Independence</h3>\n<p>This report was independently produced by Action Labs without external edits or validations beyond those contained in the sourced regulatory filings and public disclosures. The analysis maintains objectivity through source-verified methodologies and evidence-based conclusions.</p>\n\n<h3>1.6 Commercial Orientation Statement</h3>\n<p>This document is structured to support deal evaluation, negotiation strategy, and next-phase validation planning. Its purpose is to equip [CLIENT NAME] with a decision-useful view of [COMPANY NAME]'s commercial posture, value drivers, and friction points — as derived from the public record. The report emphasizes commercial logic over static profiling, focusing on scalability, defensibility, and execution risk factors critical to investment decision-making.</p>\n\nSOURCE DOCUMENT CONTENT:\n{{ $json.content }}\n\n🚨 EXECUTION INSTRUCTIONS:\n1. Extract REAL company name, ticker, filing dates from source content\n2. Replace ALL bracketed placeholders with actual extracted data\n3. Use the HTML structure exactly as shown above\n4. Write in board-grade, formal commercial tone\n5. Focus on strategic commercial evaluation, not generic company description\n6. Base ALL statements on evidence from source documents\n7. NO fictional data, NO generic examples, NO placeholder text",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "6559cc3a-e811-4d37-ad87-933ed93a4bd5",
+      "name": "Generate Section 1 Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log(`Report received (Section 1): ${report.substring(0, 100)}...`);\nconsole.log(`Company ID: ${dbData.company_id}`);\nconsole.log(`Company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Report generation failed');\n  return {\n    json: {\n      company_id: dbData.company_id,\n      company_name: dbData.company_name,\n      generated_content: 'Report generation failed',\n      content: dbData.content\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 1 report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company ID: ${dbData.company_id}`);\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    section_type: 'introduction_engagement_context'\n  }\n};"
+      },
+      "id": "e6437a18-b11b-4d81-aa70-2054c44dd16d",
+      "name": "Format Section 1 Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        144,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior quality assurance analyst performing final validation on Section 1 content.\n\n🔍 CONTENT TO VALIDATE:\n{{ $json.generated_content }}\n\n📊 VALIDATION CRITERIA:\n\n✅ ACCEPT IF CONTENT HAS:\n- Professional business language and structure\n- Real company name extracted from source (not placeholders)\n- Logical flow and coherent narrative\n- Appropriate section headings and format\n- Evidence-based statements about the company\n- Board-grade tone and presentation\n\n❌ ONLY REJECT IF:\n- Contains obvious placeholder text like [Company Name], [Date], [Insert]\n- Uses completely fictional company names (Acme Inc., Example Corp)\n- Has serious structural problems or incomplete sections\n- Contains contradictory or nonsensical information\n- Lacks any real company identification\n\n⚖️ BALANCED APPROACH:\n- Focus on content quality, not perfection\n- Allow professional generic language if well-written\n- Prioritize completing the workflow over minor issues\n- Remember this is an automated process with limitations\n\n🎯 RESPONSE FORMAT:\nStart with either 'CHECKER_RESULT: PASS' or 'CHECKER_RESULT: FAIL'\n\n- PASS: If content is professional and usable (even if not perfect)\n- FAIL: Only for serious structural issues or obvious placeholders\n\nIf FAIL, be specific about critical issues that must be fixed.\nIf PASS, briefly confirm the content meets basic quality standards.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "bb6dc157-dff6-4434-ae2a-ad7bab65480e",
+      "name": "Section 1 Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5c5bdb8c-1f5b-4e7e-9b4e-2a3c8d9e0f1a",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "CHECKER_RESULT: PASS",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00b79763-d5ea-47ea-b205-b9d308181e34",
+      "name": "Section 1 Checker Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        560,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior business analyst performing final approval validation.\n\n📋 SECTION 1 CONTENT FOR FINAL APPROVAL:\n{{ $json.generated_content }}\n\n✅ CONTENT ALREADY PASSED INITIAL CHECKER\n\n🎯 FINAL APPROVAL CRITERIA:\n\n✅ APPROVE IF CONTENT HAS:\n- Professional presentation suitable for stakeholders\n- Clear structure with logical flow\n- Real company identification (not placeholders)\n- Appropriate due diligence framing\n- Reasonable length and depth for Section 1\n\n❌ ONLY REJECT IF:\n- Major structural defects that prevent usability\n- Critical information gaps that make content unusable\n- Serious professional presentation issues\n\n⚖️ APPROVAL PHILOSOPHY:\n- This content passed checker validation already\n- Focus on ensuring usability and professional standards\n- Allow for process limitations in automated generation\n- Prioritize workflow completion over perfection\n- Remember this is one section of a larger report\n\n🔄 AVOID INFINITE LOOPS:\n- Be generous with approval for reasonable content\n- Only reject for serious, workflow-breaking issues\n- Consider that multiple revisions create diminishing returns\n\nCHECKER PROVIDED: {{ $json.checker_feedback }}\n\n📤 RESPONSE REQUIRED:\nStart with either 'APPROVER_RESULT: APPROVE' or 'APPROVER_RESULT: REJECT'\n\n- APPROVE: For professional, usable content (recommended approach)\n- REJECT: Only for critical defects that prevent report use\n\nIf APPROVE, briefly confirm content readiness.\nIf REJECT, be very specific about critical issues requiring immediate fix.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "411d28f9-8ac2-4987-b1f0-1b34ad2f7e7f",
+      "name": "Section 1 Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6d6eeb9d-2f6c-4f8f-ae5f-3b4d9e0f2b1c",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "APPROVER_RESULT: APPROVE",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df7ac621-7e97-44ed-8bd8-207da42502d3",
+      "name": "Section 1 Approver Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process feedback from checker or approver and prepare data to send back to Generate Section 1\nconst inputData = $input.first().json;\n\n// Determine source of feedback\nlet feedbackSource = 'Unknown';\nlet feedbackMessage = '';\n\nif (inputData.response && inputData.response.includes('CHECKER_RESULT: FAIL')) {\n  feedbackSource = 'Checker';\n  feedbackMessage = inputData.response;\n} else if (inputData.response && inputData.response.includes('APPROVER_RESULT: REJECT')) {\n  feedbackSource = 'Approver';\n  feedbackMessage = inputData.response;\n}\n\n// ANTI-INFINITE LOOP MECHANISM\nconst currentRetries = inputData.retry_count || 0;\nconst maxRetries = 2; // Limit to 2 retries to prevent infinite loops\n\nif (currentRetries >= maxRetries) {\n  console.log(`⚠️ LOOP PREVENTION: Section 1 reached maximum retries (${maxRetries}). Auto-approving to continue workflow.`);\n  \n  // Auto-approve and send to database to break the loop\n  return {\n    json: {\n      company_id: inputData.company_id,\n      company_name: inputData.company_name,\n      generated_content: inputData.generated_content || inputData.response || 'Auto-approved after max retries',\n      section_complete: true,\n      auto_approved: true,\n      retry_limit_reached: true,\n      approval_timestamp: new Date().toISOString()\n    }\n  };\n}\n\nconsole.log(`📝 Section 1 feedback from ${feedbackSource}: Content needs revision (Attempt ${currentRetries + 1}/${maxRetries + 1})`);\nconsole.log(`Feedback details: ${feedbackMessage.substring(0, 300)}...`);\n\n// Prepare data to send back to Generate Section 1 with feedback\nreturn {\n  json: {\n    company_id: inputData.company_id,\n    company_name: inputData.company_name,\n    content: inputData.content,\n    section_type: 'executive_summary_introduction',\n    feedback_from: feedbackSource.toLowerCase(),\n    quality_feedback: feedbackMessage,\n    retry_attempt: true,\n    retry_count: currentRetries + 1,\n    revision_needed: true\n  }\n};"
+      },
+      "id": "2f3d50ba-531e-4194-aee6-03eee41e7074",
+      "name": "Process Section 1 Feedback",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        2896
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format approved Section 1 data for database save\nconst inputData = $input.first().json;\n\nconsole.log(`✅ Section 1 APPROVED - formatting for database save`);\nconsole.log(`Raw input data keys:`, Object.keys(inputData));\nconsole.log(`Input data:`, JSON.stringify(inputData, null, 2).substring(0, 500));\n\n// Extract the actual data - IF node passes through original data structure\nlet company_id = inputData.company_id;\nlet company_name = inputData.company_name;\nlet generated_content = inputData.generated_content;\n\n// If the data is nested, try to extract it\nif (!company_id && inputData.json) {\n  company_id = inputData.json.company_id;\n  company_name = inputData.json.company_name;\n  generated_content = inputData.json.generated_content;\n}\n\nconsole.log(`Extracted data:`);\nconsole.log(`- company_id: ${company_id}`);\nconsole.log(`- company_name: ${company_name}`);\nconsole.log(`- generated_content length: ${generated_content ? generated_content.length : 'missing'}`);\n\n// Ensure all required fields are present\nif (!company_id || !company_name || !generated_content) {\n  console.error(`❌ Missing required fields for database save after extraction`);\n  console.error(`Available data:`, inputData);\n  \n  // Try to get from the previous node data that should be available\n  const nodeData = $node['Format Section 1 Output']?.json;\n  if (nodeData) {\n    console.log(`Attempting to use Format Section 1 Output data:`, nodeData);\n    company_id = nodeData.company_id || company_id;\n    company_name = nodeData.company_name || company_name;\n    generated_content = nodeData.generated_content || generated_content;\n  }\n}\n\n// Return properly formatted data for PostgreSQL\nreturn {\n  json: {\n    company_id: company_id,\n    company_name: company_name,\n    generated_content: generated_content,\n    section_complete: true,\n    approval_timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "3971e854-154c-45c9-aca3-9e825d4e447f",
+      "name": "Format Approved Section 1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "due_diligence_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "introduction_engagement_context": "={{ $json.generated_content }}",
+            "status": "Section 1 Complete"
+          },
+          "matchingColumns": [
+            "company_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "dfaacabe-58c1-4ff1-a477-4e5207f22e79",
+      "name": "Save Section 1 Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        352,
+        2704
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Fetch all previously generated sections for context\nSELECT \n  company_id,\n  company_name,\n  introduction_engagement_context,\n  methodology_reliability_levels,\n  company_overview,\n  business_model_unit_economics,\n  products_technology,\n  target_market_competitive_set,\n  financials_multi_year,\n  cash_burn_runway,\n  revenue_quality_client_cohorts,\n  partnerships_ecosystem,\n  intellectual_property,\n  legal_regulatory,\n  governance_board_effectiveness,\n  capital_structure_dilution,\n  risk_matrix_mitigations,\n  gaps_uncertainties_disclaimers,\n  scenario_analysis,\n  strategic_options,\n  recommendations_next_steps,\n  source_map_integrity_log\nFROM due_diligence_reports \nWHERE company_id = '{{ $json.company_id }}' \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "031a0666-189a-4d8e-a54a-5509e4e67679",
+      "name": "Fetch Previous Sections for Context",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -256,
+        2960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine source content with previously generated sections for context\nconst inputData = $input.first().json;\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log('=== SECTION 2 CONTEXT PREPARATION ===');\nconsole.log(`Company: ${dbData.company_name}`);\nconsole.log(`Company ID: ${dbData.company_id}`);\n\n// Build context from previously generated sections\nlet previousContext = '';\nconst sections = [\n  { key: 'introduction_engagement_context', title: 'Section 1: Introduction & Engagement Context' }\n];\n\n// Add each completed section to context\nsections.forEach(section => {\n  if (inputData[section.key] && inputData[section.key].trim()) {\n    console.log(`✅ Adding ${section.title} to context`);\n    previousContext += `\\n\\n=== ${section.title.toUpperCase()} ===\\n${inputData[section.key]}\\n`;\n  } else {\n    console.log(`⏭️ Skipping ${section.title} (not yet generated)`);\n  }\n});\n\nif (previousContext.trim()) {\n  console.log(`📚 Previous context length: ${previousContext.length} characters`);\n} else {\n  console.log('📚 No previous sections found - this is the first or second section');\n  previousContext = '\\n\\n=== NO PREVIOUS SECTIONS ===\\nThis is among the first sections to be generated for this due diligence report.\\n';\n}\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    content: dbData.content,\n    previous_sections_context: previousContext,\n    section_type: 'methodology_reliability_levels',\n    retry_attempt: inputData.retry_attempt || false,\n    quality_feedback: inputData.quality_feedback || '',\n    feedback_from: inputData.feedback_from || ''\n  }\n};"
+      },
+      "id": "9c44c855-2605-4a91-8150-cf8753bf76dd",
+      "name": "Prepare Section 2 Context",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. {{ $json.retry_attempt ? 'REVISION REQUIRED - Previous content failed quality control.' : 'Generate a comprehensive' }} \"Methodology & Reliability Levels\" section for: {{ $json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $json.content }}\n\nPREVIOUSLY GENERATED SECTIONS FOR CONTEXT:\n{{ $json.previous_sections_context }}\n\n{{ $json.quality_feedback ? ('QUALITY CONTROL FEEDBACK FROM ' + $json.feedback_from.toUpperCase() + ': ' + $json.quality_feedback + ' RESOLVE ALL ISSUES MENTIONED ABOVE. ') : '' }}REQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Build upon and complement the previously generated sections - DO NOT REPEAT CONTENT\n- Ensure consistency with previous sections and maintain narrative flow\n- Focus specifically on methodology used in the company's operations and reliability assessment\n- Include subsections: Data Collection Methods, Analysis Methodology, Quality Control Processes, Reliability Assessment, Risk Factors\n- Reference specific methodological approaches, quality standards, or reliability measures from the document\n- Avoid generic statements - be specific to this company's methodology and reliability practices\n- Do not use placeholder text or template variables\n- No fabricated information or hallucinations\n- Base analysis solely on document content provided\n- Cross-reference with previous sections to maintain coherence and avoid contradictions\n\n{{ $json.quality_feedback ? 'Address all feedback points above and generate improved content that resolves identified issues.' : 'Generate a detailed, professional methodology and reliability analysis that builds upon the previous sections while focusing on new methodology-specific insights.' }}",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "0049d666-feba-4ff3-a704-0fa89ac64e26",
+      "name": "Generate Section 2 Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log(`Report received (Section 2): ${report.substring(0, 100)}...`);\nconsole.log(`Company ID: ${dbData.company_id}`);\nconsole.log(`Company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Section 2 report generation failed');\n  return {\n    json: {\n      company_id: dbData.company_id,\n      company_name: dbData.company_name,\n      generated_content: 'Methodology & Reliability report generation failed',\n      content: dbData.content\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Section 2 report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 2 report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company ID: ${dbData.company_id}`);\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    section_type: 'methodology_reliability_levels'\n  }\n};"
+      },
+      "id": "9cc9864b-8bbd-457c-886a-345411884fa0",
+      "name": "Format Section 2 Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        144,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior quality assurance analyst performing content validation.\n\nANALYZE THE FOLLOWING SECTION 2 REPORT CONTENT FOR QUALITY ISSUES:\n\n{{ $json.generated_content }}\n\nCHECK FOR THESE CRITICAL ISSUES:\n\n1. HALLUCINATION DETECTION:\n   - Are there any made-up methodologies, reliability measures, or data not present in source?\n   - Any fictional processes, standards, or quality control measures mentioned?\n   - Unrealistic or invented reliability metrics or assessment methods?\n\n2. SIMULATION/PLACEHOLDER CONTENT:\n   - Any template placeholders like [Methodology], [Reliability Level], etc?\n   - Generic examples instead of specific company methodology data?\n   - Boilerplate text that doesn't match the actual company's practices?\n\n3. FABRICATED INFORMATION:\n   - Any specific methodology details, quality standards, or reliability measures that seem invented?\n   - Claims about processes, certifications, or standards not in source?\n   - Technical methodology details that appear speculative?\n\n4. CONTENT VALIDITY:\n   - Does content directly relate to the company's actual methodology and reliability practices?\n   - Are conclusions about reliability supported by evidence in the source material?\n   - Any contradictory or illogical methodology statements?\n\nRESPOND WITH:\n- PASS: if content is valid, factual, and based on source material\n- FAIL: if any critical issues found\n\nIf FAIL, explain specific issues found and what needs correction.\nIf PASS, confirm the content meets quality standards.\n\nFORMAT: Start with either 'CHECKER_RESULT: PASS' or 'CHECKER_RESULT: FAIL' followed by explanation.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "9bcf0188-ad74-4c1c-aafb-9e35035468c2",
+      "name": "Section 2 Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5c5bdb8c-1f5b-4e7e-9b4e-2a3c8d9e0f2a",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "CHECKER_RESULT: PASS",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "80b2b2f5-604f-4283-aa11-287e9814f1cb",
+      "name": "Section 2 Checker Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        560,
+        2976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior business analyst performing final approval validation.\n\nREVIEW THE FOLLOWING SECTION 2 REPORT:\n\n{{ $json.generated_content }}\n\nTHIS CONTENT PASSED INITIAL CHECKER. NOW VALIDATE:\n\n1. COMPLETENESS CHECK:\n   - Does it cover Methodology & Reliability Levels comprehensively?\n   - Are all key methodological elements included?\n   - Is the reliability assessment clearly defined?\n\n2. PROMPT ADHERENCE:\n   - Does content match what was requested in the original prompt?\n   - Are all required subsections present (Data Collection, Analysis, Quality Control, etc.)?\n   - Is the methodology analysis depth appropriate for due diligence?\n\n3. BUSINESS RELEVANCE:\n   - Is the content relevant for investment decision-making?\n   - Does it provide actionable insights about company reliability?\n   - Are conclusions logical and well-supported?\n\n4. PROFESSIONAL STANDARDS:\n   - Is the language professional and appropriate?\n   - Is the structure logical and easy to follow?\n   - Does it meet due diligence report standards?\n\nCHECKER FEEDBACK WAS: {{ $json.checker_feedback }}\n\nRESPOND WITH:\n- APPROVE: if content meets all requirements and standards\n- REJECT: if significant issues need correction\n\nIf REJECT, specify what needs improvement.\nIf APPROVE, confirm readiness for final submission.\n\nFORMAT: Start with either 'APPROVER_RESULT: APPROVE' or 'APPROVER_RESULT: REJECT' followed by explanation.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "831ec6d4-327b-4911-8ee2-79c873ab2ba1",
+      "name": "Section 2 Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6d6eeb9d-2f6c-4f8f-ae5f-3b4d9e0f2b2c",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "APPROVER_RESULT: APPROVE",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0fd7a929-8a26-4017-9261-d125870dff08",
+      "name": "Section 2 Approver Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process feedback from checker or approver and prepare data to send back to Generate Section 2\nconst inputData = $input.first().json;\n\n// Determine source of feedback\nlet feedbackSource = 'Unknown';\nlet feedbackMessage = '';\n\nif (inputData.response && inputData.response.includes('CHECKER_RESULT: FAIL')) {\n  feedbackSource = 'Checker';\n  feedbackMessage = inputData.response;\n} else if (inputData.response && inputData.response.includes('APPROVER_RESULT: REJECT')) {\n  feedbackSource = 'Approver';\n  feedbackMessage = inputData.response;\n}\n\nconsole.log(`📝 Section 2 feedback from ${feedbackSource}: Content needs revision`);\nconsole.log(`Feedback details: ${feedbackMessage.substring(0, 300)}...`);\n\n// Prepare data to send back to Generate Section 2 with feedback\nreturn {\n  json: {\n    company_id: inputData.company_id,\n    company_name: inputData.company_name,\n    content: inputData.content,\n    section_type: 'methodology_reliability_levels',\n    feedback_from: feedbackSource.toLowerCase(),\n    quality_feedback: feedbackMessage,\n    retry_attempt: true,\n    revision_needed: true\n  }\n};"
+      },
+      "id": "d396aa41-98ef-416f-90b9-6e4681e9ddd3",
+      "name": "Process Section 2 Feedback",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        3152
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format approved Section 2 data for database save\nconst inputData = $input.first().json;\n\nconsole.log(`✅ Section 2 APPROVED - formatting for database save`);\nconsole.log(`Company: ${inputData.company_name || 'unknown'}`);\nconsole.log(`Content length: ${inputData.generated_content ? inputData.generated_content.length : 'missing'} characters`);\n\n// Extract the actual data - IF node passes through original data structure\nlet company_id = inputData.company_id;\nlet company_name = inputData.company_name;\nlet generated_content = inputData.generated_content;\n\n// If the data is nested, try to extract it\nif (!company_id && inputData.json) {\n  company_id = inputData.json.company_id;\n  company_name = inputData.json.company_name;\n  generated_content = inputData.json.generated_content;\n}\n\nconsole.log(`Extracted data:`);\nconsole.log(`- company_id: ${company_id}`);\nconsole.log(`- company_name: ${company_name}`);\nconsole.log(`- generated_content length: ${generated_content ? generated_content.length : 'missing'}`);\n\n// Ensure all required fields are present\nif (!company_id || !company_name || !generated_content) {\n  console.error(`❌ Missing required fields for Section 2 database save after extraction`);\n  console.error(`Available data:`, inputData);\n  \n  // Try to get from the previous node data that should be available\n  const nodeData = $node['Format Section 2 Output']?.json;\n  if (nodeData) {\n    console.log(`Attempting to use Format Section 2 Output data:`, nodeData);\n    company_id = nodeData.company_id || company_id;\n    company_name = nodeData.company_name || company_name;\n    generated_content = nodeData.generated_content || generated_content;\n  }\n}\n\n// Return properly formatted data for PostgreSQL\nreturn {\n  json: {\n    company_id: company_id,\n    company_name: company_name,\n    generated_content: generated_content,\n    section_complete: true,\n    approval_timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "91475209-eca1-44fc-81f4-f8fb9933c555",
+      "name": "Format Approved Section 2",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        560,
+        3168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "due_diligence_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "methodology_reliability_levels": "={{ $json.generated_content }}",
+            "status": "Section 2 Complete"
+          },
+          "matchingColumns": [
+            "company_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "21106d98-8f71-4ca0-92e3-89ebce9e3aae",
+      "name": "Save Section 2 Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1472,
+        3072
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Fetch all previously generated sections for context\nSELECT \n  company_id,\n  company_name,\n  introduction_engagement_context,\n  methodology_reliability_levels,\n  company_overview,\n  business_model_unit_economics,\n  products_technology,\n  target_market_competitive_set,\n  financials_multi_year,\n  cash_burn_runway,\n  revenue_quality_client_cohorts,\n  partnerships_ecosystem,\n  intellectual_property,\n  legal_regulatory,\n  governance_board_effectiveness,\n  capital_structure_dilution,\n  risk_matrix_mitigations,\n  gaps_uncertainties_disclaimers,\n  scenario_analysis,\n  strategic_options,\n  recommendations_next_steps,\n  source_map_integrity_log\nFROM due_diligence_reports \nWHERE company_id = '{{ $json.company_id }}' \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "c6ef3e0b-16db-42fe-8f37-a6c92e75780a",
+      "name": "Fetch Previous Sections for Section 3",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -240,
+        3200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine source content with previously generated sections for context\nconst inputData = $input.first().json;\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log('=== SECTION 3 CONTEXT PREPARATION ===');\nconsole.log(`Company: ${dbData.company_name}`);\nconsole.log(`Company ID: ${dbData.company_id}`);\n\n// Build context from previously generated sections\nlet previousContext = '';\nconst sections = [\n  { key: 'introduction_engagement_context', title: 'Section 1: Introduction & Engagement Context' },\n  { key: 'methodology_reliability_levels', title: 'Section 2: Methodology & Reliability Levels' }\n];\n\n// Add each completed section to context\nsections.forEach(section => {\n  if (inputData[section.key] && inputData[section.key].trim()) {\n    console.log(`✅ Adding ${section.title} to context`);\n    previousContext += `\\n\\n=== ${section.title.toUpperCase()} ===\\n${inputData[section.key]}\\n`;\n  } else {\n    console.log(`⏭️ Skipping ${section.title} (not yet generated)`);\n  }\n});\n\nif (previousContext.trim()) {\n  console.log(`📚 Previous context length: ${previousContext.length} characters`);\n} else {\n  console.log('📚 No previous sections found - this is among the first sections');\n  previousContext = '\\n\\n=== NO PREVIOUS SECTIONS ===\\nThis is among the first sections to be generated for this due diligence report.\\n';\n}\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    content: dbData.content,\n    previous_sections_context: previousContext,\n    section_type: 'company_overview',\n    retry_attempt: inputData.retry_attempt || false,\n    quality_feedback: inputData.quality_feedback || '',\n    feedback_from: inputData.feedback_from || ''\n  }\n};"
+      },
+      "id": "a4584c8e-2645-4d69-a1e9-f669010e3adc",
+      "name": "Prepare Section 3 Context",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior financial analyst creating a professional due diligence report. {{ $json.retry_attempt ? 'REVISION REQUIRED - Previous content failed quality control.' : 'Generate a comprehensive' }} \"Company Overview\" section for: {{ $json.company_name }}\n\nSOURCE DOCUMENT CONTENT:\n{{ $json.content }}\n\nPREVIOUSLY GENERATED SECTIONS FOR CONTEXT:\n{{ $json.previous_sections_context }}\n\n{{ $json.quality_feedback ? ('QUALITY CONTROL FEEDBACK FROM ' + $json.feedback_from.toUpperCase() + ': ' + $json.quality_feedback + ' RESOLVE ALL ISSUES MENTIONED ABOVE. ') : '' }}REQUIREMENTS:\n- Use ONLY factual information from the provided document\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Build upon and complement the previously generated sections - DO NOT REPEAT CONTENT\n- Ensure consistency with previous sections and maintain narrative flow\n- Focus on company profile, business model, and organizational structure\n- Include subsections: Company Background, Business Model, Products/Services, Market Position, Organizational Structure, Key Personnel\n- Reference specific company details, leadership information, or business metrics from the document\n- Avoid generic statements - be specific to this company's profile and operations\n- Do not use placeholder text or template variables\n- No fabricated information or hallucinations\n- Base analysis solely on document content provided\n- Cross-reference with previous sections to maintain coherence and avoid contradictions\n\n{{ $json.quality_feedback ? 'Address all feedback points above and generate improved content that resolves identified issues.' : 'Generate a detailed, professional company overview that builds upon the previous sections while focusing on new company-specific insights.' }}",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "c233f790-f67c-400d-baeb-ea9f58fec165",
+      "name": "Generate Section 3 Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -48,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst dbData = $node['Save Company Data'].json;\n\nconsole.log(`Report received (Section 3): ${report.substring(0, 100)}...`);\nconsole.log(`Company ID: ${dbData.company_id}`);\nconsole.log(`Company name: ${dbData.company_name}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Section 3 report generation failed');\n  return {\n    json: {\n      company_id: dbData.company_id,\n      company_name: dbData.company_name,\n      generated_content: 'Company Overview report generation failed',\n      content: dbData.content\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, dbData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Section 3 report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`Cleaned Section 3 report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`Passing company ID: ${dbData.company_id}`);\n\nreturn {\n  json: {\n    company_id: dbData.company_id,\n    company_name: dbData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    section_type: 'company_overview'\n  }\n};"
+      },
+      "id": "9bb82ff2-1db1-4230-a3d2-3b4460216c8c",
+      "name": "Format Section 3 Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        160,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior quality assurance analyst performing content validation.\n\nANALYZE THE FOLLOWING SECTION 3 REPORT CONTENT FOR QUALITY ISSUES:\n\n{{ $json.generated_content }}\n\nCHECK FOR THESE CRITICAL ISSUES:\n\n1. HALLUCINATION DETECTION:\n   - Are there any made-up company details, leadership info, or data not present in source?\n   - Any fictional business models, products, or organizational structures mentioned?\n   - Unrealistic or invented company metrics, market positions, or personnel details?\n\n2. SIMULATION/PLACEHOLDER CONTENT:\n   - Any template placeholders like [Company Name], [CEO], [Product], etc?\n   - Generic examples instead of specific company overview data?\n   - Boilerplate text that doesn't match the actual company profile?\n\n3. FABRICATED INFORMATION:\n   - Any specific company details, leadership names, or business information that seem invented?\n   - Claims about products, services, or market position not in source?\n   - Organizational details or personnel information that appear speculative?\n\n4. CONTENT VALIDITY:\n   - Does content directly relate to the company's actual profile and operations?\n   - Are conclusions about the company supported by evidence in the source material?\n   - Any contradictory or illogical company overview statements?\n\nRESPOND WITH:\n- PASS: if content is valid, factual, and based on source material\n- FAIL: if any critical issues found\n\nIf FAIL, explain specific issues found and what needs correction.\nIf PASS, confirm the content meets quality standards.\n\nFORMAT: Start with either 'CHECKER_RESULT: PASS' or 'CHECKER_RESULT: FAIL' followed by explanation.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "89ab624d-90e3-48c1-a1f4-e72aa1da15d0",
+      "name": "Section 3 Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5c5bdb8c-1f5b-4e7e-9b4e-2a3c8d9e0f3a",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "CHECKER_RESULT: PASS",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "99b22f60-38ce-4292-9b59-4e9a8e99296d",
+      "name": "Section 3 Checker Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        576,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a senior business analyst performing final approval validation.\n\nREVIEW THE FOLLOWING SECTION 3 REPORT:\n\n{{ $json.generated_content }}\n\nTHIS CONTENT PASSED INITIAL CHECKER. NOW VALIDATE:\n\n1. COMPLETENESS CHECK:\n   - Does it cover Company Overview comprehensively?\n   - Are all key company profile elements included?\n   - Is the organizational structure clearly defined?\n\n2. PROMPT ADHERENCE:\n   - Does content match what was requested in the original prompt?\n   - Are all required subsections present (Background, Business Model, Products, etc.)?\n   - Is the company analysis depth appropriate for due diligence?\n\n3. BUSINESS RELEVANCE:\n   - Is the content relevant for investment decision-making?\n   - Does it provide actionable insights about the company?\n   - Are conclusions logical and well-supported?\n\n4. PROFESSIONAL STANDARDS:\n   - Is the language professional and appropriate?\n   - Is the structure logical and easy to follow?\n   - Does it meet due diligence report standards?\n\nCHECKER FEEDBACK WAS: {{ $json.checker_feedback }}\n\nRESPOND WITH:\n- APPROVE: if content meets all requirements and standards\n- REJECT: if significant issues need correction\n\nIf REJECT, specify what needs improvement.\nIf APPROVE, confirm readiness for final submission.\n\nFORMAT: Start with either 'APPROVER_RESULT: APPROVE' or 'APPROVER_RESULT: REJECT' followed by explanation.",
+          "stream": false
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "6e89ddd4-90c6-4e17-9d9a-16055befef93",
+      "name": "Section 3 Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6d6eeb9d-2f6c-4f8f-ae5f-3b4d9e0f2b3c",
+              "leftValue": "={{ $json.response }}",
+              "rightValue": "APPROVER_RESULT: APPROVE",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "264025d8-78d4-4c56-a958-4a59fb26e702",
+      "name": "Section 3 Approver Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process feedback from checker or approver and prepare data to send back to Generate Section 3\nconst inputData = $input.first().json;\n\n// Determine source of feedback\nlet feedbackSource = 'Unknown';\nlet feedbackMessage = '';\n\nif (inputData.response && inputData.response.includes('CHECKER_RESULT: FAIL')) {\n  feedbackSource = 'Checker';\n  feedbackMessage = inputData.response;\n} else if (inputData.response && inputData.response.includes('APPROVER_RESULT: REJECT')) {\n  feedbackSource = 'Approver';\n  feedbackMessage = inputData.response;\n}\n\nconsole.log(`📝 Section 3 feedback from ${feedbackSource}: Content needs revision`);\nconsole.log(`Feedback details: ${feedbackMessage.substring(0, 300)}...`);\n\n// Prepare data to send back to Generate Section 3 with feedback\nreturn {\n  json: {\n    company_id: inputData.company_id,\n    company_name: inputData.company_name,\n    content: inputData.content,\n    section_type: 'company_overview',\n    feedback_from: feedbackSource.toLowerCase(),\n    quality_feedback: feedbackMessage,\n    retry_attempt: true,\n    revision_needed: true\n  }\n};"
+      },
+      "id": "7237d380-351b-418c-8482-c7f5a062ed03",
+      "name": "Process Section 3 Feedback",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        3216
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format approved Section 3 data for database save\nconst inputData = $input.first().json;\n\nconsole.log(`✅ Section 3 APPROVED - formatting for database save`);\nconsole.log(`Company: ${inputData.company_name || 'unknown'}`);\nconsole.log(`Content length: ${inputData.generated_content ? inputData.generated_content.length : 'missing'} characters`);\n\n// Extract the actual data - IF node passes through original data structure\nlet company_id = inputData.company_id;\nlet company_name = inputData.company_name;\nlet generated_content = inputData.generated_content;\n\n// If the data is nested, try to extract it\nif (!company_id && inputData.json) {\n  company_id = inputData.json.company_id;\n  company_name = inputData.json.company_name;\n  generated_content = inputData.json.generated_content;\n}\n\nconsole.log(`Extracted data:`);\nconsole.log(`- company_id: ${company_id}`);\nconsole.log(`- company_name: ${company_name}`);\nconsole.log(`- generated_content length: ${generated_content ? generated_content.length : 'missing'}`);\n\n// Ensure all required fields are present\nif (!company_id || !company_name || !generated_content) {\n  console.error(`❌ Missing required fields for Section 3 database save after extraction`);\n  console.error(`Available data:`, inputData);\n  \n  // Try to get from the previous node data that should be available\n  const nodeData = $node['Format Section 3 Output']?.json;\n  if (nodeData) {\n    console.log(`Attempting to use Format Section 3 Output data:`, nodeData);\n    company_id = nodeData.company_id || company_id;\n    company_name = nodeData.company_name || company_name;\n    generated_content = nodeData.generated_content || generated_content;\n  }\n}\n\n// Return properly formatted data for PostgreSQL\nreturn {\n  json: {\n    company_id: company_id,\n    company_name: company_name,\n    generated_content: generated_content,\n    section_complete: true,\n    approval_timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "4e643e06-99aa-4767-8386-fe66c78b0bc5",
+      "name": "Format Approved Section 3",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        704,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "due_diligence_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "company_overview": "={{ $json.generated_content }}",
+            "status": "Section 3 Complete"
+          },
+          "matchingColumns": [
+            "company_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "92e8a312-3e01-43ee-8db5-7657fb9c5357",
+      "name": "Save Section 3 Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1872,
+        3312
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  company_id,\n  company_name,\n  introduction_engagement_context,\n  methodology_reliability_levels,\n  company_overview,\n  business_model_unit_economics,\n  products_technology,\n  target_market_competitive_set,\n  financials_multi_year,\n  cash_burn_runway,\n  revenue_quality_client_cohorts,\n  partnerships_ecosystem,\n  intellectual_property,\n  legal_regulatory,\n  governance_board_effectiveness,\n  capital_structure_dilution,\n  risk_matrix_mitigations,\n  gaps_uncertainties_disclaimers,\n  scenario_analysis,\n  strategic_options,\n  recommendations_next_steps,\n  source_map_integrity_log,\n  status,\n  created_at\nFROM due_diligence_reports \nWHERE company_id = (SELECT company_id FROM due_diligence_reports ORDER BY created_at DESC LIMIT 1)\nORDER BY created_at DESC \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "bf0502db-ed0d-4317-8468-6d8cfbf80d7d",
+      "name": "Retrieve Complete Report Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2544,
+        3168
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const reportData = $input.first().json;\n\nif (!reportData) {\n  throw new Error('No report data found');\n}\n\n// Build comprehensive HTML report\nconst companyName = reportData.company_name || 'Unknown Company';\nconst reportDate = new Date().toLocaleDateString('en-US', { \n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\nconst comprehensiveReport = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Due Diligence Report - ${companyName}</title>\n    <style>\n        /* Modern Black & Yellow Corporate Styling with Animations */\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        html {\n            scroll-behavior: smooth;\n        }\n        \n        body {\n            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;\n            line-height: 1.7;\n            color: #ffd700;\n            background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%);\n            font-size: 16px;\n            overflow-x: hidden;\n            position: relative;\n        }\n        \n        /* Animated Background Pattern */\n        body::before {\n            content: '';\n            position: fixed;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 100%;\n            background: \n                radial-gradient(circle at 20% 80%, rgba(255, 215, 0, 0.05) 0%, transparent 50%),\n                radial-gradient(circle at 80% 20%, rgba(255, 215, 0, 0.05) 0%, transparent 50%),\n                radial-gradient(circle at 40% 40%, rgba(255, 215, 0, 0.03) 0%, transparent 50%);\n            animation: backgroundPulse 10s ease-in-out infinite;\n            pointer-events: none;\n            z-index: -1;\n        }\n        \n        @keyframes backgroundPulse {\n            0%, 100% { opacity: 0.3; }\n            50% { opacity: 0.6; }\n        }\n        \n        @keyframes fadeInUp {\n            from {\n                opacity: 0;\n                transform: translateY(30px);\n            }\n            to {\n                opacity: 1;\n                transform: translateY(0);\n            }\n        }\n        \n        @keyframes slideInLeft {\n            from {\n                opacity: 0;\n                transform: translateX(-50px);\n            }\n            to {\n                opacity: 1;\n                transform: translateX(0);\n            }\n        }\n        \n        @keyframes glow {\n            0%, 100% {\n                box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);\n            }\n            50% {\n                box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);\n            }\n        }\n        \n        @keyframes shimmer {\n            0% {\n                background-position: -1000px 0;\n            }\n            100% {\n                background-position: 1000px 0;\n            }\n        }\n        \n        .container {\n            max-width: 1400px;\n            margin: 0 auto;\n            padding: 0 30px;\n        }\n        \n        /* Stunning Header Design */\n        header {\n            background: linear-gradient(135deg, #000000 0%, #1a1a1a 25%, #ffd700 100%);\n            color: #ffd700;\n            text-align: center;\n            padding: 100px 30px;\n            margin-bottom: 0;\n            position: relative;\n            overflow: hidden;\n            border-bottom: 5px solid #ffd700;\n            animation: fadeInUp 1s ease-out;\n        }\n        \n        header::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            animation: shimmer 3s infinite;\n        }\n        \n        header::after {\n            content: '';\n            position: absolute;\n            bottom: 0;\n            left: 0;\n            width: 100%;\n            height: 2px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 2s infinite;\n        }\n        \n        .logo {\n            width: 150px;\n            height: 50px;\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%);\n            margin: 0 auto 40px;\n            border-radius: 12px;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            font-weight: 900;\n            color: #000000;\n            font-size: 16px;\n            box-shadow: \n                0 8px 25px rgba(255, 215, 0, 0.4),\n                inset 0 2px 5px rgba(255, 255, 255, 0.2);\n            animation: glow 3s ease-in-out infinite;\n            position: relative;\n            z-index: 2;\n        }\n        \n        h1 {\n            font-size: 4.2em;\n            font-weight: 900;\n            margin-bottom: 25px;\n            text-shadow: \n                0 4px 8px rgba(0, 0, 0, 0.8),\n                0 0 30px rgba(255, 215, 0, 0.5);\n            position: relative;\n            z-index: 2;\n            background: linear-gradient(135deg, #ffd700, #ffb000);\n            -webkit-background-clip: text;\n            -webkit-text-fill-color: transparent;\n            background-clip: text;\n        }\n        \n        .subtitle {\n            font-size: 1.6em;\n            margin-bottom: 25px;\n            font-weight: 400;\n            color: #ffd700;\n            position: relative;\n            z-index: 2;\n            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);\n        }\n        \n        .report-meta {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n            gap: 30px;\n            margin-top: 60px;\n            padding-top: 40px;\n            border-top: 2px solid rgba(255, 215, 0, 0.3);\n            position: relative;\n            z-index: 2;\n        }\n        \n        .report-meta div {\n            background: rgba(255, 215, 0, 0.1);\n            padding: 20px;\n            border-radius: 10px;\n            border: 1px solid rgba(255, 215, 0, 0.3);\n            transition: all 0.3s ease;\n        }\n        \n        .report-meta div:hover {\n            background: rgba(255, 215, 0, 0.2);\n            transform: translateY(-5px);\n            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.2);\n        }\n        \n        /* Beautiful Table of Contents */\n        nav {\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            padding: 80px 50px;\n            border: 3px solid #ffd700;\n            border-radius: 20px;\n            margin: 60px 0;\n            box-shadow: \n                0 20px 40px rgba(0, 0, 0, 0.5),\n                0 0 50px rgba(255, 215, 0, 0.2);\n            position: relative;\n            overflow: hidden;\n            animation: slideInLeft 1s ease-out 0.5s both;\n        }\n        \n        nav::before {\n            content: '';\n            position: absolute;\n            top: -50%;\n            left: -50%;\n            width: 200%;\n            height: 200%;\n            background: conic-gradient(from 0deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            animation: spin 20s linear infinite;\n            z-index: 0;\n        }\n        \n        @keyframes spin {\n            100% { transform: rotate(360deg); }\n        }\n        \n        nav h2 {\n            color: #ffd700;\n            font-size: 2.8em;\n            text-align: center;\n            margin-bottom: 50px;\n            text-transform: uppercase;\n            letter-spacing: 3px;\n            font-weight: 900;\n            text-shadow: \n                0 4px 8px rgba(0, 0, 0, 0.8),\n                0 0 20px rgba(255, 215, 0, 0.6);\n            position: relative;\n            z-index: 2;\n        }\n        \n        .toc-list {\n            list-style: none;\n            max-width: 900px;\n            margin: 0 auto;\n            position: relative;\n            z-index: 2;\n        }\n        \n        .toc-item {\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n            padding: 18px 25px;\n            margin: 8px 0;\n            border: 1px solid rgba(255, 215, 0, 0.3);\n            border-radius: 12px;\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, rgba(0, 0, 0, 0.2) 100%);\n            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);\n            position: relative;\n            overflow: hidden;\n        }\n        \n        .toc-item::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            transition: left 0.5s ease;\n        }\n        \n        .toc-item:hover {\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%);\n            transform: translateX(10px) scale(1.02);\n            border-color: #ffd700;\n            box-shadow: \n                0 10px 25px rgba(255, 215, 0, 0.2),\n                inset 0 1px 0 rgba(255, 215, 0, 0.3);\n        }\n        \n        .toc-item:hover::before {\n            left: 100%;\n        }\n        \n        .toc-item a {\n            text-decoration: none;\n            color: #ffd700;\n            font-weight: 600;\n            flex-grow: 1;\n            padding-right: 20px;\n            transition: all 0.3s ease;\n            position: relative;\n            z-index: 1;\n        }\n        \n        .toc-item a:hover {\n            color: #ffb000;\n            text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);\n        }\n        \n        .page-number {\n            color: #000000;\n            font-weight: 700;\n            background: linear-gradient(135deg, #ffd700, #ffb000);\n            padding: 8px 15px;\n            border-radius: 20px;\n            font-size: 0.9em;\n            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);\n            position: relative;\n            z-index: 1;\n        }\n        \n        /* Enhanced Content Sections */\n        main {\n            padding: 60px 0;\n        }\n        \n        section {\n            margin-bottom: 100px;\n            padding: 50px;\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            border-radius: 20px;\n            box-shadow: \n                0 25px 50px rgba(0, 0, 0, 0.3),\n                0 0 50px rgba(255, 215, 0, 0.1);\n            border: 2px solid rgba(255, 215, 0, 0.5);\n            position: relative;\n            overflow: hidden;\n            animation: fadeInUp 0.8s ease-out;\n        }\n        \n        section::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: 0;\n            right: 0;\n            height: 4px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 3s infinite;\n        }\n        \n        section:hover {\n            transform: translateY(-5px);\n            box-shadow: \n                0 35px 60px rgba(0, 0, 0, 0.4),\n                0 0 80px rgba(255, 215, 0, 0.2);\n        }\n        \n        h2 {\n            color: #ffd700;\n            font-size: 2.6em;\n            margin-bottom: 35px;\n            padding-bottom: 20px;\n            border-bottom: 3px solid #ffd700;\n            font-weight: 800;\n            text-shadow: \n                0 3px 6px rgba(0, 0, 0, 0.8),\n                0 0 20px rgba(255, 215, 0, 0.4);\n            position: relative;\n        }\n        \n        h2::after {\n            content: '';\n            position: absolute;\n            bottom: -3px;\n            left: 0;\n            width: 100px;\n            height: 3px;\n            background: linear-gradient(90deg, #ffb000, #ffd700);\n            border-radius: 2px;\n        }\n        \n        h3 {\n            color: #ffd700;\n            font-size: 1.8em;\n            margin: 35px 0 25px 0;\n            font-weight: 700;\n            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);\n        }\n        \n        p {\n            margin-bottom: 25px;\n            line-height: 1.8;\n            text-align: justify;\n            color: #ffd700;\n            font-size: 1.1em;\n        }\n        \n        ul, ol {\n            margin: 25px 0;\n            padding-left: 40px;\n            color: #ffd700;\n        }\n        \n        li {\n            margin-bottom: 12px;\n            line-height: 1.7;\n        }\n        \n        /* Stunning Highlight Boxes */\n        .highlight {\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.08) 100%);\n            border: 2px solid rgba(255, 215, 0, 0.4);\n            border-left: 6px solid #ffd700;\n            padding: 30px;\n            margin: 40px 0;\n            border-radius: 15px;\n            box-shadow: \n                0 10px 25px rgba(255, 215, 0, 0.1),\n                inset 0 1px 0 rgba(255, 215, 0, 0.2);\n            color: #ffd700;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        .highlight::before {\n            content: '💡';\n            position: absolute;\n            top: 15px;\n            right: 20px;\n            font-size: 1.5em;\n            opacity: 0.3;\n        }\n        \n        /* Premium Table Design */\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 40px 0;\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            border-radius: 15px;\n            overflow: hidden;\n            box-shadow: \n                0 15px 35px rgba(0, 0, 0, 0.3),\n                0 0 30px rgba(255, 215, 0, 0.1);\n            border: 2px solid rgba(255, 215, 0, 0.3);\n        }\n        \n        th {\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%);\n            color: #000000;\n            padding: 20px;\n            text-align: left;\n            font-weight: 700;\n            font-size: 1.1em;\n            position: relative;\n        }\n        \n        th::after {\n            content: '';\n            position: absolute;\n            bottom: 0;\n            left: 0;\n            width: 100%;\n            height: 2px;\n            background: linear-gradient(90deg, #ffb000, #ffd700);\n        }\n        \n        td {\n            padding: 18px 20px;\n            border-bottom: 1px solid rgba(255, 215, 0, 0.2);\n            color: #ffd700;\n            transition: all 0.3s ease;\n        }\n        \n        tr:nth-child(even) {\n            background: rgba(255, 215, 0, 0.03);\n        }\n        \n        tr:hover {\n            background: rgba(255, 215, 0, 0.08);\n            transform: scale(1.01);\n        }\n        \n        /* Elegant Section Dividers */\n        hr {\n            border: none;\n            height: 4px;\n            background: linear-gradient(90deg, \n                transparent 0%, \n                #ffd700 25%, \n                #ffb000 50%, \n                #ffd700 75%, \n                transparent 100%);\n            margin: 80px 0;\n            border-radius: 2px;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        hr::after {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);\n            animation: shimmer 2s infinite;\n        }\n        \n        /* Stunning Footer */\n        footer {\n            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);\n            color: #ffd700;\n            padding: 60px 0;\n            text-align: center;\n            margin-top: 80px;\n            border-top: 4px solid #ffd700;\n            position: relative;\n        }\n        \n        footer::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 4px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 3s infinite;\n        }\n        \n        .footer-content {\n            max-width: 900px;\n            margin: 0 auto;\n            line-height: 1.9;\n        }\n        \n        .footer-content h3 {\n            font-size: 2.2em;\n            margin-bottom: 20px;\n            color: #ffd700;\n            text-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);\n        }\n        \n        .disclaimer {\n            font-size: 0.95em;\n            opacity: 0.9;\n            margin-top: 30px;\n            font-style: italic;\n            padding: 25px;\n            background: rgba(255, 215, 0, 0.05);\n            border-radius: 10px;\n            border: 1px solid rgba(255, 215, 0, 0.2);\n        }\n        \n        /* Enhanced Button Styling */\n        .return-button {\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%) !important;\n            color: #000000 !important;\n            text-decoration: none !important;\n            padding: 15px 30px !important;\n            border-radius: 25px !important;\n            font-weight: 700 !important;\n            display: inline-block !important;\n            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;\n            box-shadow: \n                0 8px 20px rgba(255, 215, 0, 0.3),\n                inset 0 2px 5px rgba(255, 255, 255, 0.2) !important;\n            text-transform: uppercase !important;\n            letter-spacing: 1px !important;\n            position: relative !important;\n            overflow: hidden !important;\n        }\n        \n        .return-button::before {\n            content: '' !important;\n            position: absolute !important;\n            top: 0 !important;\n            left: -100% !important;\n            width: 100% !important;\n            height: 100% !important;\n            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;\n            transition: left 0.5s ease !important;\n        }\n        \n        .return-button:hover {\n            transform: translateY(-3px) scale(1.05) !important;\n            box-shadow: \n                0 15px 30px rgba(255, 215, 0, 0.4),\n                inset 0 2px 5px rgba(255, 255, 255, 0.3) !important;\n        }\n        \n        .return-button:hover::before {\n            left: 100% !important;\n        }\n        \n        /* Print Optimization */\n        @media print {\n            body {\n                background: white !important;\n                color: black !important;\n            }\n            \n            header, nav, section {\n                background: white !important;\n                color: black !important;\n                box-shadow: none !important;\n                border: 1px solid #333 !important;\n            }\n            \n            h1, h2, h3, p, .toc-item a {\n                color: black !important;\n                text-shadow: none !important;\n            }\n            \n            .return-button {\n                display: none !important;\n            }\n        }\n        \n        /* Mobile Responsive Design */\n        @media (max-width: 768px) {\n            .container {\n                padding: 0 20px;\n            }\n            \n            h1 {\n                font-size: 2.8em;\n            }\n            \n            .report-meta {\n                grid-template-columns: 1fr;\n                gap: 20px;\n            }\n            \n            section {\n                padding: 30px 25px;\n                margin-bottom: 60px;\n            }\n            \n            nav {\n                padding: 50px 25px;\n                margin: 40px 0;\n            }\n            \n            .toc-item {\n                padding: 15px 20px;\n            }\n            \n            h2 {\n                font-size: 2.2em;\n            }\n        }\n    </style>\n</head>\n<body>\n    <!-- Cover Page -->\n    <header>\n        <div class=\"logo\">ACTION LABS</div>\n        <h1>Due Diligence Report</h1>\n        <div class=\"subtitle\">Commercial Risk Assessment & Strategic Analysis</div>\n        <div class=\"subtitle\"><strong>${companyName}</strong></div>\n        <div class=\"report-meta\">\n            <div>\n                <strong>Report Date:</strong><br>\n                ${reportDate}\n            </div>\n            <div>\n                <strong>Analysis Status:</strong><br>\n                ${reportData.status || 'Complete'}\n            </div>\n            <div>\n                <strong>Analyst:</strong><br>\n                Action Labs Team\n            </div>\n        </div>\n    </header>\n\n    <div class=\"container\">\n        <!-- Table of Contents -->\n        <nav id=\"toc\">\n            <h2>Table of Contents</h2>\n            <ul class=\"toc-list\">\n                <li class=\"toc-item\"><a href=\"#section-1\">1. Introduction & Engagement Context</a><span class=\"page-number\">3</span></li>\n                <li class=\"toc-item\"><a href=\"#section-2\">2. Methodology & Reliability Levels</a><span class=\"page-number\">5</span></li>\n                <li class=\"toc-item\"><a href=\"#section-3\">3. Company Overview</a><span class=\"page-number\">7</span></li>\n                <li class=\"toc-item\"><a href=\"#section-4\">4. Business Model & Unit Economics</a><span class=\"page-number\">9</span></li>\n                <li class=\"toc-item\"><a href=\"#section-5\">5. Products & Technology</a><span class=\"page-number\">11</span></li>\n                <li class=\"toc-item\"><a href=\"#section-6\">6. Target Market & Competitive Set</a><span class=\"page-number\">13</span></li>\n                <li class=\"toc-item\"><a href=\"#section-7\">7. Financials & Multi-Year Analysis</a><span class=\"page-number\">15</span></li>\n                <li class=\"toc-item\"><a href=\"#section-8\">8. Cash Burn & Runway</a><span class=\"page-number\">17</span></li>\n                <li class=\"toc-item\"><a href=\"#section-9\">9. Revenue Quality & Client Cohorts</a><span class=\"page-number\">19</span></li>\n                <li class=\"toc-item\"><a href=\"#section-10\">10. Partnerships & Ecosystem</a><span class=\"page-number\">21</span></li>\n                <li class=\"toc-item\"><a href=\"#section-11\">11. Intellectual Property</a><span class=\"page-number\">23</span></li>\n                <li class=\"toc-item\"><a href=\"#section-12\">12. Legal & Regulatory</a><span class=\"page-number\">25</span></li>\n                <li class=\"toc-item\"><a href=\"#section-13\">13. Governance & Board Effectiveness</a><span class=\"page-number\">27</span></li>\n                <li class=\"toc-item\"><a href=\"#section-14\">14. Capital Structure & Dilution</a><span class=\"page-number\">29</span></li>\n                <li class=\"toc-item\"><a href=\"#section-15\">15. Risk Matrix & Mitigations</a><span class=\"page-number\">31</span></li>\n                <li class=\"toc-item\"><a href=\"#section-16\">16. Gaps, Uncertainties & Disclaimers</a><span class=\"page-number\">33</span></li>\n                <li class=\"toc-item\"><a href=\"#section-17\">17. Scenario Analysis</a><span class=\"page-number\">35</span></li>\n                <li class=\"toc-item\"><a href=\"#section-18\">18. Strategic Options</a><span class=\"page-number\">37</span></li>\n                <li class=\"toc-item\"><a href=\"#section-19\">19. Recommendations & Next Steps</a><span class=\"page-number\">39</span></li>\n                <li class=\"toc-item\"><a href=\"#section-20\">20. Source Map & Integrity Log</a><span class=\"page-number\">41</span></li>\n            </ul>\n        </nav>\n\n        <!-- Report Body -->\n        <main>\n            <section id=\"section-1\">\n                <h2>1. Introduction & Engagement Context</h2>\n                ${reportData.introduction_engagement_context ? reportData.introduction_engagement_context.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-2\">\n                <h2>2. Methodology & Reliability Levels</h2>\n                ${reportData.methodology_reliability_levels ? reportData.methodology_reliability_levels.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-3\">\n                <h2>3. Company Overview</h2>\n                ${reportData.company_overview ? reportData.company_overview.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-4\">\n                <h2>4. Business Model & Unit Economics</h2>\n                ${reportData.business_model_unit_economics ? reportData.business_model_unit_economics.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-5\">\n                <h2>5. Products & Technology</h2>\n                ${reportData.products_technology ? reportData.products_technology.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-6\">\n                <h2>6. Target Market & Competitive Set</h2>\n                ${reportData.target_market_competitive_set ? reportData.target_market_competitive_set.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-7\">\n                <h2>7. Financials & Multi-Year Analysis</h2>\n                ${reportData.financials_multi_year ? reportData.financials_multi_year.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-8\">\n                <h2>8. Cash Burn & Runway</h2>\n                ${reportData.cash_burn_runway ? reportData.cash_burn_runway.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-9\">\n                <h2>9. Revenue Quality & Client Cohorts</h2>\n                ${reportData.revenue_quality_client_cohorts ? reportData.revenue_quality_client_cohorts.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-10\">\n                <h2>10. Partnerships & Ecosystem</h2>\n                ${reportData.partnerships_ecosystem ? reportData.partnerships_ecosystem.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-11\">\n                <h2>11. Intellectual Property</h2>\n                ${reportData.intellectual_property ? reportData.intellectual_property.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-12\">\n                <h2>12. Legal & Regulatory</h2>\n                ${reportData.legal_regulatory ? reportData.legal_regulatory.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-13\">\n                <h2>13. Governance & Board Effectiveness</h2>\n                ${reportData.governance_board_effectiveness ? reportData.governance_board_effectiveness.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-14\">\n                <h2>14. Capital Structure & Dilution</h2>\n                ${reportData.capital_structure_dilution ? reportData.capital_structure_dilution.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-15\">\n                <h2>15. Risk Matrix & Mitigations</h2>\n                ${reportData.risk_matrix_mitigations ? reportData.risk_matrix_mitigations.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-16\">\n                <h2>16. Gaps, Uncertainties & Disclaimers</h2>\n                ${reportData.gaps_uncertainties_disclaimers ? reportData.gaps_uncertainties_disclaimers.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-17\">\n                <h2>17. Scenario Analysis</h2>\n                ${reportData.scenario_analysis ? reportData.scenario_analysis.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-18\">\n                <h2>18. Strategic Options</h2>\n                ${reportData.strategic_options ? reportData.strategic_options.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-19\">\n                <h2>19. Recommendations & Next Steps</h2>\n                ${reportData.recommendations_next_steps ? reportData.recommendations_next_steps.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-20\">\n                <h2>20. Source Map & Integrity Log</h2>\n                ${reportData.source_map_integrity_log ? reportData.source_map_integrity_log.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n        </main>\n    </div>\n\n    <!-- Footer -->\n    <footer>\n        <div class=\"footer-content\">\n            <h3>Action Labs Consultancy</h3>\n            <p><strong>Report Completion Summary</strong></p>\n            <p>Analysis Generated: ${reportDate} | Company ID: ${reportData.company_id}</p>\n            <p>Final Status: ${reportData.status} | Database Entry: ${reportData.created_at ? new Date(reportData.created_at).toLocaleString() : 'N/A'}</p>\n            \n            <div class=\"disclaimer\">\n                <p><strong>Confidentiality Notice:</strong> This report is confidential and intended only for the client named herein. \n                Distribution or disclosure to any other party is strictly prohibited without written consent from Action Labs.</p>\n                <p>This comprehensive due diligence report was generated using automated analysis tools and should be reviewed by qualified professionals before making investment or business decisions.</p>\n            </div>\n        </div>\n    </footer>\n</body>\n</html>\n`;\n\nconst fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Due_Diligence_Report_${new Date().toISOString().split('T')[0]}.html`;\n\nconsole.log(`Generated comprehensive HTML report for ${companyName}`);\nconsole.log(`Report length: ${comprehensiveReport.length} characters`);\nconsole.log(`File name: ${fileName}`);\n\n// Convert text to binary data for Google Drive upload\nconst binaryData = Buffer.from(comprehensiveReport, 'utf8');\n\nreturn {\n  json: {\n    company_name: companyName,\n    company_id: reportData.company_id,\n    report_date: reportDate,\n    file_name: fileName\n  },\n  binary: {\n    data: {\n      data: binaryData.toString('base64'),\n      mimeType: 'text/html',\n      fileName: fileName,\n      fileExtension: 'html'\n    }\n  }\n};"
+      },
+      "id": "deaee05d-3476-4d12-9468-da3b17157915",
+      "name": "Generate Comprehensive Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        3168
+      ]
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "719532a4-53d8-47b4-ac15-fe33ad73a019",
+      "name": "Upload Report to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2832,
+        3168
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate Consolidated Report from all completed sections\nconst inputData = $input.first().json;\n\nconsole.log('=== CONSOLIDATED REPORT GENERATION ===');\nconsole.log(`Triggered by: ${inputData.company_name || 'unknown company'}`);\nconsole.log(`Company ID: ${inputData.company_id}`);\n\n// Get company information\nconst company_id = inputData.company_id;\nconst company_name = inputData.company_name;\n\nif (!company_id || !company_name) {\n  console.error('❌ Missing company information for consolidated report');\n  return {\n    json: {\n      error: 'Missing company information',\n      company_id: company_id,\n      company_name: company_name\n    }\n  };\n}\n\n// Retrieve all sections from database to generate consolidated report\n// This will be populated by the query in the next node\nconsole.log('📄 Preparing to fetch all sections for consolidated report generation');\n\nreturn {\n  json: {\n    company_id: company_id,\n    company_name: company_name,\n    action: 'generate_consolidated_report',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "e0a92ad1-ac71-4920-936a-8d4107036dc7",
+      "name": "Prepare Consolidated Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2752,
+        3168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Fetch all completed sections for consolidated report generation\nSELECT \n  company_id,\n  company_name,\n  introduction_engagement_context,\n  methodology_reliability_levels,\n  company_overview,\n  business_model_unit_economics,\n  products_technology,\n  target_market_competitive_set,\n  financials_multi_year,\n  cash_burn_runway,\n  revenue_quality_client_cohorts,\n  partnerships_ecosystem,\n  intellectual_property,\n  legal_regulatory,\n  governance_board_effectiveness,\n  capital_structure_dilution,\n  risk_matrix_mitigations,\n  gaps_uncertainties_disclaimers,\n  scenario_analysis,\n  strategic_options,\n  recommendations_next_steps,\n  source_map_integrity_log,\n  created_at\nFROM due_diligence_reports \nWHERE company_id = '{{ $json.company_id }}' \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "c77f148c-d2d7-4821-a9b9-aeb0a2cef56e",
+      "name": "Fetch All Sections",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2960,
+        3168
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build the complete consolidated report from all sections\nconst dbResult = $input.first().json;\n\nconsole.log('=== BUILDING CONSOLIDATED REPORT ===');\nconsole.log(`Company: ${dbResult.company_name || 'unknown'}`);\nconsole.log(`Retrieved sections for: ${dbResult.company_id}`);\n\nif (!dbResult.company_id) {\n  console.error('❌ No data retrieved from database');\n  return {\n    json: {\n      error: 'No sections found for consolidation',\n      company_id: dbResult.company_id\n    }\n  };\n}\n\n// Define the section mapping and order based on the workflow structure\nconst sections = [\n  { key: 'introduction_engagement_context', title: '1. Introduction & Engagement Context', description: 'Overview of the due diligence engagement and contextual framework' },\n  { key: 'methodology_reliability_levels', title: '2. Methodology & Reliability Levels', description: 'Due diligence methodology and source validation procedures' },\n  { key: 'company_overview', title: '3. Company Overview', description: 'Comprehensive overview of the target company' },\n  { key: 'business_model_unit_economics', title: '4. Business Model & Unit Economics', description: 'Analysis of business model and unit economics' },\n  { key: 'products_technology', title: '5. Products & Technology', description: 'Product portfolio and technology assessment' },\n  { key: 'target_market_competitive_set', title: '6. Target Market & Competitive Set', description: 'Market analysis and competitive landscape' },\n  { key: 'financials_multi_year', title: '7. Multi-Year Financials', description: 'Financial performance analysis and projections' },\n  { key: 'cash_burn_runway', title: '8. Cash Burn & Runway Analysis', description: 'Cash flow analysis and runway assessment' },\n  { key: 'revenue_quality_client_cohorts', title: '9. Revenue Quality & Client Cohorts', description: 'Revenue quality assessment and client analysis' },\n  { key: 'partnerships_ecosystem', title: '10. Partnerships & Ecosystem', description: 'Strategic partnerships and ecosystem analysis' },\n  { key: 'intellectual_property', title: '11. Intellectual Property', description: 'IP portfolio analysis and assessment' },\n  { key: 'legal_regulatory', title: '12. Legal & Regulatory', description: 'Legal framework and regulatory compliance' },\n  { key: 'governance_board_effectiveness', title: '13. Governance & Board Effectiveness', description: 'Corporate governance and board analysis' },\n  { key: 'capital_structure_dilution', title: '14. Capital Structure & Dilution', description: 'Capital structure analysis and dilution impact' },\n  { key: 'risk_matrix_mitigations', title: '15. Risk Matrix & Mitigations', description: 'Risk assessment and mitigation strategies' },\n  { key: 'gaps_uncertainties_disclaimers', title: '16. Gaps, Uncertainties & Disclaimers', description: 'Identified gaps and limitations' },\n  { key: 'scenario_analysis', title: '17. Scenario Analysis', description: 'Multiple scenario modeling and analysis' },\n  { key: 'strategic_options', title: '18. Strategic Options', description: 'Strategic alternatives and options' },\n  { key: 'recommendations_next_steps', title: '19. Recommendations & Next Steps', description: 'Final recommendations and action items' },\n  { key: 'source_map_integrity_log', title: '20. Source Map & Integrity Log', description: 'Source documentation and data integrity' }\n];\n\n// Start building the consolidated report\nlet consolidatedReport = `\n<div class=\"consolidated-report\">\n  <div class=\"report-header-consolidated\">\n    <h1>Comprehensive Due Diligence Report</h1>\n    <h2>${dbResult.company_name}</h2>\n    <p class=\"report-date\">Generated on ${new Date().toLocaleDateString()}</p>\n    <hr style=\"border: 2px solid #007bff; margin: 30px 0;\">\n  </div>\n  \n  <div class=\"executive-summary\">\n    <h2>Executive Summary</h2>\n    <p>This comprehensive due diligence report provides a detailed analysis of ${dbResult.company_name} across multiple critical areas. The assessment encompasses financial trajectory, operational capabilities, governance structures, intellectual property portfolio, strategic partnerships, and risk considerations.</p>\n    <p>Generated from ${sections.filter(s => dbResult[s.key] && dbResult[s.key].trim()).length} completed sections of analysis.</p>\n  </div>\n`;\n\n// Add each completed section\nlet sectionsAdded = 0;\nsections.forEach((section, index) => {\n  const sectionContent = dbResult[section.key];\n  if (sectionContent && sectionContent.trim()) {\n    console.log(`✅ Adding section: ${section.title}`);\n    consolidatedReport += `\n    <div class=\"report-section-consolidated\" id=\"section-${section.key}\">\n      <div class=\"section-header-consolidated\">\n        <h2>${section.title}</h2>\n        <p class=\"section-description\">${section.description}</p>\n      </div>\n      <div class=\"section-content\">\n        ${sectionContent}\n      </div>\n    </div>\n    <div class=\"section-break\"></div>\n    `;\n    sectionsAdded++;\n  } else {\n    console.log(`⏭️ Skipping empty section: ${section.title}`);\n  }\n});\n\n// Add report footer\nconsolidatedReport += `\n  <div class=\"report-footer\">\n    <hr style=\"border: 1px solid #dee2e6; margin: 40px 0 20px 0;\">\n    <div class=\"footer-content\">\n      <p style=\"text-align: center; color: #6c757d; font-size: 14px;\">\n        <strong>Report Generation Details</strong><br>\n        Generated: ${new Date().toLocaleString()}<br>\n        Sections Included: ${sectionsAdded} of ${sections.length}<br>\n        Company: ${dbResult.company_name}<br>\n        <em>Confidential and Proprietary Information</em>\n      </p>\n    </div>\n  </div>\n</div>\n`;\n\nconsole.log(`📄 Consolidated report generated with ${sectionsAdded} sections`);\nconsole.log(`Report length: ${consolidatedReport.length} characters`);\n\nreturn {\n  json: {\n    company_id: dbResult.company_id,\n    company_name: dbResult.company_name,\n    consolidated_report: consolidatedReport,\n    sections_included: sectionsAdded,\n    total_sections: sections.length,\n    generated_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "4d83d83b-f4cd-4b5f-a858-6f13cb0f8e23",
+      "name": "Build Consolidated Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3152,
+        3168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "complete_dd_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "consolidated_report": "={{ $json.consolidated_report }}",
+            "sections_completed": "={{ $json.sections_included }}",
+            "status": "consolidated_report_updated",
+            "updated_at": "={{ $json.generated_at }}"
+          },
+          "matchingColumns": [
+            "company_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "cbef57f5-0179-42dc-95f2-199f93fbe8a5",
+      "name": "Save Consolidated Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3360,
+        3168
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Website Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Database Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Database Tables": {
+      "main": [
+        [
+          {
+            "node": "Process Website Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Website Data": {
+      "main": [
+        [
+          {
+            "node": "Process Uploaded Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Uploaded Files": {
+      "main": [
+        [
+          {
+            "node": "Prepare Files for Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Files for Extraction": {
+      "main": [
+        [
+          {
+            "node": "Process File Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process File Content": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Content": {
+      "main": [
+        [
+          {
+            "node": "Save Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Company Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 1 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section 1 Report": {
+      "main": [
+        [
+          {
+            "node": "Format Section 1 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Section 1 Output": {
+      "main": [
+        [
+          {
+            "node": "Section 1 Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 1 Checker": {
+      "main": [
+        [
+          {
+            "node": "Section 1 Checker Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 1 Checker Decision": {
+      "main": [
+        [
+          {
+            "node": "Section 1 Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 1 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 1 Approver": {
+      "main": [
+        [
+          {
+            "node": "Section 1 Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 1 Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Format Approved Section 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 1 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section 1 Feedback": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 1 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Approved Section 1": {
+      "main": [
+        [
+          {
+            "node": "Save Section 1 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Section 1 Report": {
+      "main": [
+        [
+          {
+            "node": "Fetch Previous Sections for Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Previous Sections for Context": {
+      "main": [
+        [
+          {
+            "node": "Prepare Section 2 Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Section 2 Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 2 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section 2 Report": {
+      "main": [
+        [
+          {
+            "node": "Format Section 2 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Section 2 Output": {
+      "main": [
+        [
+          {
+            "node": "Section 2 Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 2 Checker": {
+      "main": [
+        [
+          {
+            "node": "Section 2 Checker Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 2 Checker Decision": {
+      "main": [
+        [
+          {
+            "node": "Section 2 Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 2 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 2 Approver": {
+      "main": [
+        [
+          {
+            "node": "Section 2 Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 2 Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Format Approved Section 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 2 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section 2 Feedback": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 2 Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Section 2 Checker Decision",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Section 2 Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Approved Section 2": {
+      "main": [
+        [
+          {
+            "node": "Save Section 2 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Section 2 Report": {
+      "main": [
+        [
+          {
+            "node": "Fetch Previous Sections for Section 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Previous Sections for Section 3": {
+      "main": [
+        [
+          {
+            "node": "Prepare Section 3 Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Section 3 Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 3 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section 3 Report": {
+      "main": [
+        [
+          {
+            "node": "Format Section 3 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Section 3 Output": {
+      "main": [
+        [
+          {
+            "node": "Section 3 Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 3 Checker": {
+      "main": [
+        [
+          {
+            "node": "Section 3 Checker Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 3 Checker Decision": {
+      "main": [
+        [
+          {
+            "node": "Section 3 Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 3 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 3 Approver": {
+      "main": [
+        [
+          {
+            "node": "Section 3 Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section 3 Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Format Approved Section 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Section 3 Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section 3 Feedback": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 3 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Approved Section 3": {
+      "main": [
+        [
+          {
+            "node": "Save Section 3 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Section 3 Report": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Complete Report Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Consolidated Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Complete Report Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Comprehensive Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Comprehensive Report": {
+      "main": [
+        [
+          {
+            "node": "Upload Report to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Consolidated Report": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Sections": {
+      "main": [
+        [
+          {
+            "node": "Build Consolidated Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Consolidated Report": {
+      "main": [
+        [
+          {
+            "node": "Save Consolidated Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "tags": []
+}

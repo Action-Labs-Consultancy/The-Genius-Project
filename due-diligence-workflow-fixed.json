@@ -1,0 +1,251 @@
+{
+  "name": "Due Diligence Report Generator - Website Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "due-diligence-upload",
+        "options": {}
+      },
+      "id": "43603fa0-38e1-41c1-9257-400ba45122aa",
+      "name": "Website Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -4144,
+        3040
+      ],
+      "webhookId": "due-diligence-upload"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST", 
+        "path": "generate-section",
+        "options": {}
+      },
+      "id": "43603fa0-38e1-41c1-9257-400ba45122ab",
+      "name": "Generate Section Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -4144,
+        3200
+      ],
+      "webhookId": "generate-section"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create tables if they don't exist\nCREATE TABLE IF NOT EXISTS company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    company_description TEXT,\n    contact_email VARCHAR(255),\n    contact_phone VARCHAR(100),\n    website_url VARCHAR(500),\n    industry VARCHAR(255),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS uploaded_files (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) NOT NULL,\n    file_name VARCHAR(500) NOT NULL,\n    file_path VARCHAR(1000) NOT NULL,\n    file_size BIGINT,\n    mime_type VARCHAR(255),\n    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);\n\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section content columns\n    introduction_engagement_context TEXT,\n    legal_disclaimers_reliance_limitations TEXT,\n    methodology_source_validation TEXT,\n    financial_trajectory_revenue_quality TEXT,\n    partnerships_ecosystem_alliances TEXT,\n    intellectual_property_technology TEXT,\n    governance_disclosures_risks TEXT,\n    appendix_management_rfi TEXT,\n    \n    -- Additional sections for full 20-section report\n    section_9 TEXT,\n    section_10 TEXT,\n    section_11 TEXT,\n    section_12 TEXT,\n    section_13 TEXT,\n    section_14 TEXT,\n    section_15 TEXT,\n    section_16 TEXT,\n    section_17 TEXT,\n    section_18 TEXT,\n    section_19 TEXT,\n    section_20 TEXT,\n    \n    -- Metadata\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'pending',\n    consolidated_report TEXT,\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    \n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);",
+        "options": {}
+      },
+      "id": "16efd9c5-09f2-49e9-879b-6be88ea327b6",
+      "name": "Initialize Database Tables",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -3952,
+        3040
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process incoming webhook data from website upload\nconst webhookData = $node[\"Website Upload Webhook\"].json;\n\nconsole.log('=== WEBSITE UPLOAD WEBHOOK RECEIVED ===');\nconsole.log('Webhook data:', JSON.stringify(webhookData, null, 2));\n\n// Extract company information\nconst companyInfo = webhookData.companyInfo || {};\nconst uploadedFiles = webhookData.uploadedFiles || [];\nconst requestId = webhookData.requestId || `req_${Date.now()}`;\n\n// Generate company ID\nconst companyId = companyInfo.company_id || `comp_${Date.now()}_${companyInfo.companyName?.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log(`Company Name: ${companyInfo.companyName}`);\nconsole.log(`Files uploaded: ${uploadedFiles.length}`);\n\n// Validate required data\nif (!companyInfo.companyName) {\n  throw new Error('Company name is required');\n}\n\n// Process uploaded files\nconst processedFiles = uploadedFiles.map((file, index) => {\n  console.log(`File ${index + 1}: ${file.name} (${file.size} bytes)`);\n  return {\n    id: file.id || `file_${Date.now()}_${index}`,\n    name: file.name,\n    size: file.size,\n    type: file.type,\n    content: file.content, // Base64 or file path\n    uploadPath: file.uploadPath || `/uploads/${companyId}/${file.name}`\n  };\n});\n\nconsole.log('=== PROCESSING SUMMARY ===');\nconsole.log(`Request ID: ${requestId}`);\nconsole.log(`Company: ${companyInfo.companyName}`);\nconsole.log(`Files to process: ${processedFiles.length}`);\nconsole.log('===========================');\n\n// Return processed data for next node\nreturn {\n  json: {\n    // Company information\n    company_id: companyId,\n    company_name: companyInfo.companyName,\n    company_description: companyInfo.description || '',\n    contact_email: companyInfo.contactEmail || '',\n    contact_phone: companyInfo.contactPhone || '',\n    website_url: companyInfo.websiteUrl || '',\n    industry: companyInfo.industry || 'Technology',\n    \n    // File information\n    uploaded_files: processedFiles,\n    file_count: processedFiles.length,\n    \n    // Request metadata\n    request_id: requestId,\n    processing_started_at: new Date().toISOString(),\n    source: 'website_upload'\n  }\n};"
+      },
+      "id": "29a45a69-25d6-4854-b3c4-2f6736f97b19",
+      "name": "Process Upload Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -3744,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process section generation request\nconst webhookData = $node[\"Generate Section Webhook\"].json;\n\nconsole.log('=== SECTION GENERATION WEBHOOK RECEIVED ===');\nconsole.log('Webhook data:', JSON.stringify(webhookData, null, 2));\n\n// Extract request information\nconst companyId = webhookData.companyId || webhookData.company_id;\nconst sectionType = webhookData.sectionType || 'introduction';\nconst requestId = webhookData.requestId || `req_${Date.now()}`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log(`Section Type: ${sectionType}`);\nconsole.log(`Request ID: ${requestId}`);\n\n// Validate required data\nif (!companyId) {\n  throw new Error('Company ID is required');\n}\n\n// Return processed data for next node\nreturn {\n  json: {\n    company_id: companyId,\n    section_type: sectionType,\n    request_id: requestId,\n    processing_started_at: new Date().toISOString(),\n    source: 'section_generation'\n  }\n};"
+      },
+      "id": "29a45a69-25d6-4854-b3c4-2f6736f97b20",
+      "name": "Process Section Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -3744,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "company_data",
+          "mode": "list"
+        },
+        "columnToMatchOn": "company_id",
+        "valuesToSend": "defineBelow",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "company_description",
+              "value": "={{ $json.company_description }}"
+            },
+            {
+              "column": "contact_email",
+              "value": "={{ $json.contact_email }}"
+            },
+            {
+              "column": "contact_phone",
+              "value": "={{ $json.contact_phone }}"
+            },
+            {
+              "column": "website_url",
+              "value": "={{ $json.website_url }}"
+            },
+            {
+              "column": "industry",
+              "value": "={{ $json.industry }}"
+            }
+          ]
+        }
+      },
+      "id": "7b123456-1234-1234-1234-123456789abc",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -3536,
+        3040
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple function to return success response for upload\nconst uploadData = $json;\n\nconsole.log('=== UPLOAD PROCESSING COMPLETE ===');\nconsole.log(`Company: ${uploadData.company_name}`);\nconsole.log(`Files processed: ${uploadData.file_count}`);\n\n// Return success response\nreturn {\n  json: {\n    success: true,\n    message: 'Files uploaded and processed successfully',\n    company_id: uploadData.company_id,\n    company_name: uploadData.company_name,\n    files_processed: uploadData.file_count,\n    processing_id: uploadData.request_id,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "upload-response-function",
+      "name": "Upload Response",
+      "type": "n8n-nodes-base.function", 
+      "typeVersion": 1,
+      "position": [
+        -3328,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple function to return mock section content\nconst sectionData = $json;\n\nconsole.log('=== SECTION GENERATION COMPLETE ===');\nconsole.log(`Company: ${sectionData.company_id}`);\nconsole.log(`Section: ${sectionData.section_type}`);\n\n// Generate mock section content based on section type\nlet sectionContent = '';\nswitch(sectionData.section_type) {\n  case 'introduction':\n    sectionContent = 'Introduction and Engagement Context: This due diligence report provides a comprehensive analysis...';\n    break;\n  case 'legal':\n    sectionContent = 'Legal Disclaimers and Reliance Limitations: This report is prepared for informational purposes...';\n    break;\n  case 'methodology':\n    sectionContent = 'Methodology and Source Validation: Our analysis employs industry-standard methodologies...';\n    break;\n  default:\n    sectionContent = `${sectionData.section_type} Analysis: Detailed analysis and findings for this section...`;\n}\n\n// Return section response\nreturn {\n  json: {\n    success: true,\n    message: 'Section generated successfully',\n    company_id: sectionData.company_id,\n    section_type: sectionData.section_type,\n    section_content: sectionContent,\n    processing_id: sectionData.request_id,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "section-response-function",
+      "name": "Section Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -3328,
+        3200
+      ]
+    }
+  ],
+  "connections": {
+    "Website Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Initialize Database Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Section Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Database Tables": {
+      "main": [
+        [
+          {
+            "node": "Process Upload Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload Data": {
+      "main": [
+        [
+          {
+            "node": "Save Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section Request": {
+      "main": [
+        [
+          {
+            "node": "Section Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Company Data": {
+      "main": [
+        [
+          {
+            "node": "Upload Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-15T10:30:00.000Z",
+  "versionId": "latest"
+}

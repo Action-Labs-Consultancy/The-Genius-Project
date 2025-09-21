@@ -1,0 +1,477 @@
+{
+  "name": "Comprehensive Due Diligence System - Logical",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [80, 300],
+      "id": "schedule-trigger",
+      "name": "Every 10 Minutes"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 300],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract Due Diligence tasks and prepare for database\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks`);\n\nconst dueDiligenceTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const description = task.description ? task.description.toString().trim() : '';\n  \n  // Check if title contains \"Due Diligence\" (case insensitive)\n  const titleLower = title.toLowerCase();\n  if (titleLower.includes('due diligence')) {\n    let companyName = '';\n    \n    // Extract company name from title\n    const colonPattern = /due diligence:\\s*(.+)/i;\n    const colonMatch = title.match(colonPattern);\n    if (colonMatch) {\n      companyName = colonMatch[1].trim().replace(/^[\"']+|[\"']+$/g, '');\n    } else {\n      const afterDD = title.substring(title.toLowerCase().indexOf('due diligence') + 13).trim();\n      companyName = afterDD.replace(/^[:\\s\"']+/, '').replace(/[\"']+$/, '').trim() || 'Unknown Company';\n    }\n    \n    // Extract website from description\n    const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n    const urls = description.match(urlRegex) || [];\n    const website = urls.length > 0 ? urls[0] : '';\n    \n    console.log(`✅ Found Due Diligence task: \"${companyName}\" (ID: ${task.id})`);\n    \n    dueDiligenceTasks.push({\n      json: {\n        kanboard_task_id: task.id,\n        title: title,\n        company_name: companyName,\n        website: website,\n        description: description,\n        project_id: task.project_id || 1,\n        status: 'pending',\n        created_at: new Date().toISOString(),\n        updated_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found');\n  return [{ json: { message: 'No Due Diligence tasks found', skip: true } }];\n}\n\nconsole.log(`📋 Processing ${dueDiligenceTasks.length} Due Diligence tasks`);\nreturn dueDiligenceTasks;"
+      },
+      "name": "Extract DD Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "id": "extract-dd-tasks"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "kanboard_task_id",
+              "condition": "equal",
+              "value": "={{ $json.kanboard_task_id }}"
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Check Report Exists",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [680, 300],
+      "id": "check-exists",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "number",
+                "operation": "equal"
+              },
+              "leftValue": "={{ $('Check Report Exists').all().length }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "is-new-task",
+      "name": "Is New Task?",
+      "type": "n8n-nodes-base.if",
+      "position": [880, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $('Extract DD Tasks').first().json.kanboard_task_id }}",
+            "company_name": "={{ $('Extract DD Tasks').first().json.company_name }}",
+            "website": "={{ $('Extract DD Tasks').first().json.website }}",
+            "description": "={{ $('Extract DD Tasks').first().json.description }}",
+            "status": "in_progress"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Create New Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1080, 200],
+      "id": "create-new",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "status",
+              "condition": "equal",
+              "value": "in_progress"
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Get All In-Progress Reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [880, 500],
+      "id": "get-in-progress",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check which sections are missing for each report\nconst reports = $input.all();\nconst sectionsToGenerate = [];\n\n// Define all 20 due diligence sections\nconst ddSections = [\n  'introduction_engagement_context',\n  'methodology_reliability_levels',\n  'company_overview',\n  'business_model_unit_economics',\n  'products_technology',\n  'target_market_competitive_set',\n  'financials_multi_year',\n  'cash_burn_runway',\n  'revenue_quality_client_cohorts',\n  'partnerships_ecosystem',\n  'intellectual_property',\n  'legal_regulatory',\n  'governance_board_effectiveness',\n  'capital_structure_dilution',\n  'risk_matrix_mitigations',\n  'gaps_uncertainties_disclaimers',\n  'scenario_analysis',\n  'strategic_options',\n  'recommendations_next_steps',\n  'source_map_integrity_log'\n];\n\nfor (const report of reports) {\n  const reportJson = report.json;\n  \n  for (const section of ddSections) {\n    // Check if section is null or empty\n    if (!reportJson[section] || reportJson[section].trim() === '') {\n      sectionsToGenerate.push({\n        json: {\n          id: reportJson.id,\n          kanboard_task_id: reportJson.kanboard_task_id,\n          company_name: reportJson.company_name,\n          website: reportJson.website,\n          description: reportJson.description,\n          section_name: section,\n          section_title: section.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase()),\n          existing_sections: ddSections.filter(s => reportJson[s] && reportJson[s].trim() !== '').join(', ')\n        }\n      });\n      break; // Generate one section at a time per report\n    }\n  }\n}\n\nconsole.log(`📊 Found ${sectionsToGenerate.length} sections to generate`);\n\nif (sectionsToGenerate.length === 0) {\n  return [{ json: { message: 'All reports complete', skip: true } }];\n}\n\nreturn sectionsToGenerate;"
+      },
+      "name": "Find Missing Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1080, 500],
+      "id": "find-missing"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              },
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-sections-to-generate",
+      "name": "Has Sections to Generate?",
+      "type": "n8n-nodes-base.if",
+      "position": [1280, 500],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate AI prompt for the specific section\nconst sectionData = $input.first().json;\n\nconst prompt = `You are an expert financial analyst conducting due diligence on ${sectionData.company_name}.\n\nCOMPANY INFORMATION:\n- Name: ${sectionData.company_name}\n- Website: ${sectionData.website || 'Not provided'}\n- Description: ${sectionData.description || 'Not provided'}\n\nPREVIOUSLY COMPLETED SECTIONS:\n${sectionData.existing_sections || 'None yet'}\n\nTASK: Generate the \"${sectionData.section_title}\" section for this due diligence report.\n\nREQUIREMENTS:\n- Be specific and factual\n- Use real information when possible\n- Minimum 300 words\n- Professional analysis format\n- Include key metrics and insights\n- Reference the company's actual business model and industry\n\nGenerate ONLY the content for the \"${sectionData.section_title}\" section:`;\n\nconsole.log(`🤖 Generating prompt for ${sectionData.section_title} section`);\n\nreturn [{\n  json: {\n    ...sectionData,\n    ai_prompt: prompt\n  }\n}];"
+      },
+      "name": "Create Section Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1480, 400],
+      "id": "create-prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "={{ $json.ai_prompt }}",
+          "stream": false,
+          "options": {
+            "num_predict": 2000,
+            "temperature": 0.3
+          }
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Section",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 400],
+      "id": "generate-section"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process AI response and prepare for database update\nconst sectionData = $('Create Section Prompt').first().json;\nconst aiResponse = $input.first().json;\n\nconst generatedContent = aiResponse.response || '';\nconst cleanContent = generatedContent.trim();\n\nconsole.log(`📝 Generated ${sectionData.section_title}: ${cleanContent.substring(0, 100)}...`);\n\nreturn [{\n  json: {\n    id: sectionData.id,\n    section_name: sectionData.section_name,\n    section_content: cleanContent,\n    updated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Process Section Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1880, 400],
+      "id": "process-content"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "updateKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "{{ $json.section_name }}": "={{ $json.section_content }}",
+            "updated_at": "={{ $json.updated_at }}"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Update Section in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2080, 400],
+      "id": "update-section",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Extract DD Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract DD Tasks": {
+      "main": [
+        [
+          {
+            "node": "Check Report Exists",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All In-Progress Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Report Exists": {
+      "main": [
+        [
+          {
+            "node": "Is New Task?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Task?": {
+      "main": [
+        [
+          {
+            "node": "Create New Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get All In-Progress Reports": {
+      "main": [
+        [
+          {
+            "node": "Find Missing Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Missing Sections": {
+      "main": [
+        [
+          {
+            "node": "Has Sections to Generate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Sections to Generate?": {
+      "main": [
+        [
+          {
+            "node": "Create Section Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create Section Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section": {
+      "main": [
+        [
+          {
+            "node": "Process Section Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section Content": {
+      "main": [
+        [
+          {
+            "node": "Update Section in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "comprehensive-dd-system-logical",
+  "meta": {
+    "instanceId": "comprehensive-dd-system"
+  },
+  "id": "comprehensive-due-diligence-system-logical",
+  "tags": [
+    "due-diligence",
+    "logical-workflow",
+    "database-driven",
+    "ai-powered"
+  ]
+}

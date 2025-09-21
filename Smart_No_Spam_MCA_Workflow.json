@@ -1,0 +1,698 @@
+{
+  "name": "Smart Auto-Fix MCA Workflow - No Spam",
+  "nodes": [
+    {
+      "parameters": {
+        "expression": "*/5 * * * *"
+      },
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-1072, -48],
+      "id": "d1508315-91a0-4490-8cd8-12649b2d85b4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-880, -48],
+      "id": "01634864-718a-4276-88ed-00d3ff304dd2",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// FIND DD TASK WITH RETRY TRACKING\nconst tasks = $input.first().json.result || [];\nconsole.log(`🔍 Scanning ${tasks.length} Kanboard tasks`);\n\nlet validTask = null;\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  if (title.toLowerCase().includes('due diligence:') && description.includes('http')) {\n    const companyName = title.replace(/due diligence:\\s*/i, '').trim();\n    const websiteMatch = description.match(/https?:\\/\\/[^\\s]+/);\n    const websiteUrl = websiteMatch ? websiteMatch[0] : null;\n    \n    if (companyName && websiteUrl) {\n      validTask = {\n        kanboard_id: task.id,\n        title: title,\n        description: description,\n        company_name: companyName,\n        website_url: websiteUrl,\n        project_id: task.project_id || 1,\n        maker_retry_count: 0,\n        max_retries: 3\n      };\n      break;\n    }\n  }\n}\n\nif (!validTask) {\n  console.log('ℹ️ No valid Due Diligence tasks found');\n  throw new Error('No Due Diligence tasks found');\n}\n\nconsole.log(`🎯 Selected Task: ${validTask.company_name}`);\n\nreturn {\n  json: {\n    ...validTask,\n    workflow_action: 'VALIDATE_PREREQUISITES'\n  }\n};"
+      },
+      "name": "Find DD Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-672, -48],
+      "id": "fc03bbc8-e5ee-4881-b133-e33785c32f64"
+    },
+    {
+      "parameters": {
+        "functionCode": "// VALIDATE PREREQUISITES\nconst taskData = $('Find DD Task').first().json;\n\nconsole.log(`📋 Validating prerequisites for: ${taskData.company_name}`);\n\nconst missingItems = [];\n\nif (!taskData.title.toLowerCase().includes('due diligence:')) {\n  missingItems.push('Title must start with \"Due Diligence: [Company Name]\"');\n}\n\nif (!taskData.website_url) {\n  missingItems.push('Description must contain the official website URL');\n}\n\nif (missingItems.length > 0) {\n  console.log(`❌ Missing prerequisites: ${missingItems.length} items`);\n  return {\n    json: {\n      ...taskData,\n      prerequisites_valid: false,\n      missing_items: missingItems,\n      workflow_action: 'POST_MISSING_COMMENT'\n    }\n  };\n}\n\nconsole.log('✅ All prerequisites valid');\nreturn {\n  json: {\n    ...taskData,\n    prerequisites_valid: true,\n    workflow_action: 'BUILD_KNOWLEDGE_BASE'\n  }\n};"
+      },
+      "name": "Validate Prerequisites",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-472, -48],
+      "id": "f5175f62-ecf0-42e4-93cc-21e9734cf764"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.prerequisites_valid }}"
+            }
+          ]
+        }
+      },
+      "name": "Prerequisites OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-272, -48],
+      "id": "5d095354-e58b-429d-b5b0-94b0ba9c270d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "=❌ **PREREQUISITES MISSING**\\n\\n🏢 **Company:** {{ $json.company_name }}\\n\\n**Missing Requirements:**\\n{{ ($json.missing_items || []).map(item => '• ' + item).join('\\n') }}\\n\\n**Required Format:**\\n• **Title:** Due Diligence: [Company Name]\\n• **Description:** Must contain official website URL\\n\\n⏰ **Checked:** {{ $now }}\\n\\n---\\n\\n**Please fix and the workflow will retry automatically.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Missing Prerequisites",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-64, -144],
+      "id": "3a74c58d-fd84-4cd4-8aca-be0697bb0728",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllComments",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-64, 64],
+      "id": "c1234567-1234-1234-1234-123456789abc",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [144, 64],
+      "id": "c2345678-2345-2345-2345-234567890bcd",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website_url }}",
+        "options": {
+          "redirect": {},
+          "timeout": 30000
+        },
+        "continueOnFail": true
+      },
+      "name": "Fetch Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [352, 64],
+      "id": "c4e04add-0063-43d4-9fe7-b16a390dfa99"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "text": "={{ $('Validate Prerequisites').first().json.description + ' ' + $('Validate Prerequisites').first().json.company_name }}"
+        },
+        "options": {
+          "timeout": 20000
+        },
+        "continueOnFail": true
+      },
+      "name": "Run FinBERT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 64],
+      "id": "62fb7984-d8e5-4983-b387-bab198ebb53d"
+    },
+    {
+      "parameters": {
+        "functionCode": "// BUILD COMPREHENSIVE KNOWLEDGE BASE\nconst taskData = $('Validate Prerequisites').first().json;\n\n// Get user comments (critical for context)\nlet userComments = [];\ntry {\n  const commentsResponse = $('Get Comments').first();\n  if (commentsResponse && commentsResponse.json && commentsResponse.json.result) {\n    userComments = commentsResponse.json.result.filter(comment => \n      !comment.comment.includes('SECTION COMPLETED') && \n      !comment.comment.includes('PREREQUISITES MISSING')\n    );\n    console.log(`📋 Found ${userComments.length} user comments`);\n  }\n} catch (error) {\n  console.log(`⚠️ Comments fetch failed: ${error.message}`);\n}\n\n// Get attachments\nlet attachments = [];\ntry {\n  const attachResponse = $('Get Attachments').first();\n  if (attachResponse && attachResponse.json && attachResponse.json.result) {\n    attachments = attachResponse.json.result;\n    console.log(`📎 Found ${attachments.length} attachments`);\n  }\n} catch (error) {\n  console.log(`⚠️ Attachments fetch failed`);\n}\n\n// Get website content\nlet websiteContent = '';\ntry {\n  const websiteResponse = $('Fetch Website').first();\n  if (websiteResponse && websiteResponse.json) {\n    websiteContent = websiteResponse.json.toString();\n  } else if (websiteResponse && websiteResponse.data) {\n    websiteContent = websiteResponse.data.toString();\n  }\n} catch (error) {\n  console.log(`⚠️ Website fetch failed`);\n}\n\n// Get FinBERT analysis\nlet finbertData = null;\ntry {\n  const finbertResponse = $('Run FinBERT').first();\n  if (finbertResponse && finbertResponse.json) {\n    finbertData = finbertResponse.json;\n  }\n} catch (error) {\n  console.log(`⚠️ FinBERT failed`);\n}\n\nconsole.log(`📚 Building Knowledge Base for: ${taskData.company_name}`);\n\n// Create knowledge base chunks\nlet kbChunks = [];\n\n// Task info chunks (always include)\nkbChunks.push({\n  chunk_id: `kb://${taskData.kanboard_id}/task:title`,\n  content: `Company: ${taskData.company_name}. Task: ${taskData.title}`,\n  source_type: 'task_info'\n});\n\nkbChunks.push({\n  chunk_id: `kb://${taskData.kanboard_id}/task:description`,\n  content: `Task Description: ${taskData.description}`,\n  source_type: 'task_info'\n});\n\n// User comments (prioritized)\nuserComments.forEach((comment, index) => {\n  kbChunks.push({\n    chunk_id: `kb://${taskData.kanboard_id}/user:${comment.username || 'user'}_${index}`,\n    content: `User Input from ${comment.username}: ${comment.comment}`,\n    source_type: 'user_input'\n  });\n});\n\n// Website chunks\nif (websiteContent) {\n  const chunks = chunkText(websiteContent, 800);\n  chunks.forEach((chunk, index) => {\n    kbChunks.push({\n      chunk_id: `kb://${taskData.kanboard_id}/website:${index + 1}`,\n      content: chunk,\n      source_type: 'website'\n    });\n  });\n}\n\n// Attachment info\nattachments.forEach((file, index) => {\n  kbChunks.push({\n    chunk_id: `kb://${taskData.kanboard_id}/file:${file.name}`,\n    content: `Attachment: ${file.name} (${file.size} bytes) - Available for analysis`,\n    source_type: 'attachment'\n  });\n});\n\n// FinBERT analysis\nif (finbertData) {\n  kbChunks.push({\n    chunk_id: `kb://${taskData.kanboard_id}/finbert:analysis`,\n    content: `FinBERT Financial Analysis: ${JSON.stringify(finbertData)}`,\n    source_type: 'finance'\n  });\n}\n\nfunction chunkText(text, maxTokens) {\n  const words = text.split(/\\s+/);\n  const chunks = [];\n  let currentChunk = [];\n  \n  for (const word of words) {\n    currentChunk.push(word);\n    if (currentChunk.length >= maxTokens * 0.75) {\n      chunks.push(currentChunk.join(' '));\n      currentChunk = [];\n    }\n  }\n  \n  if (currentChunk.length > 0) {\n    chunks.push(currentChunk.join(' '));\n  }\n  \n  return chunks;\n}\n\nconsole.log(`📊 Knowledge Base: ${kbChunks.length} chunks`);\n\nreturn {\n  json: {\n    ...taskData,\n    kb_chunks: kbChunks,\n    user_comments_count: userComments.length,\n    attachments_count: attachments.length,\n    total_chunks: kbChunks.length,\n    workflow_action: 'GENERATE_MAKER_PROMPT'\n  }\n};"
+      },
+      "name": "Build Knowledge Base",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [768, 64],
+      "id": "a9cdccdf-9017-407c-8ddc-c31956b0227d"
+    },
+    {
+      "parameters": {
+        "functionCode": "// GENERATE MAKER PROMPT WITH RETRY LOGIC\nconst taskData = $input.first().json;\nconst kbChunks = taskData.kb_chunks || [];\nconst retryCount = taskData.maker_retry_count || 0;\n\nconst sectionName = \"Business Model & Unit Economics\";\n\n// Prioritize user input and task info\nconst userChunks = kbChunks.filter(chunk => ['user_input', 'task_info'].includes(chunk.source_type));\nconst otherChunks = kbChunks.filter(chunk => !['user_input', 'task_info'].includes(chunk.source_type));\nconst prioritizedChunks = [...userChunks, ...otherChunks.slice(0, 5)];\n\nconst kbText = prioritizedChunks.map(chunk => \n  `[${chunk.chunk_id}]: ${chunk.content.substring(0, 500)}...`\n).join('\\n\\n');\n\nlet retryInstructions = '';\nif (retryCount > 0) {\n  retryInstructions = `\\n\\nRETRY #${retryCount}: Previous attempt failed. Focus on being more specific and cite sources properly.`;\n}\n\nconst makerPrompt = `SYSTEM:\nYou are the MAKER agent for Due Diligence. Write ONLY the Business Model & Unit Economics section.\nUse ONLY the provided Knowledge Base. Do not invent data. Cite sources as [KB:chunk_id].\nIf data is missing, state \"Insufficient evidence in KB for [specific item]\".\n${retryInstructions}\n\nUSER:\nCompany: ${taskData.company_name}\nWebsite: ${taskData.website_url}\n\nKnowledge Base (${prioritizedChunks.length} chunks):\n${kbText}\n\nWrite the \"${sectionName}\" section covering:\n1. Value Proposition - How the company creates value\n2. Revenue Streams - Primary revenue sources\n3. Pricing Strategy - How products/services are priced\n4. Key Cost Drivers - Major operational costs\n5. Unit Economics - CAC, LTV, margins (if available in KB)\n\nRequirements:\n- Professional Markdown format\n- Cite every fact with [KB:chunk_id]\n- If missing data, state \"Insufficient evidence in KB\"\n- Focus only on evidence from KB chunks`;\n\nconsole.log(`📝 Maker prompt generated (Retry: ${retryCount})`);\n\nreturn {\n  json: {\n    ...taskData,\n    section_name: sectionName,\n    maker_prompt: makerPrompt,\n    workflow_action: 'RUN_MAKER'\n  }\n};"
+      },
+      "name": "Generate Maker Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [976, 64],
+      "id": "ad215c56-b875-4b81-b876-4fb5b8a624ff"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.maker_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "max_tokens": 2500
+          }
+        },
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Run Maker Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1184, 64],
+      "id": "e52a3b60-45cc-46de-9fcf-ecfd399629f2"
+    },
+    {
+      "parameters": {
+        "functionCode": "// CHECKER WITH AUTO-RETRY LOGIC\nconst taskData = $('Generate Maker Prompt').first().json;\nconst makerResponse = $input.first().json.response;\nconst retryCount = taskData.maker_retry_count || 0;\nconst maxRetries = taskData.max_retries || 3;\n\nconsole.log(`📝 Checking Maker output (${makerResponse.length} chars, retry ${retryCount})`);\n\nconst kbChunks = taskData.kb_chunks || [];\nconst citedChunks = kbChunks.filter(chunk => \n  makerResponse.includes(chunk.chunk_id)\n);\n\nconst checkerPrompt = `SYSTEM:\nYou are the CHECKER. Validate if the Maker's work is acceptable.\nApprove if it shows effort and properly indicates missing data.\nReject only for clear hallucinations or completely unsupported claims.\n\nUSER:\nMaker Output:\n${makerResponse}\n\nAvailable KB:\n${kbChunks.slice(0, 5).map(chunk => `[${chunk.chunk_id}]: ${chunk.content}`).join('\\n\\n')}\n\nValidation:\n1) Claims supported by KB OR marked as \"Insufficient evidence\"\n2) No invented data\n3) Proper [KB:chunk_id] citations\n4) Professional quality\n\nRespond ONLY in JSON:\n{\n  \"approved\": true|false,\n  \"quality_score\": <1-10>,\n  \"issues\": [\"problems if any\"],\n  \"instructions_for_maker\": \"guidance\"\n}`;\n\nreturn {\n  json: {\n    ...taskData,\n    maker_output: makerResponse,\n    checker_prompt: checkerPrompt,\n    workflow_action: 'RUN_CHECKER'\n  }\n};"
+      },
+      "name": "Prepare Checker",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1392, 64],
+      "id": "5c43332d-8571-4fcf-ae01-dba5483007eb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.checker_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.1,
+            "top_p": 0.6,
+            "max_tokens": 1000
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Run Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 64],
+      "id": "933928d5-3d71-467d-a04c-d691ae6a28a0"
+    },
+    {
+      "parameters": {
+        "functionCode": "// SMART RETRY DECISION - NO SPAM\nconst taskData = $('Prepare Checker').first().json;\nconst checkerResponse = $input.first().json.response;\nconst retryCount = taskData.maker_retry_count || 0;\nconst maxRetries = taskData.max_retries || 3;\n\nlet checkerDecision;\ntry {\n  checkerDecision = JSON.parse(checkerResponse);\n} catch (error) {\n  checkerDecision = {\n    approved: false,\n    quality_score: 1,\n    issues: ['Invalid Checker response'],\n    instructions_for_maker: 'Retry with clearer output'\n  };\n}\n\nconsole.log(`🔍 Checker: ${checkerDecision.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerDecision.quality_score}/10)`);\n\nif (!checkerDecision.approved) {\n  if (retryCount >= maxRetries) {\n    console.log(`❌ Max retries exceeded`);\n    return {\n      json: {\n        ...taskData,\n        checker_decision: checkerDecision,\n        workflow_action: 'POST_FAILURE_COMMENT'\n      }\n    };\n  }\n  \n  // SILENT RETRY - no comment spam\n  console.log(`🔄 Retrying silently (${retryCount + 1}/${maxRetries})`);\n  return {\n    json: {\n      ...taskData,\n      maker_retry_count: retryCount + 1,\n      checker_decision: checkerDecision,\n      workflow_action: 'RETRY_MAKER'\n    }\n  };\n}\n\n// Approved - run Approver\nconst approverPrompt = `SYSTEM:\nYou are the APPROVER. Final business review.\n\nUSER:\nMaker Output:\n${taskData.maker_output}\n\nChecker Score: ${checkerDecision.quality_score}/10\n\nApprove if:\n- Strategic value for executives\n- Professional quality\n- Honest about limitations\n\nRespond ONLY in JSON:\n{\n  \"approved\": true|false,\n  \"final_feedback\": \"brief rationale\"\n}`;\n\nreturn {\n  json: {\n    ...taskData,\n    checker_approved: true,\n    checker_decision: checkerDecision,\n    approver_prompt: approverPrompt,\n    workflow_action: 'RUN_APPROVER'\n  }\n};"
+      },
+      "name": "Process Checker",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1808, 64],
+      "id": "bbe8f599-1de1-47d4-a2b0-417a80bbc916"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.workflow_action }}",
+              "value2": "RETRY_MAKER"
+            }
+          ]
+        }
+      },
+      "name": "Retry Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2016, 64],
+      "id": "b436349d-3152-4a8e-b570-c82c40b47800"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "=❌ **ANALYSIS FAILED AFTER 3 ATTEMPTS**\\n\\n📝 **Section:** {{ $json.section_name }}\\n📊 **Score:** {{ $json.checker_decision.quality_score }}/10\\n\\n**Issues:**\\n{{ ($json.checker_decision.issues || []).map(issue => '• ' + issue).join('\\n') }}\\n\\n**Recommendation:** {{ $json.checker_decision.instructions_for_maker }}\\n\\n⏰ {{ $now }}\\n\\n---\\n\\n**Please provide more detailed information in comments or attachments.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Failure Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2224, -48],
+      "id": "8010ce90-f647-4fe8-b5ba-c26cd6ed32fb",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.approver_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 800
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Run Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2224, 176],
+      "id": "b0c3f185-6139-45a9-9039-179563f4a297"
+    },
+    {
+      "parameters": {
+        "functionCode": "// FINAL APPROVAL DECISION\nconst taskData = $('Process Checker').first().json;\nconst approverResponse = $input.first().json.response;\n\nlet approverDecision;\ntry {\n  approverDecision = JSON.parse(approverResponse);\n} catch (error) {\n  approverDecision = {\n    approved: false,\n    final_feedback: 'Invalid Approver response'\n  };\n}\n\nconsole.log(`✅ Approver: ${approverDecision.approved ? 'APPROVED' : 'REJECTED'}`);\n\nif (!approverDecision.approved) {\n  const retryCount = taskData.maker_retry_count || 0;\n  const maxRetries = taskData.max_retries || 3;\n  \n  if (retryCount >= maxRetries) {\n    return {\n      json: {\n        ...taskData,\n        approver_decision: approverDecision,\n        workflow_action: 'POST_FAILURE_COMMENT'\n      }\n    };\n  }\n  \n  // Silent retry for Approver rejection too\n  console.log(`🔄 Approver retry: ${retryCount + 1}/${maxRetries}`);\n  return {\n    json: {\n      ...taskData,\n      maker_retry_count: retryCount + 1,\n      approver_decision: approverDecision,\n      workflow_action: 'RETRY_MAKER'\n    }\n  };\n}\n\n// SUCCESS!\nconsole.log('🎉 Analysis approved!');\n\nreturn {\n  json: {\n    ...taskData,\n    checker_decision: taskData.checker_decision,\n    approver_decision: approverDecision,\n    final_markdown: taskData.maker_output,\n    workflow_action: 'POST_SUCCESS'\n  }\n};"
+      },
+      "name": "Process Approver",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2432, 176],
+      "id": "ce87cc5f-e470-4931-af18-b44dbe4cac16"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.workflow_action }}",
+              "value2": "RETRY_MAKER"
+            }
+          ]
+        }
+      },
+      "name": "Approver Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2640, 176],
+      "id": "422bd4c9-570e-4b3f-bc53-4cd12f83482c"
+    },
+    {
+      "parameters": {
+        "functionCode": "// GENERATE SUCCESS COMMENT\nconst taskData = $input.first().json;\n\nconst finalComment = `🎉 **DUE DILIGENCE ANALYSIS COMPLETED**\\n\\n` +\n  `📄 **Company:** ${taskData.company_name}\\n` +\n  `📝 **Section:** ${taskData.section_name}\\n` +\n  `**Quality Score:** ${taskData.checker_decision.quality_score}/10\\n` +\n  `**Attempts:** ${(taskData.maker_retry_count || 0) + 1}\\n` +\n  `**Generated:** ${(new Date()).toISOString()}\\n\\n` +\n  `---\\n\\n` +\n  taskData.final_markdown +\n  `\\n\\n---\\n\\n` +\n  `## Quality Assurance\\n\\n` +\n  `**Checker:** ✅ Approved (${taskData.checker_decision.quality_score}/10)\\n` +\n  `**Approver:** ✅ Approved\\n` +\n  `**Knowledge Base:** ${taskData.total_chunks} chunks\\n` +\n  `**User Comments:** ${taskData.user_comments_count || 0}\\n` +\n  `**Attachments:** ${taskData.attachments_count || 0}\\n` +\n  `\\n⏰ **Completed:** ${(new Date()).toISOString()}`;\n\nreturn {\n  json: {\n    ...taskData,\n    final_comment: finalComment\n  }\n};"
+      },
+      "name": "Generate Success Comment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2848, 288],
+      "id": "9cbd0040-450e-41cb-bc43-b6fc0d9f80f8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "={{ $json.final_comment }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3056, 288],
+      "id": "f7c7a0ba-2edc-46cd-a356-adfc3a4421f7",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find DD Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find DD Task": {
+      "main": [
+        [
+          {
+            "node": "Validate Prerequisites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Prerequisites": {
+      "main": [
+        [
+          {
+            "node": "Prerequisites OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prerequisites OK?": {
+      "main": [
+        [
+          {
+            "node": "Post Missing Prerequisites",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Comments": {
+      "main": [
+        [
+          {
+            "node": "Get Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Attachments": {
+      "main": [
+        [
+          {
+            "node": "Fetch Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Website": {
+      "main": [
+        [
+          {
+            "node": "Run FinBERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run FinBERT": {
+      "main": [
+        [
+          {
+            "node": "Build Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Maker Prompt": {
+      "main": [
+        [
+          {
+            "node": "Run Maker Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Maker Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Checker": {
+      "main": [
+        [
+          {
+            "node": "Run Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Checker": {
+      "main": [
+        [
+          {
+            "node": "Process Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Checker": {
+      "main": [
+        [
+          {
+            "node": "Retry Needed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Needed?": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Approver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Approver": {
+      "main": [
+        [
+          {
+            "node": "Process Approver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver": {
+      "main": [
+        [
+          {
+            "node": "Approver Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver Retry?": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Success Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Success Comment": {
+      "main": [
+        [
+          {
+            "node": "Post Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "smart-no-spam-v1",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "SMART-NO-SPAM-MCA",
+  "tags": []
+}

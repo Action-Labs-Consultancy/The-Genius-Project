@@ -1,0 +1,83 @@
+{
+  "name": "Taiga Action Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "projectId": "1",
+        "resources": ["userstory"],
+        "operations": ["create", "change"]
+      },
+      "id": "trigger1",
+      "name": "Taiga Trigger",
+      "type": "n8n-nodes-base.taigaTrigger",
+      "typeVersion": 1,
+      "position": [460, 220],
+      "credentials": {
+        "taigaApi": "Taiga API"
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data.subject }}",
+              "operation": "contains",
+              "value2": "action"
+            }
+          ]
+        }
+      },
+      "id": "filter1",
+      "name": "Filter Action",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 220]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "projectId": "1",
+        "subject": "AUTO: {{ $json.data.subject }}",
+        "additionalFields": {
+          "description": "Auto-created task for story: {{ $json.data.subject }}",
+          "user_story": "={{ $json.data.id }}"
+        }
+      },
+      "id": "create1",
+      "name": "Create Task",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [980, 180],
+      "credentials": {
+        "taigaApi": "Taiga API"
+      }
+    }
+  ],
+  "connections": {
+    "Taiga Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Action": {
+      "main": [
+        [
+          {
+            "node": "Create Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true
+}

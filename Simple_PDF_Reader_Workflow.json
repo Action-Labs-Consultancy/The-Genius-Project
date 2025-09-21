@@ -1,0 +1,373 @@
+{
+  "name": "Simple PDF Reader - Company Data",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        240
+      ],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -300,
+        240
+      ],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple task processing - extract company data\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks`);\n\nconst results = [];\n\nfor (const task of tasks) {\n  const title = task.title || '';\n  const description = task.description || '';\n  \n  // Look for company tasks (you can modify this filter)\n  if (title.toLowerCase().includes('due diligence') || \n      title.toLowerCase().includes('company') ||\n      description.toLowerCase().includes('website')) {\n    \n    // Extract company name from title\n    let companyName = title.replace(/due diligence:\\s*/i, '').trim();\n    if (!companyName) companyName = title.trim();\n    \n    // Extract website from description\n    const websiteMatch = description.match(/(?:website|url|site)\\s*:?\\s*(https?:\\/\\/[^\\s]+|www\\.[^\\s]+|[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/i);\n    const website = websiteMatch ? websiteMatch[1] : '';\n    \n    results.push({\n      task_id: parseInt(task.id),\n      company_name: companyName,\n      website: website,\n      description: description\n    });\n    \n    console.log(`Found company task: ${companyName} (ID: ${task.id})`);\n  }\n}\n\nif (results.length === 0) {\n  console.log('No company tasks found');\n  return [];\n}\n\nconsole.log(`Processing ${results.length} company tasks`);\nreturn results.map(item => ({ json: item }));"
+      },
+      "name": "Extract Company Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        240
+      ],
+      "id": "extract-company"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        240
+      ],
+      "id": "get-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check if task has PDF files\nconst taskData = $input.first().json;\nconst filesData = $input.last().json;\n\nconst files = filesData.result || [];\nconsole.log(`Task ${taskData.task_id}: Found ${files.length} total files`);\n\n// Debug: Log all files found\nfiles.forEach(file => {\n  console.log(`File found: ${file.name} (size: ${file.size}, type: ${file.mimetype || 'unknown'})`);\n});\n\n// Look for PDF files with better filtering\nconst pdfFiles = files.filter(file => {\n  if (!file.name) return false;\n  \n  const fileName = file.name.toLowerCase();\n  const isPDF = fileName.endsWith('.pdf');\n  const isPDFMimetype = file.mimetype && file.mimetype.includes('pdf');\n  \n  console.log(`File ${file.name}: isPDF=${isPDF}, mimetype=${file.mimetype}`);\n  \n  return isPDF || isPDFMimetype;\n});\n\nconsole.log(`Found ${pdfFiles.length} PDF files out of ${files.length} total files`);\n\nif (pdfFiles.length === 0) {\n  console.log(`No PDF files found for task ${taskData.task_id}`);\n  // Return task data without PDF processing\n  return {\n    json: {\n      ...taskData,\n      pdf_text: 'No PDF file attached',\n      has_pdf: false\n    }\n  };\n}\n\n// Process first PDF file\nconst pdfFile = pdfFiles[0];\nconsole.log(`Processing PDF: ${pdfFile.name} (ID: ${pdfFile.id})`);\n\n// Kanboard file download URL format\nconst downloadUrl = `/index.php?controller=FileController&action=download&file_id=${pdfFile.id}&token=${pdfFile.token}`;\nconsole.log(`Download URL: ${downloadUrl}`);\n\nreturn {\n  json: {\n    ...taskData,\n    file_id: pdfFile.id,\n    file_name: pdfFile.name,\n    file_size: pdfFile.size,\n    file_mimetype: pdfFile.mimetype,\n    file_path: downloadUrl,\n    has_pdf: true\n  }\n};"
+      },
+      "name": "Check for PDF",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        300,
+        240
+      ],
+      "id": "check-pdf"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.has_pdf }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Has PDF File?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        240
+      ],
+      "id": "has-pdf-if"
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:8000{{ $json.file_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        180
+      ],
+      "id": "download-pdf",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Validate PDF file before extraction\nconst item = $input.first();\nconst binaryData = item.binary;\n\nconsole.log('Binary data keys:', Object.keys(binaryData || {}));\n\nif (!binaryData || !binaryData.data) {\n  throw new Error('No binary data found in downloaded file');\n}\n\nconst fileName = binaryData.data.fileName || 'unknown';\nconst mimeType = binaryData.data.mimeType || 'unknown';\nconst fileSize = binaryData.data.fileSize || 0;\n\nconsole.log(`Downloaded file: ${fileName}`);\nconsole.log(`MIME type: ${mimeType}`);\nconsole.log(`File size: ${fileSize} bytes`);\n\n// Check if it's actually a PDF\nif (!mimeType.includes('pdf') && !fileName.toLowerCase().endsWith('.pdf')) {\n  throw new Error(`File is not a PDF. MIME type: ${mimeType}, filename: ${fileName}`);\n}\n\n// Check file size\nif (fileSize === 0) {\n  throw new Error('Downloaded file is empty');\n}\n\nconsole.log('✅ PDF validation passed, proceeding to extract text');\n\n// Return the item as-is for PDF extraction\nreturn item;"
+      },
+      "name": "Validate PDF File",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        800,
+        180
+      ],
+      "id": "validate-pdf"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        180
+      ],
+      "id": "extract-pdf"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine PDF text with task data\n// Handle both paths: with PDF extraction and without PDF\nconst inputs = $input.all();\nconsole.log(`Combine Data: Received ${inputs.length} inputs`);\n\n// Check if we have PDF text data\nlet taskData, pdfText = 'No PDF file attached';\n\nif (inputs.length === 1) {\n  // Single input - either from 'no PDF' path or from PDF extraction\n  const input = inputs[0].json;\n  \n  if (input.data) {\n    // This is from PDF extraction\n    pdfText = input.data;\n    // Get task data from original context (need to get from previous nodes)\n    taskData = {\n      task_id: $('Has PDF File?').first().json.task_id,\n      company_name: $('Has PDF File?').first().json.company_name,\n      website: $('Has PDF File?').first().json.website,\n      file_name: $('Has PDF File?').first().json.file_name\n    };\n  } else {\n    // This is from 'no PDF' path\n    taskData = input;\n    pdfText = input.pdf_text || 'No PDF file attached';\n  }\n} else if (inputs.length === 2) {\n  // Two inputs - task data and PDF data\n  taskData = inputs[0].json;\n  pdfText = inputs[1].json.data || 'Could not extract PDF text';\n}\n\nconsole.log(`Final data: Task ${taskData.task_id}, Company: ${taskData.company_name}`);\nconsole.log(`PDF text length: ${pdfText.length} characters`);\n\nreturn {\n  json: {\n    task_id: taskData.task_id,\n    company_name: taskData.company_name,\n    website: taskData.website,\n    pdf_text: pdfText,\n    file_name: taskData.file_name || 'N/A'\n  }\n};"
+      },
+      "name": "Combine Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        240
+      ],
+      "id": "combine-data"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "website": "={{ $json.website }}",
+            "description": "={{ $json.pdf_text }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1400,
+        240
+      ],
+      "id": "save-db",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Extract Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company Data": {
+      "main": [
+        [
+          {
+            "node": "Get Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Files": {
+      "main": [
+        [
+          {
+            "node": "Check for PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for PDF": {
+      "main": [
+        [
+          {
+            "node": "Has PDF File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has PDF File?": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Validate PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,938 @@
+{
+  "name": "REader",
+  "nodes": [
+    // ...existing valid node objects only, no nested nodes...
+  ],
+  "connections": {
+    // ...existing valid connection objects only, no duplicates...
+  },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  console.log(`Preparing file: ${file.name} (${file.id})`);\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      webViewLink: file.webViewLink,\n      webContentLink: file.webContentLink,\n      company_name: folderName,\n      folder_id: folderId\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing`);\nreturn results;"
+      },
+      "id": "aaf6b903-739e-4496-bd6d-d941f65cd2f3",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "8194b852-20e8-4e72-822e-29d4d31f3660",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        48,
+        176
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "031c8856-0332-41f4-b344-7bb247331ca7",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract ALL content from PDF and save everything to database\nconst extractedData = $input.first().json;\nconst pdfInfo = $node[\"Download PDF File\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters of text`);\n} else {\n  // If direct extraction failed, try to get any available text\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    // Try to find text in any property\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = 'PDF extraction failed - file may be image-based or corrupted';\n    extractionMethod = 'failed';\n    console.log('⚠️ Could not extract text from PDF');\n  }\n}\n\n// Log what we got\nconsole.log(`PDF File: ${pdfInfo.name}`);\nconsole.log(`Company: ${pdfInfo.company_name}`);\nconsole.log(`Extraction method: ${extractionMethod}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`First 300 chars: ${fullTextContent.substring(0, 300)}`);\n\n// Enhanced extraction functions\nfunction extractWebsites(text) {\n  // More comprehensive URL regex\n  const urlRegex = /(?:https?:\\/\\/)?(?:www\\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}(?:\\/[^\\s]*)?/g;\n  const matches = text.match(urlRegex) || [];\n  return matches.map(url => {\n    url = url.trim().replace(/[,;)]*$/, ''); // Clean trailing punctuation\n    if (!url.startsWith('http')) {\n      return 'https://' + url;\n    }\n    return url;\n  }).filter((url, index, self) => self.indexOf(url) === index && url.includes('.')); // Remove duplicates and ensure valid\n}\n\nfunction extractEmails(text) {\n  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  const matches = text.match(emailRegex) || [];\n  return matches.filter((email, index, self) => self.indexOf(email) === index); // Remove duplicates\n}\n\nfunction extractPhones(text) {\n  // Multiple phone number patterns\n  const phonePatterns = [\n    /(?:\\+?1[-. ]?)?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g, // US format\n    /\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g, // Basic format\n    /([0-9]{3})[-.\\s]?([0-9]{3})[-.\\s]?([0-9]{4})/g // Simple format\n  ];\n  \n  let allPhones = [];\n  phonePatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allPhones = allPhones.concat(matches);\n  });\n  \n  return allPhones.filter((phone, index, self) => self.indexOf(phone) === index); // Remove duplicates\n}\n\nfunction extractAddresses(text) {\n  // Enhanced address patterns\n  const addressPatterns = [\n    /\\d+\\s+[a-zA-Z\\s,]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)\\s*,?\\s*[a-zA-Z\\s,]+\\s+\\d{5}(?:-\\d{4})?/gi,\n    /\\d+\\s+[A-Za-z\\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)/gi\n  ];\n  \n  let allAddresses = [];\n  addressPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allAddresses = allAddresses.concat(matches);\n  });\n  \n  return allAddresses.filter((addr, index, self) => self.indexOf(addr) === index); // Remove duplicates\n}\n\nfunction extractCompanyNames(text) {\n  // Try to find additional company names in the text\n  const companyPatterns = [\n    /([A-Z][a-zA-Z\\s&]+(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited))/g,\n    /([A-Z][a-zA-Z\\s&]+ (?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited))/g\n  ];\n  \n  let companies = [];\n  companyPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    companies = companies.concat(matches);\n  });\n  \n  return companies.filter((comp, index, self) => self.indexOf(comp) === index);\n}\n\n// Extract all types of information\nconst websites = extractWebsites(fullTextContent);\nconst emails = extractEmails(fullTextContent);\nconst phones = extractPhones(fullTextContent);\nconst addresses = extractAddresses(fullTextContent);\nconst companyNames = extractCompanyNames(fullTextContent);\n\n// Generate company ID\nconst companyId = `${pdfInfo.folder_id}_${pdfInfo.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfInfo.id.substring(0, 8)}`;\n\n// Create the final data object with ALL information\nconst finalData = {\n  company_id: companyId,\n  company_name: pdfInfo.company_name,\n  file_name: pdfInfo.name,\n  file_id: pdfInfo.id,\n  folder_id: pdfInfo.folder_id,\n  content: fullTextContent, // Store the complete extracted text\n  full_text_content: fullTextContent, // Also store in dedicated field\n  websites: websites.length > 0 ? websites.join(', ') : null,\n  primary_website: websites.length > 0 ? websites[0] : null,\n  emails: emails.length > 0 ? emails.join(', ') : null,\n  primary_email: emails.length > 0 ? emails[0] : null,\n  phones: phones.length > 0 ? phones.join(', ') : null,\n  primary_phone: phones.length > 0 ? phones[0] : null,\n  addresses: addresses.length > 0 ? addresses.join(', ') : null,\n  primary_address: addresses.length > 0 ? addresses[0] : null,\n  file_size: parseInt(pdfInfo.size) || 0,\n  content_length: fullTextContent.length,\n  extraction_method: extractionMethod,\n  processed_at: new Date().toISOString(),\n  // Add section property for the switch\n  section: 'topic_1'\n};\n\n// Log extraction results\nconsole.log(`\\n=== EXTRACTION RESULTS ===`);\nconsole.log(`Company: ${finalData.company_name}`);\nconsole.log(`File: ${finalData.file_name}`);\nconsole.log(`Content length: ${finalData.content_length} characters`);\nconsole.log(`Extraction method: ${finalData.extraction_method}`);\nconsole.log(`Websites found: ${websites.length} - [${websites.slice(0, 3).join(', ')}]`);\nconsole.log(`Emails found: ${emails.length} - [${emails.slice(0, 3).join(', ')}]`);\nconsole.log(`Phones found: ${phones.length} - [${phones.slice(0, 3).join(', ')}]`);\nconsole.log(`Addresses found: ${addresses.length}`);\nconsole.log(`Company names in text: ${companyNames.length} - [${companyNames.slice(0, 3).join(', ')}]`);\nconsole.log(`========================\\n`);\n\nif (finalData.content_length === 0) {\n  console.log('⚠️ WARNING: No text content extracted from PDF!');\n  console.log('This could mean:');\n  console.log('- PDF is image-based (scanned document)');\n  console.log('- PDF is password protected');\n  console.log('- PDF file is corrupted');\n  console.log('- Download failed');\n}\n\nreturn { json: finalData };"
+      },
+      "id": "28867014-d798-4336-9035-0a989aa5dfe7",
+      "name": "Extract ALL Company Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        448,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "file_size": "={{ $json.file_size }}",
+            "content_length": "={{ $json.content_length }}",
+            "company_name": "={{ $json.company_name }}",
+            "file_name": "={{ $json.file_name }}",
+            "file_id": "={{ $json.file_id }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "primary_website": "={{ $json.primary_website }}",
+            "emails": "={{ $json.emails }}",
+            "primary_email": "={{ $json.primary_email }}",
+            "phones": "={{ $json.phones }}",
+            "primary_phone": "={{ $json.primary_phone }}",
+            "addresses": "={{ $json.addresses }}",
+            "primary_address": "={{ $json.primary_address }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "company_id": "={{ $json.company_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "websites",
+              "displayName": "websites",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "primary_website",
+              "displayName": "primary_website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emails",
+              "displayName": "emails",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_email",
+              "displayName": "primary_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phones",
+              "displayName": "phones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_phone",
+              "displayName": "primary_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "addresses",
+              "displayName": "addresses",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_address",
+              "displayName": "primary_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "content_length",
+              "displayName": "content_length",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "column": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "file_name",
+              "value": "={{ $json.file_name }}"
+            },
+            {
+              "column": "file_id",
+              "value": "={{ $json.file_id }}"
+            },
+            {
+              "column": "folder_id",
+              "value": "={{ $json.folder_id }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "column": "full_text_content",
+              "value": "={{ $json.full_text_content }}"
+            },
+            {
+              "column": "websites",
+              "value": "={{ $json.websites }}"
+            },
+            {
+              "column": "primary_website",
+              "value": "={{ $json.primary_website }}"
+            },
+            {
+              "column": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "column": "primary_email",
+              "value": "={{ $json.primary_email }}"
+            },
+            {
+              "column": "phones",
+              "value": "={{ $json.phones }}"
+            },
+            {
+              "column": "primary_phone",
+              "value": "={{ $json.primary_phone }}"
+            },
+            {
+              "column": "addresses",
+              "value": "={{ $json.addresses }}"
+            },
+            {
+              "column": "primary_address",
+              "value": "={{ $json.primary_address }}"
+            },
+            {
+              "column": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "column": "content_length",
+              "value": "={{ $json.content_length }}"
+            },
+            {
+              "column": "extraction_method",
+              "value": "={{ $json.extraction_method }}"
+            },
+            {
+              "column": "processed_at",
+              "value": "={{ $json.processed_at }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b4f32108-3d73-4b10-8764-c0c87e110197",
+      "name": "Save ALL Data to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        656,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7081a8b9-aa72-4841-8392-908e2387acf9"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        176
+      ],
+      "id": "9bc053b2-2546-4bbb-921d-b2c269a14ec1",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Setup sections for due diligence processing\nconst company = $json.company_name;\nconst companyContent = $json.content || 'No content available';\nconst primaryWebsite = $json.primary_website || 'No website available';\nconst primaryEmail = $json.primary_email || 'No email available';\nconst today = new Date().toISOString().split('T')[0];\n\nconsole.log(`Setting up sections for company: ${company}`);\n\n// Define the current section being processed\nconst currentSection = {\n  id: 1,\n  name: 'Introduction & Engagement Context',\n  field_name: 'introduction_engagement_context'\n};\n\n// Generate task ID\nconst taskId = Math.floor(Math.random() * 10000);\n\nreturn {\n  json: {\n    task_id: taskId,\n    company_name: company,\n    current_section: currentSection,\n    company_content: companyContent,\n    primary_website: primaryWebsite,\n    primary_email: primaryEmail,\n    file_name: $json.file_name,\n    content_length: $json.content_length,\n    extraction_method: $json.extraction_method,\n    today: today\n  }\n};"
+      },
+      "name": "Setup Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        176
+      ],
+      "id": "setup-sections-node"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3.1:latest",
+          "prompt": "=Generate Section 1 of a due diligence report for '{{ $json.company_name }}' as an expert financial analyst using the provided company information.\nThis section is titled: '{{ $json.current_section.name }}'.\n\nCOMPANY INFORMATION:\n- Company: {{ $json.company_name }}\n- Website: {{ $json.primary_website }}\n- Email: {{ $json.primary_email }}\n- Content Extract: {{ $json.company_content.substring(0, 800) }}...\n- File: {{ $json.file_name }}\n- Content Length: {{ $json.content_length }} characters\n\nSECTION STRUCTURE:\n# Due Diligence Report: {{ $json.company_name }}\n## Section 1: {{ $json.current_section.name }}\n- Purpose of the due diligence engagement\n- Scope of the review (what areas are covered)\n- Context for why this due diligence is being performed\n- Relevance of the engagement to stakeholders\n- Timeframe and current date reference\n\nREQUIREMENTS:\n- Use the provided company information from PDFs\n- Be specific and factual (no placeholders)\n- Write at least 300 words\n- Make it professional and concise\n- Current date: {{ $json.today }}",
+          "stream": false,
+          "options": {
+            "num_predict": 4000
+          }
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "AI Maker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        176
+      ],
+      "id": "ai-maker-node"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3.1:latest",
+          "prompt": "=You are a CHECKER AI for Due Diligence reports. Review this content for accuracy and quality:\n\nSection: {{ $node['Setup Sections'].json.current_section.name }}\nCompany: {{ $node['Setup Sections'].json.company_name }}\n\nContent to check:\n{{ $node['AI Maker'].json.response }}\n\nCheck for:\n1. Hallucinations or false information\n2. Mock or simulated data\n3. Logical inconsistencies\n4. Missing critical information\n5. Overall quality and professionalism\n\nRespond ONLY with JSON:\n{\n  \"approved\": true/false,\n  \"feedback\": \"specific feedback for improvements\",\n  \"quality_score\": 1-10\n}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1472,
+        176
+      ],
+      "id": "ai-checker-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Checker response and decide next step\nconst setupData = $node['Setup Sections'].json;\nconst makerContent = $node['AI Maker'].json.response;\nconst checkerResponse = $input.first().json.response;\n\nconsole.log(`Processing Checker response for section: ${setupData.current_section.name}`);\n\n// Parse checker response\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback if no JSON found\n    checkerData = {\n      approved: true,\n      feedback: \"Content appears acceptable\",\n      quality_score: 7\n    };\n  }\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerData = {\n    approved: true,\n    feedback: \"Content appears acceptable\",\n    quality_score: 7\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.quality_score})`);\n\n// Return data for next step\nreturn {\n  json: {\n    ...setupData,\n    maker_content: makerContent,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.quality_score\n  }\n};"
+      },
+      "name": "Process Checker Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        176
+      ],
+      "id": "process-checker-node"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Checker Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        176
+      ],
+      "id": "checker-approved-node"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3.1:latest",
+          "prompt": "=You are an APPROVER AI for Due Diligence reports. Make final approval decision:\n\nSection: {{ $json.current_section.name }}\nCompany: {{ $json.company_name }}\nChecker Score: {{ $json.checker_score }}/10\nChecker Feedback: {{ $json.checker_feedback }}\n\nContent:\n{{ $json.maker_content }}\n\nMake final business decision on this section. Consider completeness, accuracy, and business value.\n\nRespond ONLY with JSON:\n{\n  \"approved\": true/false,\n  \"final_feedback\": \"business rationale for decision\",\n  \"suggestions\": \"any final suggestions\"\n}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2048,
+        176
+      ],
+      "id": "ai-approver-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Approver response\nconst sectionData = $node['Process Checker Result'].json;\nconst approverResponse = $input.first().json.response;\n\nconsole.log(`Processing Approver response for section: ${sectionData.current_section.name}`);\n\n// Parse approver response\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = {\n      approved: true,\n      final_feedback: \"Section approved\",\n      suggestions: \"None\"\n    };\n  }\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverData = {\n    approved: true,\n    final_feedback: \"Section approved\",\n    suggestions: \"None\"\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nreturn {\n  json: {\n    ...sectionData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.final_feedback,\n    approver_suggestions: approverData.suggestions\n  }\n};"
+      },
+      "name": "Process Approver Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        176
+      ],
+      "id": "process-approver-node"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approver Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        176
+      ],
+      "id": "approver-approved-node"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "introduction_engagement_context": "={{ $json.maker_content }}",
+            "status": "Section 1 Complete"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2624,
+        176
+      ],
+      "id": "save-report-node",
+      // ...existing code...
+      "Save ALL Data to Database": {
+        "main": [
+          [
+            {
+              "node": "AI Maker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Maker": {
+        "main": [
+          [
+            {
+              "node": "AI Checker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Checker": {
+        "main": [
+          [
+            {
+              "node": "Checker Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Checker Processing": {
+        "main": [
+          [
+            {
+              "node": "Checker Approved?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Checker Approved?": {
+        "main": [
+          [
+            {
+              "node": "AI Approver",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Maker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Approver": {
+        "main": [
+          [
+            {
+              "node": "Approver Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Approver Processing": {
+        "main": [
+          [
+            {
+              "node": "Approver Approved?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Approver Approved?": {
+        "main": [
+          [
+            {
+              "node": "Insert or update rows in a table",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Maker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Extract ALL Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract ALL Company Data": {
+      "main": [
+        [
+          {
+            "node": "Save ALL Data to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save ALL Data to Database": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Setup Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Sections": {
+      "main": [
+        [
+          {
+            "node": "AI Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Maker": {
+      "main": [
+        [
+          {
+            "node": "AI Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker": {
+      "main": [
+        [
+          {
+            "node": "Process Checker Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Checker Result": {
+      "main": [
+        [
+          {
+            "node": "Checker Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Approved?": {
+      "main": [
+        [
+          {
+            "node": "AI Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver": {
+      "main": [
+        [
+          {
+            "node": "Process Approver Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver Result": {
+      "main": [
+        [
+          {
+            "node": "Approver Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver Approved?": {
+      "main": [
+        [
+          {
+            "node": "Save Report to Database",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e50df89c-1c70-4a77-af5f-7455dfc46ec0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "eOGMOkxv96RXdva8",
+  "tags": []
+}

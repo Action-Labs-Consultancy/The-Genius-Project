@@ -1,0 +1,224 @@
+{
+  "name": "Simple Taiga Action Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "taiga-action-webhook",
+        "options": {}
+      },
+      "id": "taiga-webhook",
+      "name": "Taiga Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "webhookId": "taiga-action-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract task data from Taiga webhook\nconst webhookData = $json;\nconst taskData = webhookData.data || webhookData;\n\nconst taskSubject = taskData.subject || '';\nconst taskId = taskData.id;\nconst projectId = taskData.project;\nconst creatorId = taskData.owner || taskData.assigned_to;\nconst taskRef = taskData.ref;\n\n// Check if subject contains \"action\" (case insensitive)\nconst hasActionTrigger = taskSubject.toLowerCase().includes('action');\n\nconsole.log('Task Subject:', taskSubject);\nconsole.log('Has Action Trigger:', hasActionTrigger);\n\nreturn {\n  json: {\n    original_task_id: taskId,\n    original_task_ref: taskRef,\n    original_subject: taskSubject,\n    project_id: projectId,\n    creator_id: creatorId,\n    has_action_trigger: hasActionTrigger\n  }\n};"
+      },
+      "id": "extract-and-check",
+      "name": "Extract & Check for 'action'",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.has_action_trigger }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-action-trigger",
+      "name": "Contains 'action'?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer 9fb5fa1279d94709df70b3eed65f545f229b8dfe"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "={{ $json.project_id }}"
+            },
+            {
+              "name": "subject",
+              "value": "=🔥 ACTION FOLLOW-UP: {{ $json.original_subject }}"
+            },
+            {
+              "name": "description",
+              "value": "=**AUTO-GENERATED ACTION TASK**\\n\\nThis task was automatically created because the original task contained 'action'.\\n\\nOriginal Task: {{ $json.original_subject }}\\nOriginal Task ID: #{{ $json.original_task_ref }}\\n\\n✅ **Next Steps:**\\n- Review the original task requirements\\n- Take appropriate action\\n- Update status when complete\\n\\n🤖 Created by automation workflow"
+            },
+            {
+              "name": "assigned_to",
+              "value": "={{ $json.creator_id }}"
+            },
+            {
+              "name": "tags",
+              "value": "[\"action-item\", \"auto-generated\", \"follow-up\"]"
+            }
+          ]
+        }
+      },
+      "id": "create-action-task",
+      "name": "Create Action Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [800, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:8001/api/v1/userstories/{{ $json.original_task_id }}/history",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer 9fb5fa1279d94709df70b3eed65f545f229b8dfe"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "comment",
+              "value": "=🤖 **ACTION PROCESSED!**\\n\\nDetected 'action' keyword in task subject.\\n\\n✅ **New action task created:** #{{ $('Create Action Task').item.json.ref }}\\n\\nTitle: {{ $('Create Action Task').item.json.subject }}\\n\\n⚡ The automation workflow has successfully created a follow-up task for this action item."
+            }
+          ]
+        }
+      },
+      "id": "add-comment",
+      "name": "Add Comment to Original",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1000, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\"status\": \"success\", \"message\": \"Action trigger detected and processed\", \"original_task\": $json.original_subject, \"new_task_created\": true, \"new_task_id\": $('Create Action Task').item.json.id}}"
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\"status\": \"ignored\", \"message\": \"No action trigger found in task subject\", \"original_task\": $json.original_subject, \"new_task_created\": false}}"
+      },
+      "id": "ignore-response",
+      "name": "No Action Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [800, 400]
+    }
+  ],
+  "connections": {
+    "Taiga Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract & Check for 'action'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Check for 'action'": {
+      "main": [
+        [
+          {
+            "node": "Contains 'action'?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contains 'action'?": {
+      "main": [
+        [
+          {
+            "node": "Create Action Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Action Task": {
+      "main": [
+        [
+          {
+            "node": "Add Comment to Original",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Comment to Original": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "simple-action-v1",
+  "id": "simple-taiga-action-flow"
+}

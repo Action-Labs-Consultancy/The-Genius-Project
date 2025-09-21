@@ -1,0 +1,312 @@
+{
+  "name": "rag_batch",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list",
+          "cachedResultName": "Due",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1hDbczPdamC3FDROskKamg9MdCYV5PY06"
+        },
+        "event": "folderCreated"
+      },
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        384
+      ],
+      "id": "348704dd-11ea-4827-9c6a-d716f409e805",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)&pageSize=1000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "List PDF Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1800,
+        384
+      ],
+      "id": "99682e75-a75d-4f78-b014-3fdfb93dea8e",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Split all files into individual items for batch processing\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconsole.log('🔍 BATCH PROCESSING SETUP:');\nconsole.log('Response:', JSON.stringify(response, null, 2));\n\nconst files = (response && response.files) ? response.files : [];\n\nif (!files || !Array.isArray(files) || files.length === 0) {\n  console.log('❌ No PDF files found');\n  return [{\n    json: {\n      error: 'No PDF files found',\n      folder_name: folderName,\n      folder_id: folderId\n    }\n  }];\n}\n\n// Extract company name\nlet companyName = folderName || 'Unknown_Company';\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nif (companyName.length < 2) {\n  companyName = 'Unknown_Company';\n}\n\nconst sessionId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n\nconsole.log(`🚀 BATCH PROCESSING: ${files.length} files`);\nconsole.log(`📁 Folder: ${folderName}`);\nconsole.log(`🏢 Company: ${companyName}`);\n\n// Return each file as a separate item for parallel processing\nreturn files.map((file, index) => ({\n  json: {\n    session_id: sessionId,\n    company_name: companyName,\n    folder_id: folderId,\n    folder_name: folderName,\n    total_files: files.length,\n    file_index: index,\n    file_id: file.id,\n    file_name: file.name,\n    file_size: file.size,\n    file_mime_type: file.mimeType,\n    processing_mode: 'batch'\n  }\n}));"
+      },
+      "name": "Split Files for Batch Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        384
+      ],
+      "id": "split-files-node"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{ $json.file_id }}",
+        "options": {}
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1400,
+        384
+      ],
+      "id": "download-pdf-node",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        384
+      ],
+      "id": "extract-text-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process extracted text and create chunks for each file\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Split Files for Batch Processing\"].json;\n\nconsole.log(`📄 Processing: ${fileInfo.file_name} (${fileInfo.file_index + 1}/${fileInfo.total_files})`);\n\n// Get extracted text\nlet fullText = '';\nif (extractedData && extractedData.data) {\n  fullText = extractedData.data;\n} else if (typeof extractedData === 'string') {\n  fullText = extractedData;\n}\n\nif (!fullText || fullText.length < 100) {\n  console.error(`❌ Text extraction failed for ${fileInfo.file_name}`);\n  return [{\n    json: {\n      ...fileInfo,\n      error: 'Text extraction failed',\n      processing_status: 'failed'\n    }\n  }];\n}\n\n// Estimate pages\nconst estimatedPages = Math.max(1, Math.ceil(fullText.length / 2000));\n\nconsole.log(`📊 Extracted ${fullText.length} characters (~${estimatedPages} pages) from ${fileInfo.file_name}`);\n\n// Create chunks\nconst chunkSize = 1000;\nconst overlap = 200;\nconst chunks = [];\n\nfor (let i = 0; i < fullText.length; i += (chunkSize - overlap)) {\n  const chunk = fullText.substring(i, i + chunkSize);\n  if (chunk.trim().length > 50) {\n    chunks.push({\n      content: chunk.trim(),\n      metadata: {\n        session_id: fileInfo.session_id,\n        file_name: fileInfo.file_name,\n        company_name: fileInfo.company_name,\n        file_id: fileInfo.file_id,\n        folder_id: fileInfo.folder_id,\n        chunk_index: chunks.length,\n        total_chunks_this_file: Math.ceil(fullText.length / (chunkSize - overlap)),\n        file_index: fileInfo.file_index,\n        total_files: fileInfo.total_files,\n        actual_pages: estimatedPages,\n        extracted_at: new Date().toISOString(),\n        processing_mode: 'batch'\n      }\n    });\n  }\n}\n\nconsole.log(`📦 Created ${chunks.length} chunks for ${fileInfo.file_name}`);\n\n// Return all chunks for this file\nreturn chunks.map(chunk => ({\n  json: {\n    pageContent: chunk.content,\n    metadata: chunk.metadata,\n    file_info: {\n      ...fileInfo,\n      chunks_created: chunks.length,\n      pages_estimated: estimatedPages,\n      characters_extracted: fullText.length,\n      processing_status: 'completed'\n    }\n  }\n}));"
+      },
+      "name": "Create Text Chunks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        384
+      ],
+      "id": "create-chunks-node"
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -1016,
+        304
+      ],
+      "id": "embedding-node",
+      "name": "Embeddings Ollama (mxbai-embed-large)",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -800,
+        336
+      ],
+      "id": "data-loader-node",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -920,
+        48
+      ],
+      "id": "pinecone-node",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate results and create final summary\nconst allInputs = $input.all();\n\nif (!allInputs || allInputs.length === 0) {\n  console.log('❌ No results to aggregate');\n  return {\n    json: {\n      error: 'No processing results received',\n      status: 'failed'\n    }\n  };\n}\n\n// Group by files and calculate totals\nconst fileMap = new Map();\nlet totalChunks = 0;\nlet totalPages = 0;\nconst sessionInfo = allInputs[0].json.file_info;\n\nallInputs.forEach(input => {\n  if (input.json && input.json.file_info) {\n    const fileInfo = input.json.file_info;\n    const fileName = fileInfo.file_name;\n    \n    if (!fileMap.has(fileName)) {\n      fileMap.set(fileName, {\n        file_name: fileName,\n        file_id: fileInfo.file_id,\n        chunks: fileInfo.chunks_created || 0,\n        pages: fileInfo.pages_estimated || 0,\n        characters: fileInfo.characters_extracted || 0,\n        status: fileInfo.processing_status || 'unknown'\n      });\n      \n      totalChunks += fileInfo.chunks_created || 0;\n      totalPages += fileInfo.pages_estimated || 0;\n    }\n  }\n});\n\nconst processedFiles = Array.from(fileMap.values());\nconst successfulFiles = processedFiles.filter(f => f.status === 'completed');\nconst failedFiles = processedFiles.filter(f => f.status === 'failed');\n\nconst successRate = processedFiles.length > 0 ? (successfulFiles.length / processedFiles.length * 100).toFixed(2) : 0;\n\nconsole.log('🎉 BATCH PROCESSING COMPLETE!');\nconsole.log('═'.repeat(50));\nconsole.log(`🏢 Company: ${sessionInfo.company_name}`);\nconsole.log(`📁 Folder: ${sessionInfo.folder_name}`);\nconsole.log(`📄 Files Processed: ${successfulFiles.length}/${processedFiles.length}`);\nconsole.log(`📦 Total Chunks: ${totalChunks}`);\nconsole.log(`📑 Total Pages: ${totalPages}`);\nconsole.log(`✅ Success Rate: ${successRate}%`);\nconsole.log(`💾 Vector Store: Pinecone index 'n8n'`);\nconsole.log(`🤖 Embedding Model: mxbai-embed-large (1024 dimensions)`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    processing_complete: true,\n    processing_mode: 'batch',\n    session_id: sessionInfo.session_id,\n    company_name: sessionInfo.company_name,\n    folder_name: sessionInfo.folder_name,\n    summary: {\n      total_files: processedFiles.length,\n      successful_files: successfulFiles.length,\n      failed_files: failedFiles.length,\n      success_rate: `${successRate}%`,\n      total_chunks: totalChunks,\n      total_pages: totalPages\n    },\n    processed_files: processedFiles,\n    failed_files: failedFiles.map(f => f.file_name),\n    technical_details: {\n      pinecone_index: 'n8n',\n      embedding_model: 'mxbai-embed-large',\n      embedding_dimensions: 1024,\n      chunk_size: 1000,\n      chunk_overlap: 200\n    },\n    ready_for_rag_queries: successfulFiles.length > 0,\n    completed_at: new Date().toISOString(),\n    status_message: `🎉 Batch processing complete! ${successfulFiles.length}/${processedFiles.length} files successfully processed.`\n  }\n};"
+      },
+      "name": "Final Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        384
+      ],
+      "id": "summary-node"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "List PDF Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDF Files": {
+      "main": [
+        [
+          {
+            "node": "Split Files for Batch Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Files for Batch Processing": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Create Text Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Text Chunks": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama (mxbai-embed-large)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "new-batch-workflow",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "batch-rag-workflow",
+  "tags": []
+}

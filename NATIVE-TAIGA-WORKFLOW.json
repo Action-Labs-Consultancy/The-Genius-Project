@@ -1,0 +1,119 @@
+{
+  "name": "Native Taiga Automation - SIMPLE",
+  "nodes": [
+    {
+      "parameters": {
+        "projectId": "1",
+        "resources": ["userstory"],
+        "operations": ["create", "change"]
+      },
+      "id": "4c7bf4de-c4bb-4bb3-9d29-37bbea27f9a7",
+      "name": "Taiga Trigger",
+      "type": "n8n-nodes-base.taigaTrigger",
+      "typeVersion": 1,
+      "position": [460, 220],
+      "webhookId": "webhook-trigger",
+      "credentials": {
+        "taigaApi": {
+          "id": "taiga-creds",
+          "name": "Taiga API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data.subject }}",
+              "operation": "contains",
+              "value2": "action"
+            }
+          ]
+        }
+      },
+      "id": "f5b1c6e2-3db4-4a33-9c32-8f5d3e7b2a11",
+      "name": "Filter for 'action'",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 220]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "projectId": "1",
+        "subject": "Auto-created task: {{ $json.data.subject }}",
+        "additionalFields": {
+          "description": "This task was automatically created because the user story contains 'action'.\n\nOriginal story: {{ $json.data.subject }}\nStory ID: {{ $json.data.id }}",
+          "user_story": "={{ $json.data.id }}"
+        }
+      },
+      "id": "8a9b1c2d-4e5f-4g7h-9i0j-1k2l3m4n5o6p",
+      "name": "Create Task",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [980, 140],
+      "credentials": {
+        "taigaApi": {
+          "id": "taiga-creds",
+          "name": "Taiga API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "userStory",
+        "operation": "update",
+        "projectId": "1",
+        "userStoryId": "={{ $json.data.id }}",
+        "updateFields": {
+          "description": "{{ $json.data.description }}\n\n[AUTOMATED] A task has been automatically created for this story."
+        }
+      },
+      "id": "1b2c3d4e-5f6g-7h8i-9j0k-1l2m3n4o5p6q",
+      "name": "Update Story",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [980, 300],
+      "credentials": {
+        "taigaApi": {
+          "id": "taiga-creds",
+          "name": "Taiga API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Taiga Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter for 'action'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter for 'action'": {
+      "main": [
+        [
+          {
+            "node": "Create Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "native-taiga-v1"
+}

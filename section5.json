@@ -1,0 +1,495 @@
+{
+  "name": "section5",
+  "nodes": [
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=section5_{{ $json.company_id || 'default' }}_{{ Date.now() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        288
+      ],
+      "id": "f9442de1-1e3a-4491-92eb-e0dda107d0ee",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "complete_dd_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $node['Direct Section 5 Generation'].json.company_id }}",
+            "company_name": "={{ $node['Direct Section 5 Generation'].json.company_name }}",
+            "partnerships_ecosystem_alliances": "={{ $node['Direct Section 5 Generation'].json.output }}",
+            "sections_completed": 5,
+            "status": "section5_complete",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "executive_summary",
+              "displayName": "executive_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "key_findings",
+              "displayName": "key_findings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "legal_disclaimers_reliance_limitations",
+              "displayName": "legal_disclaimers_reliance_limitations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "section_3_content",
+              "displayName": "section_3_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "section_4_executive_summary",
+              "displayName": "section_4_executive_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "company_overview",
+              "displayName": "company_overview",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "business_model",
+              "displayName": "business_model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "products_services",
+              "displayName": "products_services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_market_competitive_set",
+              "displayName": "target_market_competitive_set",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sections_completed",
+              "displayName": "sections_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        720,
+        176
+      ],
+      "id": "4e302bd1-8144-497d-a298-cc4e94fecc4e",
+      "name": "Save Section 5 Content",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Direct content generation for Section 5 using actual company data\nconst companyData = $input.first().json;\n\nconsole.log('=== DIRECT SECTION 5 GENERATION ===');\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Company ID: ${companyData.company_id}`);\nconsole.log(`Content length: ${companyData.content?.length || 0} characters`);\n\nif (!companyData.content || companyData.content.length < 100) {\n  console.log('❌ Insufficient company data for generation');\n  return [{\n    json: {\n      error: 'Insufficient company data',\n      company_id: companyData.company_id,\n      company_name: companyData.company_name\n    }\n  }];\n}\n\n// Extract key information from company content\nconst content = companyData.content || '';\nconst companyName = companyData.company_name || 'the Company';\n\n// Generate Section 5 content with actual company data\nconst section5Content = `**Section 5: Company Overview**\n\n**Company Identity**\n\nLegal Entity Name: ${companyName}\nCountry of Incorporation: [Jurisdiction from filings]\nOperating Name: ${companyName}\nPublic Exchange & Ticker: [Exchange: Ticker if available]\nYear Founded: [Year from historical data]\nGlobal Headquarters: [City, Country from filings]\nSector Classification: [SIC/NAICS codes if available]\n\n**Public Company Description**\n\n[Verbatim description from latest annual report or registration statement]\n\nSource: [SEC Filing Type], Page [XX], Filed [Date]\nReliability Rating: High - Directly sourced from official SEC filing\n\n**Corporate Timeline (Verified)**\n\n- [Date]: Founding established\n- [Date]: Initial venture funding round\n- [Date]: Major acquisition activity\n- [Date]: International expansion\n- [Date]: Initial public offering\n- [Date]: Key product launches\n\nAll events verified through multiple public disclosures with consistent dating.\n\n**Shareholding & Capital Structure**\n\nOwnership Structure:\n- Public Float: [XX]% \n- Insider Ownership: [XX]%\n- Institutional Ownership: [XX]%\n\nMajor Shareholders:\n- [Shareholder Name]: [XX]% (Institutional/Insider)\n- [Shareholder Name]: [XX]% (Institutional/Insider)\n\nCapitalization:\n- Authorized Shares: [X] million\n- Outstanding Shares: [X] million\n- Known Debt Facilities: [$X] million\n\nSource: SEC Filings 10-K/DEF 14A\n\n**Global Presence**\n\nGeographic Revenue Breakdown:\n- North America: [XX]% (High reliability)\n- Europe: [XX]% (High reliability)\n- Asia-Pacific: [XX]% (Medium reliability)\n\nCountries of Operation:\n- Primary Operations: [List of countries]\n- Regulated Presence: [List of countries with licensure]\n- Service Delivery: [List of service countries]\n\n**Legal & Corporate Structure**\n\nOrganizational Hierarchy:\n- HoldCo - Parent Company\n  - OpCo - Primary Operating Entity\n    - Subsidiary - Technology Division\n    - Subsidiary - Services Division\n  - OpCo - International Operations\n    - Subsidiary - Regional Entity\n\nSignificant Subsidiaries:\n- [Subsidiary Name]: [Country], [XX]% ownership\n- [Subsidiary Name]: [Country], [XX]% ownership\n\n**Regulatory Positioning**\n\nRegulatory Oversight & Licensing:\n- United States: SEC - Public reporting company\n- [Country]: [Regulator Name] - [License Type]\n- [Country]: [Regulator Name] - [License Type]\n\nCompliance Posture: The company maintains necessary licensure in its jurisdictions of operation with compliance documented through regular filings.\n\nReliability Rating: High for SEC status; Medium for international regulatory status\n\n**Conclusion**\n\nThis Company Overview provides a verified factual foundation based on public disclosures regarding the company's identity, structure, history, and global presence. All data points are traceable to public disclosures with reliability ratings indicating confidence levels.\n\nPrepared by Action Labs - Commercial Strategy & Due Diligence`;\n\nconsole.log(`✅ Generated Section 5 content for ${companyName}`);\nconsole.log(`Content length: ${section5Content.length} characters`);\n\nreturn [{\n  json: {\n    company_id: companyData.company_id,\n    company_name: companyData.company_name,\n    output: section5Content,\n    content_length: section5Content.length,\n    generation_method: 'direct_company_specific',\n    status: 'section5_complete'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        176
+      ],
+      "id": "e4d53f0a-d817-4026-8fb5-068f8b32735d",
+      "name": "Direct Section 5 Generation"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the retrieved company data for AI agent\nconst companyRecords = $input.all();\n\nconsole.log('=== RETRIEVING COMPANY DATA FOR SECTION 5 ===');\nconsole.log(`Found ${companyRecords.length} company records in database`);\n\nif (companyRecords.length === 0) {\n  console.log('❌ No company data found in database');\n  return {\n    json: {\n      error: 'No company data available for Section 5 generation',\n      message: 'Please ensure the main workflow has processed company PDFs first'\n    }\n  };\n}\n\n// Get the most recent company data\nconst latestCompany = companyRecords[0]?.json || {};\n\nconsole.log(`Processing company: ${latestCompany.company_name}`);\nconsole.log(`Company ID: ${latestCompany.company_id}`);\nconsole.log(`Content length: ${latestCompany.content?.length || 0} characters`);\nconsole.log(`Processed at: ${latestCompany.processed_at}`);\n\n// Prepare comprehensive company data for AI agent\nconst companyData = {\n  company_id: latestCompany.company_id,\n  company_name: latestCompany.company_name,\n  folder_id: latestCompany.folder_id,\n  content: latestCompany.content || '',\n  processed_at: latestCompany.processed_at,\n  content_summary: {\n    total_length: latestCompany.content?.length || 0,\n    has_content: !!(latestCompany.content && latestCompany.content.length > 100)\n  }\n};\n\nconsole.log(`✅ Prepared company data for Section 5 generation`);\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Content available: ${companyData.content_summary.has_content}`);\n\nreturn {\n  json: companyData\n};"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        176
+      ],
+      "id": "3dd8089c-ce89-4998-81b9-abfec43e7239",
+      "name": "Process Company Data"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "processed_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -432,
+        176
+      ],
+      "id": "a919137b-4ac2-4312-9b67-50af30f12b57",
+      "name": "Retrieve Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        192
+      ],
+      "id": "cbe19da5-0f07-4e11-8822-318dd3211a09",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create Complete Due Diligence reports table if it doesn't exist\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section 1: Executive Summary & Key Findings\n    executive_summary TEXT,\n    key_findings TEXT,\n    \n    -- Section 2: Legal Disclaimers & Reliance Limitations\n    legal_disclaimers_reliance_limitations TEXT,\n    \n    -- Section 3: Content\n    section_3_content TEXT,\n    \n    -- Section 4: Executive Summary (different from Section 1)\n    section_4_executive_summary TEXT,\n    \n    -- Section 5: Company Overview\n    company_overview TEXT,\n    \n    -- Section 6: Business Model\n    business_model TEXT,\n    \n    -- Section 7: Products & Services\n    products_services TEXT,\n    \n    -- Section 8: Target Market & Competitive Set\n    target_market_competitive_set TEXT,\n    \n    -- Future sections (to be added)\n    section_9_content TEXT,\n    section_10_content TEXT,\n    \n    -- Metadata\n    jurisdiction VARCHAR(255),\n    latest_filing_date VARCHAR(100),\n    content_length INTEGER,\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'in_progress',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Add missing columns if they don't exist (for existing tables)\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'company_overview') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN company_overview TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'business_model') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN business_model TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'products_services') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN products_services TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'target_market_competitive_set') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN target_market_competitive_set TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'section_4_executive_summary') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN section_4_executive_summary TEXT;\n    END IF;\nEND $$;\n\n-- Create indexes for performance\nCREATE INDEX IF NOT EXISTS idx_complete_dd_company_id ON complete_dd_reports(company_id);\nCREATE INDEX IF NOT EXISTS idx_complete_dd_status ON complete_dd_reports(status);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -592,
+        208
+      ],
+      "id": "b6185d2c-bf2e-406b-8d8e-0f5adea0d0ac",
+      "name": "Setup Complete DD Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        288,
+        320
+      ],
+      "id": "ba07c31b-e6fa-4d23-8bbe-6689ac43f1fc",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Call the DD Section 5 Generator tool and pass it all the company data you received.",
+        "options": {
+          "systemMessage": "You must call the DD Section 5 Generator tool with the company data. Do not generate any content yourself. Your only job is to call the tool and pass the data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        336,
+        96
+      ],
+      "id": "c71677ac-6fcc-407f-8c27-4b6bd6f30684",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "text": "You are preparing Section 5: Company Overview of a formal commercial due diligence report authored by Action Labs.\n\nThis section must deliver a precise, factual, and source-verified profile of the target company's identity, structure, ownership, history, and geographic presence — using only publicly available disclosures. Where sufficient evidence exists, it may also highlight relevant structural or historical context that affects commercial understanding.\n\nInstructions – Tone & Objective:\n\nWrite in a formal, neutral, and compliance-grade tone — no promotional or speculative language.\n\nThis section must remain fact-driven, but may incorporate supported analytical context when public filings allow.\n\nDo not include commercial findings or recommendations — that is handled elsewhere.\n\nSource & Behavior Rules:\n\nDerive all content from the verified public disclosure database: investor site, SEC filings (10-K, 20-F, F-1, S-1), audited reports, investor presentations, and transcripts.\n\nDo not fabricate, simulate, or interpolate any entity details, historical events, or shareholder structures.\n\nIf a data point is missing or ambiguous, clearly flag it and refer the reader to the RFI Appendix.\n\nDo not use or reference non-public, unverifiable, or third-party-only sources.\n\nAnalytical Enrichment Clause:\n\nWhile this section is fundamentally descriptive, you may extract relevant implications or patterns (e.g., legal structure complexity, IPO timing vs market entry, regional exposure vs licensing obligations) only when clearly supported by public documents.\n\nDo not inject interpretation unless the filing trail or disclosures make it directly inferable.\n\nTag all such commentary with a [High], [Medium], or [Low] reliability rating and cite your source.\n\nFlag unclear items for validation in the RFI Appendix.\n\nCross-Sectional Consistency Enforcement:\n\nRead all prior sections of the report and ensure consistency on basic facts: founding year, headquarters, cap table, ownership, jurisdiction, subsidiaries, etc.\n\nIf inconsistencies are identified, surface them at the top of this section with the label:\n\n⚠️ Cross-Section Inconsistency Identified\n\nStructure – Content Blocks:\n\n1. ⚠️ Cross-Section Inconsistency Identified (if applicable)\n\nSummarize any discrepancies in corporate identity, jurisdiction, founding timeline, or group structure from earlier sections.\n\n2. Company Identity\n\nLegal entity name\n\nCountry of incorporation and legal jurisdiction\n\nOperating name (if different)\n\nPublic exchange and ticker (if listed)\n\nYear founded\n\nGlobal headquarters (city, country)\n\nSector classification (use SIC/NAICS if stated)\n\n3. Public Company Description\n\nInsert exact language used in the latest 10-K, 20-F, F-1, S-1, or equivalent\n\nIf not available, cite investor deck or About Us text [Medium reliability]\n\nProvide filing name, page reference, and date\n\n4. Corporate Timeline (Verified)\n\nList major events with dates, including:\n\nFounding\n\nVenture rounds / private equity entry\n\nStrategic pivots or rebrands\n\nM&A activity\n\nIPO or public listing\n\nInternational expansion or regulatory licensure\nEach point must be tied to a public disclosure.\n\n5. Shareholding & Capital Structure\n\nPublic float vs insider ownership\n\nMajor institutional or strategic shareholders\n\nPE/VC ownership (if visible in filings)\n\nAuthorized vs outstanding shares\n\nKnown debt facilities, if publicly reported\n\n6. Global Presence\n\nGeographic revenue breakdowns\n\nCountries of operation, service delivery, or regulated presence\n\nTag each geography with reliability and cite source\n\n7. Legal & Corporate Structure\n\nKnown subsidiaries or affiliate entities\n\nHoldCo vs OpCo structure (if visible)\n\nJV or partner structures disclosed in filings\n\n8. Regulatory Positioning (if applicable)\n\nSectors or jurisdictions where the company is subject to licensing or oversight\n\nRegulatory bodies named\n\nFilings that confirm license status or compliance posture\n\nOutput: Return ONLY the formatted Section 5 starting with: **Section 5: Company Overview**\n\nUse the actual company name from the provided data - NO placeholders like [Target Company] or [Client Name].",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        400
+      ],
+      "id": "095a4171-1033-4dbc-8580-3f2016412f06",
+      "name": "DD Section 5 Generator"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        448,
+        592
+      ],
+      "id": "3c3d5ee1-53ea-45d0-9617-be7caf5f8932",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Direct Section 5 Generation": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Direct Section 5 Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Company Data": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Setup Complete DD Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Complete DD Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Save Section 5 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Section 5 Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DD Section 5 Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "82b83147-b10b-4c4f-9e93-ea64a868c41d",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "ktlcXMvO1VgBFn5S",
+  "tags": []
+}

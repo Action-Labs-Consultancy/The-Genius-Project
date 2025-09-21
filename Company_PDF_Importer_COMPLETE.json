@@ -1,0 +1,324 @@
+{
+  "name": "Company PDF Importer - OPTIMIZED & RELIABLE",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated",
+        "options": {
+          "includePermissions": false
+        }
+      },
+      "id": "trigger",
+      "name": "Enhanced Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-600, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+  "query": "-- Create company_data table without problematic unique constraints\nCREATE TABLE IF NOT EXISTS company_data (\n    company_id VARCHAR(255) NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    file_name VARCHAR(500) NOT NULL,\n    file_id VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT,\n    full_text_content TEXT,\n    content_summary TEXT,\n    websites TEXT,\n    primary_website VARCHAR(500),\n    emails TEXT,\n    primary_email VARCHAR(255),\n    phones TEXT,\n    primary_phone VARCHAR(50),\n    addresses TEXT,\n    primary_address TEXT,\n    file_size BIGINT DEFAULT 0,\n    content_length INTEGER DEFAULT 0,\n    extraction_method VARCHAR(50),\n    extraction_success BOOLEAN DEFAULT FALSE,\n    processing_status VARCHAR(50) DEFAULT 'pending',\n    error_message TEXT,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Indexes\nCREATE INDEX IF NOT EXISTS idx_company_data_company_name ON company_data(company_name);\nCREATE INDEX IF NOT EXISTS idx_company_data_folder_id ON company_data(folder_id);\nCREATE INDEX IF NOT EXISTS idx_company_data_status ON company_data(processing_status);\nCREATE INDEX IF NOT EXISTS idx_company_data_processed_at ON company_data(processed_at DESC);\nCREATE INDEX IF NOT EXISTS idx_company_data_extraction_success ON company_data(extraction_success);\n\n-- Trigger for updated_at\nCREATE OR REPLACE FUNCTION update_updated_at_column()\nRETURNS TRIGGER AS $$\nBEGIN\n    NEW.updated_at = CURRENT_TIMESTAMP;\n    RETURN NEW;\nEND;\n$$ language 'plpgsql';\n\nDROP TRIGGER IF EXISTS update_company_data_updated_at ON company_data;\nCREATE TRIGGER update_company_data_updated_at\n    BEFORE UPDATE ON company_data\n    FOR EACH ROW\n    EXECUTE FUNCTION update_updated_at_column();"
+      },
+      "id": "setup-db",
+      "name": "Setup Enhanced Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [-400, 100],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Enhanced Google Drive Trigger\"].json.id }}' and mimeType='application/pdf' and trashed=false&fields=files(id,name,size,mimeType,webViewLink,webContentLink,modifiedTime,createdTime)&pageSize=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000,
+          "parameters": {
+            "operation": "executeQuery",
+            "query": "CREATE TABLE IF NOT EXISTS company_data (\n    company_id VARCHAR(255) NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    file_name VARCHAR(255) NOT NULL,\n    file_id VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT,\n    websites TEXT,\n    primary_website VARCHAR(500),\n    emails TEXT,\n    primary_email VARCHAR(255),\n    phones TEXT,\n    primary_phone VARCHAR(50),\n    addresses TEXT,\n    primary_address TEXT,\n    file_size BIGINT,\n    content_length INTEGER,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE INDEX IF NOT EXISTS idx_company_data_company_id ON company_data(company_id);\nCREATE INDEX IF NOT EXISTS idx_company_data_company_name ON company_data(company_name);",
+            "options": {}
+          },
+          "id": "109e19e3-5158-4b48-8a5e-f8ef22304c51",
+          "name": "Setup Database Table",
+          "type": "n8n-nodes-base.postgres",
+          "typeVersion": 2.4,
+          "position": [
+            -544,
+            592
+          ],
+          "credentials": {
+            "postgres": {
+              "id": "Oq4V1fedaju3NBAp",
+              "name": "Postgres account 3"
+            }
+          }
+        },
+        "functionCode": "// Enhanced file processing with validation and error handling\nconst folderName = $node[\"Enhanced Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Enhanced Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconsole.log(`\\n🔍 PROCESSING NEW FOLDER: ${folderName}`);\nconsole.log(`Folder ID: ${folderId}`);\nconsole.log(`Trigger timestamp: ${new Date().toISOString()}`);\n\n// Validate response structure\nif (!response || typeof response !== 'object') {\n  console.log('❌ Invalid API response structure');\n  throw new Error('Invalid Google Drive API response');\n}\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('📁 No PDF files found in the new folder');\n  console.log('This could mean:');\n  console.log('- Folder is empty');\n  console.log('- No PDF files present');\n  console.log('- API query filter excluded files');\n  return [];\n}\n\nconsole.log(`📄 Found ${files.length} PDF files to process`);\n\n// Enhanced file validation and processing\nconst results = [];\nlet validFiles = 0;\nlet invalidFiles = 0;\n\nfiles.forEach((file, index) => {\n  try {\n    // Validate required file properties\n    if (!file.id || !file.name) {\n      console.log(`⚠️ Skipping file ${index + 1}: Missing required properties`);\n      invalidFiles++;\n      return;\n    }\n\n    // Check file size (skip if too large > 50MB)\n    const fileSizeBytes = parseInt(file.size) || 0;\n    const fileSizeMB = fileSizeBytes / (1024 * 1024);\n    \n    if (fileSizeMB > 50) {\n      console.log(`⚠️ Skipping large file: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);\n      invalidFiles++;\n      return;\n    }\n\n    // Check if file name suggests it's a PDF\n    if (!file.name.toLowerCase().endsWith('.pdf')) {\n      console.log(`⚠️ File doesn't appear to be PDF: ${file.name}`);\n    }\n\n    console.log(`✅ Preparing file ${index + 1}/${files.length}: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);\n    \n    results.push({\n      json: {\n        id: file.id,\n        name: file.name,\n        size: fileSizeBytes,\n        sizeMB: fileSizeMB,\n        mimeType: file.mimeType || 'application/pdf',\n        webViewLink: file.webViewLink,\n        webContentLink: file.webContentLink,\n        modifiedTime: file.modifiedTime,\n        createdTime: file.createdTime,\n        company_name: folderName,\n        folder_id: folderId,\n        processing_started: new Date().toISOString(),\n        file_index: index + 1,\n        total_files: files.length\n      }\n    });\n    validFiles++;\n  } catch (error) {\n    console.log(`❌ Error processing file ${index + 1}: ${error.message}`);\n    invalidFiles++;\n  }\n});\n\nconsole.log(`\\n📊 PROCESSING SUMMARY:`);\nconsole.log(`Total files found: ${files.length}`);\nconsole.log(`Valid files to process: ${validFiles}`);\nconsole.log(`Invalid/skipped files: ${invalidFiles}`);\nconsole.log(`Company: ${folderName}`);\nconsole.log(`Folder ID: ${folderId}`);\n\nif (results.length === 0) {\n  console.log('❌ No valid PDF files to process');\n  throw new Error('No processable PDF files found in folder');\n}\n\nconsole.log(`\\n🚀 Ready to process ${results.length} PDF files for ${folderName}`);\nreturn results;"
+      },
+      "id": "process-files",
+      "name": "Enhanced File Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [0, 100]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          },
+          "redirect": {
+            "followRedirects": true,
+            "maxRedirects": 5
+          }
+        }
+      },
+      "id": "download-pdf",
+      "name": "Robust PDF Download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 200,
+          "splitPages": false,
+          "password": ""
+        }
+      },
+      "id": "extract-text",
+      "name": "Advanced PDF Text Extraction",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [400, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// OPTIMIZED: Extract ALL content with enhanced error handling and data quality\nconst extractedData = $input.first().json;\nconst pdfInfo = $node[\"Robust PDF Download\"].json;\n\nconsole.log(`\\n🔄 PROCESSING FILE: ${pdfInfo.name}`);\nconsole.log(`Company: ${pdfInfo.company_name}`);\nconsole.log(`File ${pdfInfo.file_index}/${pdfInfo.total_files}`);\nconsole.log(`File size: ${pdfInfo.sizeMB}MB`);\n\n// Enhanced text extraction with multiple fallback methods\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\nlet extractionSuccess = false;\nlet errorMessage = null;\nlet contentSummary = '';\n\ntry {\n  // Primary extraction method\n  if (extractedData && extractedData.data && typeof extractedData.data === 'string') {\n    fullTextContent = extractedData.data.trim();\n    extractionMethod = 'direct_text_extraction';\n    extractionSuccess = true;\n    console.log(`✅ Direct extraction: ${fullTextContent.length} characters`);\n  }\n  // Fallback method 1: Check for text in other properties\n  else if (extractedData && typeof extractedData === 'object') {\n    const textFields = ['text', 'content', 'body', 'document'];\n    for (const field of textFields) {\n      if (extractedData[field] && typeof extractedData[field] === 'string') {\n        fullTextContent = extractedData[field].trim();\n        extractionMethod = `field_extraction_${field}`;\n        extractionSuccess = true;\n        console.log(`✅ Field extraction (${field}): ${fullTextContent.length} characters`);\n        break;\n      }\n    }\n    \n    // Fallback method 2: Scan all properties for substantial text\n    if (!extractionSuccess) {\n      for (const [key, value] of Object.entries(extractedData)) {\n        if (typeof value === 'string' && value.length > 50) {\n          fullTextContent += value.trim() + '\\n\\n';\n          extractionMethod = 'property_scanning';\n        }\n      }\n      if (fullTextContent.length > 100) {\n        extractionSuccess = true;\n        console.log(`✅ Property scanning: ${fullTextContent.length} characters`);\n      }\n    }\n  }\n  // Fallback method 3: String conversion\n  else if (typeof extractedData === 'string' && extractedData.length > 10) {\n    fullTextContent = extractedData.trim();\n    extractionMethod = 'string_conversion';\n    extractionSuccess = true;\n    console.log(`✅ String conversion: ${fullTextContent.length} characters`);\n  }\n  \n  // If all extraction methods failed\n  if (!extractionSuccess || fullTextContent.length < 10) {\n    fullTextContent = `PDF extraction failed for ${pdfInfo.name}. File may be image-based, password-protected, or corrupted.`;\n    extractionMethod = 'failed';\n    extractionSuccess = false;\n    errorMessage = 'No readable text content found in PDF';\n    console.log(`❌ All extraction methods failed`);\n  }\n} catch (error) {\n  fullTextContent = `Error during PDF text extraction: ${error.message}`;\n  extractionMethod = 'error';\n  extractionSuccess = false;\n  errorMessage = error.message;\n  console.log(`❌ Extraction error: ${error.message}`);\n}\n\n// Generate content summary (first 500 chars)\nif (extractionSuccess && fullTextContent.length > 500) {\n  contentSummary = fullTextContent.substring(0, 500) + '...';\n} else {\n  contentSummary = fullTextContent;\n}\n\nconsole.log(`Extraction method: ${extractionMethod}`);\nconsole.log(`Success: ${extractionSuccess}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`Preview: ${fullTextContent.substring(0, 200)}${fullTextContent.length > 200 ? '...' : ''}`);\n\n// ENHANCED extraction functions with better patterns\nfunction extractWebsites(text) {\n  const urlPatterns = [\n    // Standard URLs\n    /https?:\\/\\/(?:www\\.)?[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}(?:\\/[^\\s]*)?/gi,\n    // www. domains\n    /www\\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}(?:\\/[^\\s]*)?/gi,\n    // Domain.com format\n    /\\b[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}\\b/gi\n  ];\n  \n  let allUrls = [];\n  urlPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allUrls = allUrls.concat(matches);\n  });\n  \n  return allUrls\n    .map(url => {\n      url = url.trim().replace(/[,;)]*$/, '');\n      if (!url.startsWith('http') && !url.startsWith('www')) {\n        return 'https://' + url;\n      } else if (url.startsWith('www')) {\n        return 'https://' + url;\n      }\n      return url;\n    })\n    .filter((url, index, self) => {\n      // Remove duplicates and invalid URLs\n      return self.indexOf(url) === index && \n             url.includes('.') && \n             !url.includes(' ') &&\n             url.length > 4;\n    })\n    .slice(0, 10); // Limit to top 10\n}\n\nfunction extractEmails(text) {\n  const emailRegex = /\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b/g;\n  const matches = text.match(emailRegex) || [];\n  return matches\n    .filter((email, index, self) => self.indexOf(email) === index)\n    .filter(email => {\n      // Basic email validation\n      return email.includes('@') && \n             email.includes('.') && \n             !email.startsWith('.') && \n             !email.endsWith('.');\n    })\n    .slice(0, 10); // Limit to top 10\n}\n\nfunction extractPhones(text) {\n  const phonePatterns = [\n    // International format\n    /\\+?1?[-. ]?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})\\b/g,\n    // Standard US format\n    /\\b\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})\\b/g,\n    // International with country code\n    /\\+[1-9]\\d{1,14}\\b/g\n  ];\n  \n  let allPhones = [];\n  phonePatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allPhones = allPhones.concat(matches);\n  });\n  \n  return allPhones\n    .filter((phone, index, self) => self.indexOf(phone) === index)\n    .filter(phone => {\n      // Remove obviously invalid numbers\n      const digits = phone.replace(/\\D/g, '');\n      return digits.length >= 10 && digits.length <= 15;\n    })\n    .slice(0, 5); // Limit to top 5\n}\n\nfunction extractAddresses(text) {\n  const addressPatterns = [\n    // Full address with ZIP\n    /\\d+\\s+[a-zA-Z\\s,.-]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl|Circle|Cir|Parkway|Pkwy)\\s*,?\\s*[a-zA-Z\\s,.-]+\\s+\\d{5}(?:-\\d{4})?/gi,\n    // Street address without ZIP\n    /\\d+\\s+[a-zA-Z\\s,.-]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl|Circle|Cir|Parkway|Pkwy)/gi,\n    // PO Box\n    /P\\.?O\\.?\\s+Box\\s+\\d+/gi\n  ];\n  \n  let allAddresses = [];\n  addressPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allAddresses = allAddresses.concat(matches);\n  });\n  \n  return allAddresses\n    .filter((addr, index, self) => self.indexOf(addr) === index)\n    .filter(addr => addr.length > 10 && addr.length < 200)\n    .slice(0, 5); // Limit to top 5\n}\n\nfunction extractCompanyNames(text) {\n  const companyPatterns = [\n    // Standard business entities\n    /\\b[A-Z][a-zA-Z\\s&.,'-]*\\s+(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited|LP|LLP|PC|PLLC)\\.?\\b/g,\n    // Quoted company names\n    /\"([^\"]*(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited)[^\"]*)\"/g,\n    // Capitalized company-like names\n    /\\b[A-Z][a-zA-Z]*(?:\\s+[A-Z][a-zA-Z]*){1,3}\\s+(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited)\\b/g\n  ];\n  \n  let companies = [];\n  companyPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    companies = companies.concat(matches);\n  });\n  \n  return companies\n    .filter((comp, index, self) => self.indexOf(comp) === index)\n    .filter(comp => comp.length > 3 && comp.length < 100)\n    .slice(0, 10); // Limit to top 10\n}\n\n// Extract all information with error handling\nlet websites = [];\nlet emails = [];\nlet phones = [];\nlet addresses = [];\nlet companyNames = [];\n\nif (extractionSuccess && fullTextContent.length > 10) {\n  try {\n    websites = extractWebsites(fullTextContent);\n    emails = extractEmails(fullTextContent);\n    phones = extractPhones(fullTextContent);\n    addresses = extractAddresses(fullTextContent);\n    companyNames = extractCompanyNames(fullTextContent);\n  } catch (error) {\n    console.log(`⚠️ Error during data extraction: ${error.message}`);\n  }\n}\n\n// Generate enhanced company ID\nconst timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');\nconst companyId = `${pdfInfo.folder_id}_${pdfInfo.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfInfo.id.substring(0, 8)}_${timestamp}`;\n\n// Create comprehensive data object\nconst finalData = {\n  company_id: companyId,\n  company_name: pdfInfo.company_name,\n  file_name: pdfInfo.name,\n  file_id: pdfInfo.id,\n  folder_id: pdfInfo.folder_id,\n  content: fullTextContent,\n  full_text_content: fullTextContent,\n  content_summary: contentSummary,\n  websites: websites.length > 0 ? websites.join(', ') : null,\n  primary_website: websites.length > 0 ? websites[0] : null,\n  emails: emails.length > 0 ? emails.join(', ') : null,\n  primary_email: emails.length > 0 ? emails[0] : null,\n  phones: phones.length > 0 ? phones.join(', ') : null,\n  primary_phone: phones.length > 0 ? phones[0] : null,\n  addresses: addresses.length > 0 ? addresses.join(' | ') : null,\n  primary_address: addresses.length > 0 ? addresses[0] : null,\n  file_size: parseInt(pdfInfo.size) || 0,\n  content_length: fullTextContent.length,\n  extraction_method: extractionMethod,\n  extraction_success: extractionSuccess,\n  processing_status: extractionSuccess ? 'completed' : 'failed',\n  error_message: errorMessage,\n  processed_at: new Date().toISOString(),\n  file_index: pdfInfo.file_index,\n  total_files: pdfInfo.total_files\n};\n\n// Comprehensive logging\nconsole.log(`\\n=== ENHANCED EXTRACTION RESULTS ===`);\nconsole.log(`File: ${finalData.file_name} (${pdfInfo.file_index}/${pdfInfo.total_files})`);\nconsole.log(`Company: ${finalData.company_name}`);\nconsole.log(`Success: ${extractionSuccess ? '✅' : '❌'}`);\nconsole.log(`Content: ${finalData.content_length} characters`);\nconsole.log(`Method: ${finalData.extraction_method}`);\nconsole.log(`Websites: ${websites.length} found - [${websites.slice(0, 3).join(', ')}]`);\nconsole.log(`Emails: ${emails.length} found - [${emails.slice(0, 3).join(', ')}]`);\nconsole.log(`Phones: ${phones.length} found - [${phones.slice(0, 3).join(', ')}]`);\nconsole.log(`Addresses: ${addresses.length} found`);\nconsole.log(`Companies: ${companyNames.length} found - [${companyNames.slice(0, 3).join(', ')}]`);\nif (errorMessage) {\n  console.log(`Error: ${errorMessage}`);\n}\nconsole.log(`=====================================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "extract-data",
+      "name": "Advanced Data Extraction & Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "company_data",
+        "columns": {
+          "column": [
+            { "column": "company_id", "value": "={{ $json.company_id }}" },
+            { "column": "company_name", "value": "={{ $json.company_name }}" },
+            { "column": "file_name", "value": "={{ $json.file_name }}" },
+            { "column": "file_id", "value": "={{ $json.file_id }}" },
+            { "column": "folder_id", "value": "={{ $json.folder_id }}" },
+            { "column": "content", "value": "={{ $json.content }}" },
+            { "column": "full_text_content", "value": "={{ $json.full_text_content }}" },
+            { "column": "content_summary", "value": "={{ $json.content_summary }}" },
+            { "column": "websites", "value": "={{ $json.websites }}" },
+            { "column": "primary_website", "value": "={{ $json.primary_website }}" },
+            { "column": "emails", "value": "={{ $json.emails }}" },
+            { "column": "primary_email", "value": "={{ $json.primary_email }}" },
+            { "column": "phones", "value": "={{ $json.phones }}" },
+            { "column": "primary_phone", "value": "={{ $json.primary_phone }}" },
+            { "column": "addresses", "value": "={{ $json.addresses }}" },
+            { "column": "primary_address", "value": "={{ $json.primary_address }}" },
+            { "column": "file_size", "value": "={{ $json.file_size }}" },
+            { "column": "content_length", "value": "={{ $json.content_length }}" },
+            { "column": "extraction_method", "value": "={{ $json.extraction_method }}" },
+            { "column": "extraction_success", "value": "={{ $json.extraction_success }}" },
+            { "column": "processing_status", "value": "={{ $json.processing_status }}" },
+            { "column": "error_message", "value": "={{ $json.error_message }}" },
+            { "column": "processed_at", "value": "={{ $json.processed_at }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-to-db",
+      "name": "Enhanced Database Storage",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 100],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Plan comprehensive due diligence topics based on extracted company data\nconst data = $input.first().json;\n\nconsole.log(`\\n📋 PLANNING DUE DILIGENCE TOPICS FOR: ${data.company_name}`);\nconsole.log(`File processed: ${data.file_name}`);\nconsole.log(`Content available: ${data.content_length} characters`);\n\n// Define the 20 due diligence sections\nconst dueDiligenceTopics = [\n  {\n    section: 1,\n    title: \"Introduction & Engagement Context\",\n    description: \"Overview of the due diligence engagement, scope, and objectives\",\n    dataSource: \"Company overview from extracted content\",\n    priority: \"High\"\n  },\n  {\n    section: 2,\n    title: \"Methodology & Reliability Levels\",\n    description: \"Approach used for analysis and confidence levels in findings\",\n    dataSource: \"Extraction method and content quality assessment\",\n    priority: \"High\"\n  },\n  {\n    section: 3,\n    title: \"Company Overview\",\n    description: \"Comprehensive company profile and business description\",\n    dataSource: \"Full text content, company name, and extracted business info\",\n    priority: \"Critical\"\n  },\n  {\n    section: 4,\n    title: \"Business Model & Unit Economics\",\n    description: \"Revenue streams, cost structure, and unit economics analysis\",\n    dataSource: \"Financial data and business model info from content\",\n    priority: \"Critical\"\n  },\n  {\n    section: 5,\n    title: \"Products & Technology\",\n    description: \"Product portfolio, technology stack, and competitive advantages\",\n    dataSource: \"Product descriptions and tech details from documents\",\n    priority: \"High\"\n  },\n  {\n    section: 6,\n    title: \"Target Market & Competitive Set\",\n    description: \"Market analysis, target customers, and competitive landscape\",\n    dataSource: \"Market data and competitive info from content\",\n    priority: \"High\"\n  },\n  {\n    section: 7,\n    title: \"Financials (Multi-Year, reconciled & recomputed)\",\n    description: \"Historical and projected financial statements with analysis\",\n    dataSource: \"Financial statements and data from documents\",\n    priority: \"Critical\"\n  },\n  {\n    section: 8,\n    title: \"Cash, Burn, Runway\",\n    description: \"Cash position, burn rate analysis, and runway calculations\",\n    dataSource: \"Cash flow and financial data from content\",\n    priority: \"Critical\"\n  },\n  {\n    section: 9,\n    title: \"Revenue Quality & Client Cohorts\",\n    description: \"Revenue sustainability, client concentration, and cohort analysis\",\n    dataSource: \"Customer and revenue data from documents\",\n    priority: \"High\"\n  },\n  {\n    section: 10,\n    title: \"Partnerships & Ecosystem\",\n    description: \"Strategic partnerships, vendor relationships, and ecosystem position\",\n    dataSource: \"Partnership agreements and relationship data\",\n    priority: \"Medium\"\n  },\n  {\n    section: 11,\n    title: \"Intellectual Property\",\n    description: \"IP portfolio, patents, trademarks, and protection strategies\",\n    dataSource: \"IP documentation and legal filings\",\n    priority: \"High\"\n  },\n  {\n    section: 12,\n    title: \"Legal & Regulatory\",\n    description: \"Legal structure, compliance status, and regulatory risks\",\n    dataSource: \"Legal documents and regulatory filings\",\n    priority: \"High\"\n  },\n  {\n    section: 13,\n    title: \"Governance & Board Effectiveness\",\n    description: \"Corporate governance, board composition, and decision-making processes\",\n    dataSource: \"Governance documents and board materials\",\n    priority: \"Medium\"\n  },\n  {\n    section: 14,\n    title: \"Capital Structure & Dilution\",\n    description: \"Ownership structure, equity dilution, and capitalization analysis\",\n    dataSource: \"Cap table and equity documentation\",\n    priority: \"Critical\"\n  },\n  {\n    section: 15,\n    title: \"Risk Matrix & Mitigations\",\n    description: \"Comprehensive risk assessment and mitigation strategies\",\n    dataSource: \"Risk disclosures and management plans\",\n    priority: \"Critical\"\n  },\n  {\n    section: 16,\n    title: \"Gaps, Uncertainties & Disclaimers\",\n    description: \"Information gaps, areas of uncertainty, and analytical limitations\",\n    dataSource: \"Data quality assessment and missing information log\",\n    priority: \"High\"\n  },\n  {\n    section: 17,\n    title: \"Scenario Analysis\",\n    description: \"Multiple scenarios with sensitivity analysis and stress testing\",\n    dataSource: \"Financial models and scenario planning data\",\n    priority: \"High\"\n  },\n  {\n    section: 18,\n    title: \"Strategic Options\",\n    description: \"Investment alternatives, strategic options, and value creation opportunities\",\n    dataSource: \"Strategic plans and option analysis\",\n    priority: \"Critical\"\n  },\n  {\n    section: 19,\n    title: \"Recommendations & Next Steps\",\n    description: \"Investment recommendations, action items, and follow-up requirements\",\n    dataSource: \"Analysis synthesis and recommendation framework\",\n    priority: \"Critical\"\n  },\n  {\n    section: 20,\n    title: \"Source Map & Integrity Log\",\n    description: \"Document sources, data integrity checks, and verification trail\",\n    dataSource: \"Source tracking and data validation records\",\n    priority: \"High\"\n  }\n];\n\n// Assess data availability for each topic\nconst topicsWithStatus = dueDiligenceTopics.map(topic => {\n  let dataAvailable = false;\n  let confidence = \"Low\";\n  \n  // Simple keyword matching to assess data availability\n  const content = data.content?.toLowerCase() || '';\n  \n  // Check for relevant keywords based on topic\n  switch(topic.section) {\n    case 3: // Company Overview\n      dataAvailable = content.length > 100;\n      confidence = content.length > 1000 ? \"High\" : content.length > 500 ? \"Medium\" : \"Low\";\n      break;\n    case 4: // Business Model\n      dataAvailable = content.includes('revenue') || content.includes('business') || content.includes('model');\n      break;\n    case 7: // Financials\n      dataAvailable = content.includes('financial') || content.includes('revenue') || content.includes('income');\n      break;\n    case 8: // Cash & Burn\n      dataAvailable = content.includes('cash') || content.includes('burn') || content.includes('funding');\n      break;\n    case 11: // IP\n      dataAvailable = content.includes('patent') || content.includes('intellectual') || content.includes('trademark');\n      break;\n    default:\n      dataAvailable = content.length > 100;\n      confidence = \"Medium\";\n  }\n  \n  return {\n    ...topic,\n    dataAvailable,\n    confidence,\n    extractedInfo: {\n      websites: data.websites,\n      emails: data.emails,\n      phones: data.phones,\n      addresses: data.addresses\n    }\n  };\n});\n\n// Create planning summary\nconst planningSummary = {\n  company_id: data.company_id,\n  company_name: data.company_name,\n  file_name: data.file_name,\n  planning_date: new Date().toISOString(),\n  total_topics: dueDiligenceTopics.length,\n  topics_with_data: topicsWithStatus.filter(t => t.dataAvailable).length,\n  critical_topics: topicsWithStatus.filter(t => t.priority === \"Critical\").length,\n  high_priority_topics: topicsWithStatus.filter(t => t.priority === \"High\").length,\n  content_available: data.content_length > 0,\n  extraction_method: data.extraction_method,\n  contact_info: {\n    primary_website: data.primary_website,\n    primary_email: data.primary_email,\n    primary_phone: data.primary_phone,\n    primary_address: data.primary_address\n  },\n  topics: topicsWithStatus\n};\n\n// Log planning results\nconsole.log(`\\n=== DUE DILIGENCE PLANNING COMPLETE ===`);\nconsole.log(`Total topics planned: ${planningSummary.total_topics}`);\nconsole.log(`Topics with available data: ${planningSummary.topics_with_data}`);\nconsole.log(`Critical priority topics: ${planningSummary.critical_topics}`);\nconsole.log(`High priority topics: ${planningSummary.high_priority_topics}`);\nconsole.log(`Content extraction successful: ${planningSummary.content_available}`);\nconsole.log(`Primary contact: ${data.primary_email || 'Not found'}`);\nconsole.log(`Primary website: ${data.primary_website || 'Not found'}`);\nconsole.log(`=======================================\\n`);\n\n// Show topic breakdown\nconsole.log(`\\n📊 TOPIC BREAKDOWN:`);\ntopicsWithStatus.forEach(topic => {\n  const status = topic.dataAvailable ? '✅' : '❌';\n  console.log(`${status} ${topic.section}. ${topic.title} [${topic.priority}] - ${topic.confidence}`);\n});\n\nreturn { json: planningSummary };"
+      },
+      "id": "plan-topics",
+      "name": "Plan Due Diligence Topics",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1000, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final success message with planning results\nconst planningData = $input.first().json;\n\nconsole.log(`\\n🎉 COMPLETE SUCCESS! Company data processed and due diligence planned:`);\nconsole.log(`Company: ${planningData.company_name}`);\nconsole.log(`File: ${planningData.file_name}`);\nconsole.log(`Total DD topics: ${planningData.total_topics}`);\nconsole.log(`Topics with data: ${planningData.topics_with_data}/${planningData.total_topics}`);\nconsole.log(`Critical topics: ${planningData.critical_topics}`);\nconsole.log(`Contact info available: ${planningData.contact_info.primary_email ? 'Yes' : 'No'}`);\nconsole.log(`Planning completed: ${planningData.planning_date}`);\n\n// Calculate completion percentage\nconst completionPercentage = Math.round((planningData.topics_with_data / planningData.total_topics) * 100);\n\nreturn {\n  json: {\n    status: 'complete_success',\n    message: `Successfully processed ${planningData.company_name} and planned ${planningData.total_topics} due diligence topics`,\n    company_name: planningData.company_name,\n    file_name: planningData.file_name,\n    total_topics: planningData.total_topics,\n    topics_with_data: planningData.topics_with_data,\n    completion_percentage: completionPercentage,\n    critical_topics: planningData.critical_topics,\n    contact_info: planningData.contact_info,\n    planning_date: planningData.planning_date,\n    timestamp: new Date().toISOString(),\n    workflow_status: 'COMPLETED_SUCCESSFULLY'\n  }\n};"
+      },
+      "id": "final-success",
+      "name": "Final Success Confirmation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1200, 100]
+    }
+  ],
+  "connections": {
+    "Enhanced Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Enhanced Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Enhanced Database": {
+      "main": [
+        [
+          {
+            "node": "List PDFs with Enhanced Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs with Enhanced Fields": {
+      "main": [
+        [
+          {
+            "node": "Enhanced File Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhanced File Processing": {
+      "main": [
+        [
+          {
+            "node": "Robust PDF Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Robust PDF Download": {
+      "main": [
+        [
+          {
+            "node": "Advanced PDF Text Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Advanced PDF Text Extraction": {
+      "main": [
+        [
+          {
+            "node": "Advanced Data Extraction & Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Advanced Data Extraction & Processing": {
+      "main": [
+        [
+          {
+            "node": "Enhanced Database Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhanced Database Storage": {
+      "main": [
+        [
+          {
+            "node": "Plan Due Diligence Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Due Diligence Topics": {
+      "main": [
+        [
+          {
+            "node": "Final Success Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

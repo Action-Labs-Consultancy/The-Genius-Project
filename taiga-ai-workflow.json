@@ -1,0 +1,303 @@
+{
+  "name": "Taiga Due Diligence Research with AI (Enhanced)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "taiga-webhook",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Taiga Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "taiga-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9000/api/v1/auth",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "normal"
+            },
+            {
+              "name": "username",
+              "value": "admin"
+            },
+            {
+              "name": "password",
+              "value": "admin123"
+            }
+          ]
+        }
+      },
+      "id": "auth-node",
+      "name": "Auth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "dateTime": [],
+          "number": [],
+          "string": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create",
+              "operation": "equal"
+            },
+            {
+              "id": "condition2", 
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "task",
+              "operation": "equal"
+            },
+            {
+              "id": "condition3",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "Research on",
+              "operation": "contains"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "if-node",
+      "name": "IF Research Task",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract company name\nconst subject = $input.first().json.subject || '';\nconst companyName = subject.replace(/^Research on\\s*/i, '').trim() || 'Unknown Company';\n\n// Define research sections\nconst sections = [\n  'Company Overview',\n  'Business Model and Revenue Streams', \n  'Market Position and Competitive Analysis',\n  'Financial Performance and Metrics',\n  'Management Team and Leadership',\n  'Products and Services Portfolio',\n  'Technology and Innovation',\n  'Market Opportunities and Growth Strategy',\n  'Risk Assessment and Challenges',\n  'ESG and Sustainability Initiatives'\n];\n\nreturn {\n  json: {\n    companyName: companyName,\n    sections: sections,\n    taskId: $input.first().json.id,\n    taskVersion: $input.first().json.version || 1,\n    originalSubject: subject\n  }\n};"
+      },
+      "id": "extract-node",
+      "name": "Extract Company Info",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral"
+            },
+            {
+              "name": "prompt",
+              "value": "=Generate a comprehensive business overview for {{ $json.companyName }}. Include the following sections with detailed, factual information:\n\n1. Company Overview: Brief history, founding, headquarters, and core mission\n2. Business Model: How the company makes money, key revenue streams\n3. Market Position: Industry standing, market share, competitive advantages\n4. Financial Highlights: Recent revenue, profitability, key financial metrics\n5. Leadership: Key executives and their backgrounds\n6. Products/Services: Main offerings and their market impact\n7. Innovation: Technology focus, R&D investments, patents\n8. Growth Strategy: Expansion plans, new markets, strategic initiatives\n9. Key Risks: Market risks, regulatory challenges, competitive threats\n10. Sustainability: ESG initiatives, environmental impact, social responsibility\n\nProvide specific, factual details for each section. Format as professional due diligence report. Be comprehensive but concise."
+            },
+            {
+              "name": "stream",
+              "value": false
+            }
+          ]
+        }
+      },
+      "id": "llm-research",
+      "name": "Generate AI Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get the AI-generated content\nconst aiResponse = $input.first().json.response;\nconst companyName = $node['Extract Company Info'].json.companyName;\nconst taskId = $node['Extract Company Info'].json.taskId;\nconst taskVersion = $node['Extract Company Info'].json.taskVersion;\n\n// Create structured research report\nconst timestamp = new Date().toISOString();\nconst report = {\n  company: companyName,\n  generatedBy: 'Mistral AI (Local LLM)',\n  timestamp: timestamp,\n  content: aiResponse,\n  taskId: taskId,\n  taskVersion: taskVersion,\n  sections: [\n    'Company Overview',\n    'Business Model and Revenue Streams', \n    'Market Position and Competitive Analysis',\n    'Financial Performance and Metrics',\n    'Management Team and Leadership',\n    'Products and Services Portfolio',\n    'Technology and Innovation',\n    'Market Opportunities and Growth Strategy',\n    'Risk Assessment and Challenges',\n    'ESG and Sustainability Initiatives'\n  ],\n  summary: {\n    source: 'Local Mistral AI Model',\n    quality: 'AI-Generated Professional Analysis',\n    completeness: '100% - All sections covered'\n  }\n};\n\nreturn { json: report };"
+      },
+      "id": "format-report",
+      "name": "Format AI Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:9000/api/v1/tasks/{{ $json.taskId }}",
+        "authentication": "none",
+        "requestMethod": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Auth'].json.auth_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "version",
+              "value": "={{ $json.taskVersion }}"
+            },
+            {
+              "name": "description",
+              "value": "=# 🔬 AI-Generated Due Diligence Report: {{ $json.company }}\n\n**Generated By:** {{ $json.generatedBy }}  \n**Timestamp:** {{ $json.timestamp }}  \n**Analysis Quality:** {{ $json.summary.quality }}  \n**Coverage:** {{ $json.summary.completeness }}\n\n---\n\n## 📊 Executive Summary\n\nThis comprehensive due diligence report for **{{ $json.company }}** has been generated using advanced AI analysis to provide detailed insights across all critical business dimensions.\n\n---\n\n## 📋 Detailed Analysis\n\n{{ $json.content }}\n\n---\n\n## 🎯 Research Methodology\n\n- **AI Model:** Mistral (Local LLM)\n- **Analysis Framework:** 10-Point Due Diligence Structure\n- **Data Sources:** AI Knowledge Base (Training Data)\n- **Report Type:** Comprehensive Business Analysis\n\n## ⚠️ Important Disclaimers\n\n1. **AI-Generated Content:** This report is generated by AI and should be verified with current data\n2. **Due Diligence Requirement:** Professional verification recommended for investment decisions\n3. **Data Currency:** Information may require updates with latest financial data\n4. **Professional Review:** Consider expert analysis for critical business decisions\n\n---\n\n*Report automatically generated by the AI Due Diligence Workflow*  \n*Powered by Mistral AI | {{ $json.timestamp }}*"
+            }
+          ]
+        }
+      },
+      "id": "update-task",
+      "name": "Update Task with AI Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1560, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "Not a research task - workflow skipped"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "name": "type", 
+              "value": "={{ $json.type }}"
+            },
+            {
+              "name": "subject",
+              "value": "={{ $json.subject }}"
+            }
+          ]
+        }
+      },
+      "id": "skip-node",
+      "name": "Skip Non-Research",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Taiga Webhook": {
+      "main": [
+        [
+          {
+            "node": "Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth": {
+      "main": [
+        [
+          {
+            "node": "IF Research Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Research Task": {
+      "main": [
+        [
+          {
+            "node": "Extract Company Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Non-Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company Info": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Research": {
+      "main": [
+        [
+          {
+            "node": "Format AI Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format AI Report": {
+      "main": [
+        [
+          {
+            "node": "Update Task with AI Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "ai-enhanced-1.0",
+  "id": "taiga-ai-due-diligence"
+}

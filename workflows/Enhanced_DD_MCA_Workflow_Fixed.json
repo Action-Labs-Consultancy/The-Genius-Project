@@ -1,0 +1,528 @@
+﻿{
+  "name": "Local Due Diligence Report Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "interval": 5,
+        "unit": "minutes"
+      },
+      "id": "trigger-1",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "credentialType": "kanboardApi",
+        "operation": "getAll",
+        "resource": "task",
+        "additionalFields": {},
+        "options": {}
+      },
+      "id": "kanboard-1",
+      "name": "Get All Kanboard Tasks",
+      "type": "n8n-nodes-base.kanboard",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "kanboardApi": {
+          "id": "1",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "Due Diligence:",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        }
+      },
+      "id": "filter-1",
+      "name": "Filter Due Diligence Tasks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = items[0].json.title;\nconst company = title.replace('Due Diligence:', '').trim();\nconst description = items[0].json.description || '';\n\n// Extract website from description\nconst websiteMatch = description.match(/(https?:\\/\\/[^\\s]+)/);\nconst website = websiteMatch ? websiteMatch[0] : '';\n\n// Check if task has PDF attachments\nconst hasAttachments = items[0].json.attachment_count > 0;\n\nreturn [{\n  json: {\n    taskId: items[0].json.id,\n    title: items[0].json.title,\n    company,\n    website,\n    description,\n    hasAttachments,\n    originalData: items[0].json\n  }\n}];"
+      },
+      "id": "function-1",
+      "name": "Extract Company & Website",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "resource": "taskFile",
+        "operation": "getAll",
+        "taskId": "={{ $json.taskId }}",
+        "additionalFields": {},
+        "options": {}
+      },
+      "id": "kanboard-2",
+      "name": "Get Task Attachments",
+      "type": "n8n-nodes-base.kanboard",
+      "typeVersion": 1,
+      "position": [1100, 200],
+      "credentials": {
+        "kanboardApi": {
+          "id": "1",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "fullResponse": true
+        },
+        "url": "={{ $json.path }}",
+        "responseFormat": "file",
+        "authentication": "predefinedCredentialType",
+        "credentialType": "kanboardApi"
+      },
+      "id": "http-1",
+      "name": "Download PDF Attachment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1300, 200],
+      "credentials": {
+        "kanboardApi": {
+          "id": "1",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "extractText",
+        "binaryPropertyName": "data"
+      },
+      "id": "pdf-1",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.pdf",
+      "typeVersion": 1,
+      "position": [1500, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website }}",
+        "options": {
+          "splitIntoItems": false
+        }
+      },
+      "id": "http-2",
+      "name": "Fetch Website Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Categorize content as financial or non-financial\nconst financialKeywords = ['financial', 'revenue', 'profit', 'loss', 'balance sheet', 'income statement', 'cash flow', 'audit', 'tax', 'accounting'];\n\nconst content = $json.text || $json.content || '';\nconst fileName = $json.name || '';\n\nlet isFinancial = false;\n\n// Check if content contains financial keywords\nfor (const keyword of financialKeywords) {\n  if (content.toLowerCase().includes(keyword) || fileName.toLowerCase().includes(keyword)) {\n    isFinancial = true;\n    break;\n  }\n}\n\nreturn {\n  category: isFinancial ? 'financial' : 'non-financial',\n  content: content,\n  source: fileName ? 'pdf' : 'website',\n  fileName: fileName || 'website',\n  ...$json\n};"
+      },
+      "id": "function-2",
+      "name": "Categorize Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1700, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store content in knowledge base (simplified version)\nconst staticData = $workflow.getStaticData('global');\nlet knowledgeBase = staticData.knowledgeBase || {};\n\nif (!knowledgeBase[$json.taskId]) {\n  knowledgeBase[$json.taskId] = {\n    financial: [],\n    nonFinancial: [],\n    website: null\n  };\n}\n\nif ($json.category === 'financial') {\n  knowledgeBase[$json.taskId].financial.push({\n    content: $json.content,\n    source: $json.source,\n    fileName: $json.fileName\n  });\n} else if ($json.source === 'website') {\n  knowledgeBase[$json.taskId].website = $json.content;\n} else {\n  knowledgeBase[$json.taskId].nonFinancial.push({\n    content: $json.content,\n    source: $json.source,\n    fileName: $json.fileName\n  });\n}\n\nstaticData.knowledgeBase = knowledgeBase;\n\nreturn items;"
+      },
+      "id": "function-3",
+      "name": "Store in Knowledge Base",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1900, 200]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "merge-1",
+      "name": "Merge All Content",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2100, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "section1",
+              "name": "section",
+              "value": "Introduction & Engagement Context",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-1",
+      "name": "Due Diligence Sections",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [2300, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if section already completed\nconst staticData = $workflow.getStaticData('global');\nlet completedSections = staticData.completedSections || {};\nconst taskId = $json.taskId;\nconst section = $json.section;\n\nif (!completedSections[taskId]) {\n  completedSections[taskId] = {};\n}\n\n// Skip if section already completed\nif (completedSections[taskId][section]) {\n  return null; // Skip this item\n}\n\nreturn items;"
+      },
+      "id": "function-4",
+      "name": "Check Section Completion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2500, 200]
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "prompt": "Generate the '{{ $json.section }}' section for {{ $json.company }} for a comprehensive Due Diligence report.\n\nPlease provide detailed, professional analysis for this section.",
+        "options": {}
+      },
+      "id": "ai-1",
+      "name": "Maker AI - Generate Section",
+      "type": "n8n-nodes-base.ollama",
+      "typeVersion": 1,
+      "position": [2700, 200],
+      "credentials": {
+        "ollamaApi": {
+          "id": "4",
+          "name": "Ollama Mistral"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "prompt": "Validate the accuracy and completeness of this '{{ $json.section }}' section:\n\n{{ $json.response }}\n\nBased on due diligence standards, check for:\n1. Factual accuracy\n2. Completeness of analysis\n3. Professional quality\n4. Business relevance\n\nProvide validation assessment (APPROVED/REJECTED).",
+        "options": {}
+      },
+      "id": "ai-2",
+      "name": "Checker AI - Validate Content",
+      "type": "n8n-nodes-base.ollama",
+      "typeVersion": 1,
+      "position": [2900, 200],
+      "credentials": {
+        "ollamaApi": {
+          "id": "4",
+          "name": "Ollama Mistral"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "prompt": "As a business expert, make a final decision on this '{{ $json.section }}' section:\n\nGenerated Content:\n{{ $('Maker AI - Generate Section').first().json.response }}\n\nValidation Assessment:\n{{ $json.response }}\n\nPlease provide your final approval decision (APPROVED/REJECTED) with rationale.",
+        "options": {}
+      },
+      "id": "ai-3",
+      "name": "Approver AI - Final Decision",
+      "type": "n8n-nodes-base.ollama",
+      "typeVersion": 1,
+      "position": [3100, 200],
+      "credentials": {
+        "ollamaApi": {
+          "id": "4",
+          "name": "Ollama Mistral"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store approved section in knowledge base\nconst staticData = $workflow.getStaticData('global');\nlet completedSections = staticData.completedSections || {};\nconst taskId = $json.taskId;\nconst section = $json.section;\n\nif (!completedSections[taskId]) {\n  completedSections[taskId] = {};\n}\n\ncompletedSections[taskId][section] = {\n  content: $('Maker AI - Generate Section').first().json.response,\n  timestamp: new Date().toISOString(),\n  status: 'approved'\n};\n\nstaticData.completedSections = completedSections;\n\n// Define all 20 DD sections\nconst allSections = [\n  'Introduction & Engagement Context',\n  'Methodology & Reliability Levels',\n  'Company Overview',\n  'Business Model & Unit Economics',\n  'Products & Technology',\n  'Target Market & Competitive Set',\n  'Financials (Multi-Year, reconciled & recomputed)',\n  'Cash, Burn, Runway',\n  'Revenue Quality & Client Cohorts',\n  'Partnerships & Ecosystem',\n  'Intellectual Property',\n  'Legal & Regulatory',\n  'Governance & Board Effectiveness',\n  'Capital Structure & Dilution',\n  'Risk Matrix & Mitigations',\n  'Gaps, Uncertainties & Disclaimers',\n  'Scenario Analysis',\n  'Strategic Options',\n  'Recommendations & Next Steps',\n  'Source Map & Integrity Log'\n];\n\nconst completedCount = Object.keys(completedSections[taskId] || {}).length;\n\nreturn [{\n  json: {\n    ...$json,\n    allSectionsCompleted: completedCount >= allSections.length,\n    completedCount,\n    totalSections: allSections.length\n  }\n}];"
+      },
+      "id": "function-5",
+      "name": "Save Approved Section & Check Completion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3300, 200]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "merge-2",
+      "name": "Merge All Sections",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [3500, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate final PDF report\nconst staticData = $workflow.getStaticData('global');\nconst completedSections = staticData.completedSections || {};\nconst taskId = $json.taskId;\nconst sections = completedSections[taskId] || {};\n\n// Create report content\nlet reportContent = `DUE DILIGENCE REPORT: ${$json.company}\\n\\n`;\nreportContent += `Generated on: ${new Date().toISOString()}\\n\\n`;\n\n// Add all sections in order\nfor (const [sectionName, sectionData] of Object.entries(sections)) {\n  reportContent += `=== ${sectionName.toUpperCase()} ===\\n\\n`;\n  reportContent += `${sectionData.content}\\n\\n`;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    reportContent\n  }\n}];"
+      },
+      "id": "function-6",
+      "name": "Generate Final Report Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3700, 200]
+    },
+    {
+      "parameters": {
+        "resource": "comment",
+        "operation": "create",
+        "taskId": "={{ $json.taskId }}",
+        "content": "✅ **DUE DILIGENCE REPORT COMPLETED**\\n\\n✅ **Company:** {{ $json.company }}\\n📊 **Total Sections:** {{ $json.totalSections }}\\n🤖 **AI-Powered Analysis Complete**\\n\\n**Generated:** {{ new Date().toISOString() }}\\n\\n---\\n*This comprehensive due diligence analysis was generated using AI-powered Maker-Checker-Approver workflow.*",
+        "additionalFields": {},
+        "options": {}
+      },
+      "id": "kanboard-3",
+      "name": "Upload Report to Kanboard",
+      "type": "n8n-nodes-base.kanboard",
+      "typeVersion": 1,
+      "position": [3900, 200],
+      "credentials": {
+        "kanboardApi": {
+          "id": "1",
+          "name": "Kanboard API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get All Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Diligence Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Diligence Tasks": {
+      "main": [
+        [
+          {
+            "node": "Extract Company & Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company & Website": {
+      "main": [
+        [
+          {
+            "node": "Get Task Attachments",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Website Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task Attachments": {
+      "main": [
+        [
+          {
+            "node": "Download PDF Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF Attachment": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Categorize Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Website Content": {
+      "main": [
+        [
+          {
+            "node": "Categorize Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Content": {
+      "main": [
+        [
+          {
+            "node": "Store in Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Merge All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Content": {
+      "main": [
+        [
+          {
+            "node": "Due Diligence Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due Diligence Sections": {
+      "main": [
+        [
+          {
+            "node": "Check Section Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Section Completion": {
+      "main": [
+        [
+          {
+            "node": "Maker AI - Generate Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maker AI - Generate Section": {
+      "main": [
+        [
+          {
+            "node": "Checker AI - Validate Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker AI - Validate Content": {
+      "main": [
+        [
+          {
+            "node": "Approver AI - Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver AI - Final Decision": {
+      "main": [
+        [
+          {
+            "node": "Save Approved Section & Check Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Approved Section & Check Completion": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Sections": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Report Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Report Content": {
+      "main": [
+        [
+          {
+            "node": "Upload Report to Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "versionId": "1",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false
+}

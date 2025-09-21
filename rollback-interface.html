@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL Database Rollback Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #718096;
+            font-size: 16px;
+        }
+        
+        .status-panel {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fbbf24;
+        }
+        
+        .status-dot.healthy { background: #10b981; }
+        .status-dot.error { background: #ef4444; }
+        
+        .rollback-section {
+            margin-bottom: 30px;
+        }
+        
+        .rollback-section h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .warning-box {
+            background: #fef5e7;
+            border: 2px solid #f6ad55;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        
+        .warning-box .warning-title {
+            font-weight: 600;
+            color: #c05621;
+            margin-bottom: 8px;
+        }
+        
+        .warning-box .warning-text {
+            color: #744210;
+            font-size: 14px;
+        }
+        
+        .confirmation-box {
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        
+        .confirmation-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .confirmation-checkbox input[type="checkbox"] {
+            margin-top: 4px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-danger {
+            background: #e53e3e;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c53030;
+        }
+        
+        .btn-success {
+            background: #38a169;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #2f855a;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .notification.success { background: #38a169; }
+        .notification.error { background: #e53e3e; }
+        .notification.warning { background: #d69e2e; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .backups-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .backup-item {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .backup-item:last-child {
+            border-bottom: none;
+        }
+        
+        .backup-info {
+            flex: 1;
+        }
+        
+        .backup-name {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .backup-details {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Database Rollback Interface</h1>
+            <p class="subtitle">PostgreSQL Point-in-Time Recovery and Backup Management</p>
+        </div>
+        
+        <div class="status-panel">
+            <div class="status-indicator">
+                <div id="status-dot" class="status-dot"></div>
+                <div>
+                    <strong>Database Status:</strong>
+                    <span id="status-text">Checking...</span>
+                </div>
+            </div>
+            <div id="status-details" style="font-size: 14px; color: #718096;"></div>
+        </div>
+        
+        <div class="rollback-section">
+            <h2>🚨 Emergency Rollback</h2>
+            
+            <div class="form-group">
+                <label for="rollback-type">Rollback Method:</label>
+                <select id="rollback-type">
+                    <option value="pitr">Point-in-Time Recovery (PITR)</option>
+                    <option value="backup">Restore from Backup File</option>
+                </select>
+            </div>
+            
+            <div id="pitr-options">
+                <div class="form-group">
+                    <label for="target-time">Target Recovery Time:</label>
+                    <input type="datetime-local" id="target-time">
+                    <div style="font-size: 12px; color: #718096; margin-top: 4px;">
+                        Select the point in time to rollback to
+                    </div>
+                </div>
+            </div>
+            
+            <div id="backup-options" style="display: none;">
+                <div class="form-group">
+                    <label>Available Backups:</label>
+                    <div id="backups-list" class="backups-list">
+                        <div style="padding: 20px; text-align: center; color: #718096;">
+                            Loading backups...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="warning-box">
+                <div class="warning-title">⚠️ Critical Warning</div>
+                <div class="warning-text">
+                    This operation will modify your database and may cause data loss. 
+                    Ensure you have recent backups before proceeding.
+                </div>
+            </div>
+            
+            <div class="confirmation-box">
+                <div class="confirmation-checkbox">
+                    <input type="checkbox" id="confirm-rollback">
+                    <label for="confirm-rollback" style="font-size: 14px; color: #742a2a;">
+                        I understand this operation is destructive and may cause data loss. 
+                        I have verified the rollback parameters and have current backups.
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button id="create-backup-btn" class="btn btn-success">
+                💾 Create Backup First
+            </button>
+            <button id="execute-rollback-btn" class="btn btn-danger" disabled>
+                🚨 Execute Rollback
+            </button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 12px; color: #718096;">
+                API Server: http://localhost:10000 | 
+                <a href="database-integration-test.html" style="color: #667eea;">Test Interface</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:10000';
+        let selectedBackupFile = '';
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await updateDatabaseStatus();
+            setupEventListeners();
+            setDefaultTime();
+        });
+        
+        function setupEventListeners() {
+            const rollbackType = document.getElementById('rollback-type');
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            const executeBtn = document.getElementById('execute-rollback-btn');
+            const createBackupBtn = document.getElementById('create-backup-btn');
+            
+            rollbackType.addEventListener('change', handleRollbackTypeChange);
+            confirmCheckbox.addEventListener('change', handleConfirmationChange);
+            executeBtn.addEventListener('click', executeRollback);
+            createBackupBtn.addEventListener('click', createBackup);
+        }
+        
+        function setDefaultTime() {
+            const targetTime = document.getElementById('target-time');
+            // Set default to 1 hour ago
+            const oneHourAgo = new Date(Date.now() - 3600000);
+            const timestamp = oneHourAgo.toISOString().slice(0, 19);
+            targetTime.value = timestamp;
+        }
+        
+        async function updateDatabaseStatus() {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const statusDetails = document.getElementById('status-details');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/status`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    statusDot.className = 'status-dot healthy';
+                    statusText.textContent = 'Healthy';
+                    statusDetails.textContent = `Database: ${data.database?.database} | Host: ${data.database?.host}:${data.database?.port} | Size: ${data.database?.size || 'Unknown'}`;
+                } else {
+                    statusDot.className = 'status-dot error';
+                    statusText.textContent = 'Issues Detected';
+                    statusDetails.textContent = 'Check database connection and logs';
+                }
+            } catch (error) {
+                statusDot.className = 'status-dot error';
+                statusText.textContent = 'API Unavailable';
+                statusDetails.textContent = 'Cannot connect to API server on port 10000';
+            }
+        }
+        
+        function handleRollbackTypeChange() {
+            const rollbackType = document.getElementById('rollback-type');
+            const pitrOptions = document.getElementById('pitr-options');
+            const backupOptions = document.getElementById('backup-options');
+            
+            if (rollbackType.value === 'pitr') {
+                pitrOptions.style.display = 'block';
+                backupOptions.style.display = 'none';
+            } else {
+                pitrOptions.style.display = 'none';
+                backupOptions.style.display = 'block';
+                loadBackups();
+            }
+        }
+        
+        function handleConfirmationChange() {
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            const executeBtn = document.getElementById('execute-rollback-btn');
+            
+            executeBtn.disabled = !confirmCheckbox.checked;
+        }
+        
+        async function loadBackups() {
+            const backupsList = document.getElementById('backups-list');
+            backupsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #718096;">Loading backups...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/backups`);
+                const data = await response.json();
+                
+                if (data.backups && data.backups.length > 0) {
+                    backupsList.innerHTML = data.backups.map(backup => `
+                        <div class="backup-item" onclick="selectBackup('${backup.filename}')">
+                            <div class="backup-info">
+                                <div class="backup-name">${backup.filename}</div>
+                                <div class="backup-details">
+                                    Size: ${backup.size} | Created: ${new Date(backup.created).toLocaleString()}
+                                </div>
+                            </div>
+                            <div>
+                                <input type="radio" name="backup-selection" value="${backup.filename}">
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    backupsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #718096;">No backups available</div>';
+                }
+            } catch (error) {
+                backupsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #e53e3e;">Error loading backups</div>';
+            }
+        }
+        
+        function selectBackup(filename) {
+            selectedBackupFile = filename;
+            // Update radio button
+            document.querySelector(`input[value="${filename}"]`).checked = true;
+        }
+        
+        async function createBackup() {
+            const btn = document.getElementById('create-backup-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Creating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/database/backup`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    showNotification('Backup created successfully!', 'success');
+                    if (document.getElementById('rollback-type').value === 'backup') {
+                        loadBackups(); // Refresh backup list
+                    }
+                } else {
+                    throw new Error('Backup failed');
+                }
+            } catch (error) {
+                showNotification('Backup failed: ' + error.message, 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function executeRollback() {
+            const rollbackType = document.getElementById('rollback-type').value;
+            const confirmCheckbox = document.getElementById('confirm-rollback');
+            
+            if (!confirmCheckbox.checked) {
+                showNotification('Please confirm that you understand this operation is destructive.', 'warning');
+                return;
+            }
+            
+            let params = {};
+            
+            if (rollbackType === 'pitr') {
+                const targetTime = document.getElementById('target-time').value;
+                if (!targetTime) {
+                    showNotification('Please select a target time for recovery.', 'warning');
+                    return;
+                }
+                params = { timestamp: new Date(targetTime).toISOString() };
+            } else {
+                if (!selectedBackupFile) {
+                    showNotification('Please select a backup file to restore from.', 'warning');
+                    return;
+                }
+                params = { backupFile: selectedBackupFile };
+            }
+            
+            const btn = document.getElementById('execute-rollback-btn');
+            const originalText = btn.textContent;
+            
+            btn.innerHTML = '<span class="loading"></span> Rolling back...';
+            btn.disabled = true;
+            
+            try {
+                const endpoint = rollbackType === 'pitr' ? '/api/database/rollback' : '/api/database/recovery';
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Database rollback completed successfully!', 'success');
+                    await updateDatabaseStatus();
+                    confirmCheckbox.checked = false;
+                    handleConfirmationChange();
+                } else {
+                    throw new Error(data.message || 'Rollback failed');
+                }
+            } catch (error) {
+                showNotification('Rollback failed: ' + error.message, 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = true; // Keep disabled until confirmed again
+            }
+        }
+        
+        function showNotification(message, type) {
+            // Remove existing notifications
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        // Auto-refresh status every 30 seconds
+        setInterval(updateDatabaseStatus, 30000);
+    </script>
+</body>
+</html>

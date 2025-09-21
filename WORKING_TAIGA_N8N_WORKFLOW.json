@@ -1,0 +1,175 @@
+{
+  "name": "Kanboard AI Task Enhancer - TESTED",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression", 
+              "expression": "0 */2 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Check Every 2 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "id": "cron"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllTasks\",\n  \"id\": 1,\n  \"params\": {\n    \"project_id\": 1,\n    \"status_id\": 1\n  }\n}"
+        }
+      },
+      "name": "Get Active Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300],
+      "id": "getTasks",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get tasks from Kanboard API response\nconst response = $input.first().json;\nconst tasks = response.result || [];\n\n// Filter tasks that need AI enhancement\nconst tasksNeedingAI = tasks.filter(task => {\n  const description = task.description || '';\n  const title = task.title || '';\n  // Only enhance tasks with no description or very short ones\n  return description.trim().length < 20 && title.trim().length > 0;\n});\n\nconsole.log(`Found ${tasks.length} total tasks, ${tasksNeedingAI.length} need AI enhancement`);\n\n// Return each task as a separate item\nif (tasksNeedingAI.length === 0) {\n  return [];\n}\n\nreturn tasksNeedingAI.map(task => ({ json: task }));"
+      },
+      "name": "Filter Tasks Needing AI",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "id": "filterTasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"mistral:latest\",\n  \"prompt\": \"Create a detailed description and metadata for this task: '{{ $json.title }}'\\n\\nProvide:\\n1. A clear 2-3 sentence description explaining what this task involves\\n2. A complexity score from 1-5 (1=very easy, 5=very complex)\\n3. Three relevant tags\\n\\nRespond in this exact JSON format:\\n{\\n  \\\"description\\\": \\\"Your detailed description here\\\",\\n  \\\"complexity\\\": 3,\\n  \\\"tags\\\": [\\\"tag1\\\", \\\"tag2\\\", \\\"tag3\\\"]\\n}\",\n  \"stream\": false\n}"
+        }
+      },
+      "name": "AI Enhance Task",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4.2,
+      "position": [800, 300],
+      "id": "aiEnhance"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get the original task data and AI response\nconst taskData = $input.first().json;\nconst aiResponse = $input.last().json.response;\n\nconsole.log('Original task:', taskData.title);\nconsole.log('AI response:', aiResponse.substring(0, 200));\n\n// Try to parse AI response as JSON\nlet aiData = null;\ntry {\n  // Look for JSON in the response\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    aiData = JSON.parse(jsonMatch[0]);\n    console.log('Successfully parsed AI JSON:', aiData);\n  }\n} catch (error) {\n  console.log('JSON parsing failed:', error.message);\n}\n\n// Create enhanced task data\nif (aiData && aiData.description) {\n  return {\n    json: {\n      task_id: taskData.id,\n      title: taskData.title,\n      description: aiData.description,\n      complexity: aiData.complexity || 3,\n      tags: Array.isArray(aiData.tags) ? aiData.tags.join(', ') : 'ai-enhanced'\n    }\n  };\n} else {\n  // Fallback: create basic enhancement\n  return {\n    json: {\n      task_id: taskData.id,\n      title: taskData.title,\n      description: `Enhanced task: ${taskData.title}. This task requires attention and proper planning to complete successfully.`,\n      complexity: 3,\n      tags: 'ai-enhanced, auto-generated, needs-review'\n    }\n  };\n}"
+      },
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "id": "parseResponse"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"updateTask\",\n  \"id\": 1,\n  \"params\": {\n    \"id\": {{ $json.task_id }},\n    \"description\": \"{{ $json.description }}\\n\\n🤖 AI Enhanced\\nComplexity: {{ $json.complexity }}/5\\nTags: {{ $json.tags }}\"\n  }\n}"
+        }
+      },
+      "name": "Update Task in Kanboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300],
+      "id": "updateTask",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    }
+  ],
+  "connections": {
+    "Check Every 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Active Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Tasks Needing AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Tasks Needing AI": {
+      "main": [
+        [
+          {
+            "node": "AI Enhance Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Enhance Task": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Update Task in Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "kanboard-ai-tested",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "kanboard-ai-tested",
+  "tags": []
+}

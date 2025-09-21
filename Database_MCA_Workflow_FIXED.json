@@ -1,0 +1,225 @@
+{
+  "name": "Database-Driven MCA Due Diligence Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "expression": "Every 2 Minutes"
+      },
+      "name": "Every 2 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-1800, 400],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1600, 400],
+      "id": "get-kanboard-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// INTELLIGENT TASK PROCESSOR WITH PROPER LOGIC\nconst tasks = $input.first().json.result || [];\nconsole.log(`🔍 Processing ${tasks.length} Kanboard tasks`);\n\n// Find master Due Diligence tasks only\nlet validTasks = [];\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // EXACT requirement: \"Due Diligence: [Company Name]\" with website in description\n  if (title.toLowerCase().includes('due diligence:') && description.includes('http')) {\n    const companyName = title.replace(/due diligence:\\s*/i, '').trim();\n    const websiteMatch = description.match(/https?:\\/\\/[^\\s]+/);\n    const websiteUrl = websiteMatch ? websiteMatch[0] : null;\n    \n    if (companyName && websiteUrl) {\n      validTasks.push({\n        kanboard_id: task.id,\n        title: title,\n        description: description,\n        company_name: companyName,\n        website_url: websiteUrl,\n        project_id: task.project_id || 1\n      });\n    }\n  }\n}\n\nconsole.log(`📋 Found ${validTasks.length} valid Due Diligence tasks`);\n\nif (validTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found - workflow completed');\n  throw new Error('No Due Diligence tasks found');\n}\n\n// Return first task for processing\nconst taskToProcess = validTasks[0];\nconsole.log(`🎯 Processing: ${taskToProcess.company_name}`);\n\nreturn {\n  json: {\n    ...taskToProcess,\n    found_tasks_count: validTasks.length,\n    workflow_action: 'PROCESS_COMPANY'\n  }\n};"
+      },
+      "name": "Find Valid DD Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-1400, 400],
+      "id": "find-valid-tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Task PDFs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1200, 400],
+      "id": "get-task-pdfs",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "text": "={{ $('Find Valid DD Tasks').first().json.description + ' ' + $('Find Valid DD Tasks').first().json.company_name }}"
+        },
+        "options": {
+          "timeout": 15000
+        },
+        "continueOnFail": true
+      },
+      "name": "Run FinBERT Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1000, 400],
+      "id": "run-finbert"
+    },
+    {
+      "parameters": {
+        "functionCode": "// KNOWLEDGE BASE AND WORKFLOW CONTROLLER\nconst taskData = $('Find Valid DD Tasks').first().json;\nconst attachments = $('Get Task PDFs').first().json.result || [];\n\n// Process FinBERT data\nlet finbertData = null;\ntry {\n  const finbertResponse = $('Run FinBERT Analysis').first();\n  if (finbertResponse && finbertResponse.json) {\n    finbertData = finbertResponse.json;\n    console.log('✅ FinBERT analysis successful');\n  }\n} catch (error) {\n  console.log(`⚠️ FinBERT error: ${error.message}`);\n}\n\n// Define all 20 sections in exact order\nconst ALL_SECTIONS = [\n  { name: \"Introduction & Engagement Context\", index: 1, description: \"Context, objectives, and scope of the due diligence engagement\" },\n  { name: \"Methodology & Reliability Levels\", index: 2, description: \"Analytical approach, data sources, and reliability assessment methodology\" },\n  { name: \"Company Overview\", index: 3, description: \"Company history, leadership team, ownership structure, mission, and operational scale\" },\n  { name: \"Business Model & Unit Economics\", index: 4, description: \"Revenue streams, cost structure, pricing strategy, and unit economics analysis\" },\n  { name: \"Products & Technology\", index: 5, description: \"Product portfolio, technology stack, R&D capabilities, and competitive differentiation\" },\n  { name: \"Target Market & Competitive Set\", index: 6, description: \"Market segments, customer base, competitive landscape, and market positioning\" },\n  { name: \"Financials\", index: 7, description: \"Multi-year financial statements analysis, reconciliation, and recomputation\" },\n  { name: \"Cash, Burn, Runway\", index: 8, description: \"Cash position, burn rate analysis, and runway calculations\" },\n  { name: \"Revenue Quality & Client Cohorts\", index: 9, description: \"Revenue composition, client concentration, retention, and cohort analysis\" },\n  { name: \"Partnerships & Ecosystem\", index: 10, description: \"Strategic partnerships, ecosystem integration, and channel relationships\" },\n  { name: \"Intellectual Property\", index: 11, description: \"Patent portfolio, trademarks, copyrights, and IP strategy\" },\n  { name: \"Legal & Regulatory\", index: 12, description: \"Legal structure, compliance status, regulatory risks, and litigation\" },\n  { name: \"Governance & Board Effectiveness\", index: 13, description: \"Board composition, governance practices, and decision-making processes\" },\n  { name: \"Capital Structure & Dilution\", index: 14, description: \"Equity structure, debt analysis, and potential dilution scenarios\" },\n  { name: \"Risk Matrix & Mitigations\", index: 15, description: \"Key risk identification, assessment, and mitigation strategies\" },\n  { name: \"Gaps, Uncertainties & Disclaimers\", index: 16, description: \"Data gaps, analytical uncertainties, and disclosure disclaimers\" },\n  { name: \"Scenario Analysis\", index: 17, description: \"Multiple scenario modeling and sensitivity analysis\" },\n  { name: \"Strategic Options\", index: 18, description: \"Strategic alternatives and growth pathways for the company\" },\n  { name: \"Recommendations & Next Steps\", index: 19, description: \"Actionable recommendations and proposed next steps\" },\n  { name: \"Source Map & Integrity Log\", index: 20, description: \"Data sources mapping and integrity verification log\" }\n];\n\nconsole.log(`📊 Knowledge Base Summary:`);\nconsole.log(`  - Company: ${taskData.company_name}`);\nconsole.log(`  - Website: ${taskData.website_url}`);\nconsole.log(`  - PDFs: ${attachments.length} files`);\nconsole.log(`  - FinBERT: ${finbertData ? 'Available' : 'Failed'}`);\nconsole.log(`  - Sections: ${ALL_SECTIONS.length} to process`);\n\n// This is where we'll use databases instead of Kanboard storage\nreturn {\n  json: {\n    ...taskData,\n    attachments: attachments,\n    finbert_data: finbertData,\n    all_sections: ALL_SECTIONS,\n    knowledge_base: {\n      company_name: taskData.company_name,\n      website_url: taskData.website_url,\n      pdf_files: attachments.map(a => a.name || 'unknown'),\n      financial_analysis: finbertData,\n      total_sources: attachments.length + 1 + (finbertData ? 1 : 0)\n    },\n    next_action: 'DATABASE_SETUP'\n  }\n};"
+      },
+      "name": "Process Knowledge Base",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-800, 400],
+      "id": "process-knowledge-base"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "content": "=🎯 **MCA WORKFLOW STATUS UPDATE**\\n\\n📊 **Knowledge Base Processed:**\\n- Company: {{ $json.company_name }}\\n- Website: {{ $json.website_url }}\\n- PDF Files: {{ $json.attachments.length }} attachments\\n- FinBERT Analysis: {{ $json.finbert_data ? 'Available ✅' : 'Failed ❌' }}\\n\\n🔄 **Next Steps:**\\n1. Database setup and storage\\n2. Section-by-section MCA processing\\n3. JSON validation and storage\\n4. Final PDF generation\\n\\n📋 **Sections to Process:** {{ $json.all_sections.length }}/20\\n\\n⏰ **Updated:** {{ new Date().toISOString() }}\\n\\n---\\n\\n**This task will be processed through the proper MCA workflow with database storage.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Update Task Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-600, 400],
+      "id": "update-task-status",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find Valid DD Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Valid DD Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Task PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task PDFs": {
+      "main": [
+        [
+          {
+            "node": "Run FinBERT Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run FinBERT Analysis": {
+      "main": [
+        [
+          {
+            "node": "Process Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Update Task Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "database-mca-v1",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "DATABASE-MCA-WORKFLOW",
+  "tags": []
+}

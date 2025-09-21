@@ -1,0 +1,143 @@
+{
+  "name": "DD_Section_01_Introduction_Fixed",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-1200, 400],
+      "id": "trigger-node",
+      "name": "When Called by Master Workflow"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Safe input handling for Section 01\nlet inputData;\ntry {\n  inputData = $input.first().json;\n  console.log('✅ Input data received:', Object.keys(inputData || {}));\n} catch (error) {\n  console.error('❌ Input data error:', error.message);\n  inputData = {};\n}\n\n// Extract company information safely\nconst companyId = inputData?.company_id || 'unknown_company';\nconst companyName = inputData?.company_name || 'Unknown Company';\nconst companyFolderName = inputData?.company_folder_name || companyName;\n\nconsole.log('🔄 SECTION 01: Introduction & Engagement Context');\nconsole.log('═'.repeat(50));\nconsole.log('🏢 Company:', companyName);\nconsole.log('🆔 Company ID:', companyId);\nconsole.log('📁 Folder:', companyFolderName);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    company_id: companyId,\n    company_name: companyName,\n    company_folder_name: companyFolderName,\n    section_number: 1,\n    section_title: 'Introduction & Engagement Context',\n    section_description: 'Engagement framing, scope of work, methodology, and Big 4 due diligence standards',\n    processing_status: 'initialized',\n    started_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Initialize Section 01",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-1000, 400],
+      "id": "initialize-section"
+    },
+    {
+      "parameters": {
+        "mode": "query",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "prompt": "={{ $json.company_name }} due diligence introduction engagement context business overview",
+        "topK": 5,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [-800, 400],
+      "id": "rag-search",
+      "name": "RAG Knowledge Search",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine initialization data with RAG results\nconst sectionData = $node['Initialize Section 01'].json;\nconst ragResults = $input.first().json;\n\nconsole.log('🔍 Processing RAG results for:', sectionData.company_name);\n\n// Extract knowledge context from RAG\nlet knowledgeContext = '';\nif (ragResults && ragResults.documents && ragResults.documents.length > 0) {\n  console.log('📚 RAG documents found:', ragResults.documents.length);\n  ragResults.documents.forEach((doc, index) => {\n    if (doc.pageContent) {\n      knowledgeContext += `Knowledge ${index + 1}: ${doc.pageContent}\\n\\n`;\n    }\n  });\n} else {\n  console.log('ℹ️ No RAG documents found, using general business context');\n  knowledgeContext = 'General business due diligence principles and methodologies.';\n}\n\n// Create enhanced prompt for Section 01\nconst enhancedPrompt = `You are a Big 4 consulting firm senior analyst creating a professional due diligence report.\n\nGenerate a comprehensive \"Introduction & Engagement Context\" section for: ${sectionData.company_name}\n\nKNOWLEDGE BASE CONTEXT:\n${knowledgeContext}\n\nREQUIREMENTS:\n1. Write in formal Big 4 consulting style\n2. Include engagement scope, methodology, and objectives\n3. Reference Big 4 due diligence standards and frameworks\n4. Explain the business context and market relevance\n5. Minimum 400 words with clear structure\n6. Use specific business terminology and professional language\n7. Include timeframe and deliverable expectations\n\nStructure the response with these subsections:\n- Engagement Overview\n- Scope and Methodology  \n- Business Context\n- Due Diligence Framework\n- Expected Outcomes\n\nGenerate professional content that sets the foundation for a comprehensive due diligence analysis.`;\n\nconsole.log('✅ Enhanced prompt created for Section 01');\nconsole.log('📝 Prompt length:', enhancedPrompt.length);\n\nreturn {\n  json: {\n    ...sectionData,\n    enhanced_prompt: enhancedPrompt,\n    knowledge_context: knowledgeContext,\n    rag_documents_found: ragResults?.documents?.length || 0\n  }\n};"
+      },
+      "name": "Create Enhanced Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-600, 400],
+      "id": "create-prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "={{ $json.enhanced_prompt }}",
+          "stream": false
+        },t",\n      "type": "n8n-nodes-base.httpRequest",\n      "typeVersion": 4.2,\n      "position": [-400, 400],\n      "id": "generate-content"\n    },\n    {\n      "parameters": {\n        "functionCode": "// Process and format the generated content\nconst report = $input.first().json.response || '';\nconst promptData = $node['Create Enhanced Prompt'].json;\n\nconsole.log('📄 Processing Section 01 content');\nconsole.log('📏 Content length:', report.length);\nconsole.log('🏢 Company:', promptData.company_name);\n\nif (!report || report.length < 100) {\n  console.error('❌ Content generation failed or too short');\n  return {\n    json: {\n      company_id: promptData.company_id,\n      company_name: promptData.company_name,\n      section_number: 1,\n      section_title: promptData.section_title,\n      content: 'ERROR: Section 01 content generation failed. Please check Ollama service.',\n      status: 'failed',\n      error: 'Content generation failed',\n      generated_at: new Date().toISOString()\n    }\n  };\n}\n\n// Clean the content\nconst cleanContent = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '')\n  .replace(/\\$json\\.[\\w.]+/g, '')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconsole.log('✅ Section 01 content generated successfully');\nconsole.log('📊 Final content length:', cleanContent.length);\nconsole.log('🎯 RAG enhanced:', promptData.rag_documents_found > 0);\n\nreturn {\n  json: {\n    company_id: promptData.company_id,\n    company_name: promptData.company_name,\n    section_number: 1,\n    section_title: promptData.section_title,\n    content: cleanContent,\n    status: 'approved',\n    rag_enhanced: true,\n    rag_documents_used: promptData.rag_documents_found,\n    word_count: cleanContent.length,\n    generated_at: new Date().toISOString(),\n    approved_at: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Format Section Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-200, 400],
+      "id": "format-output"
+    }
+  ],
+  "connections": {
+    "When Called by Master Workflow": {
+      "main": [
+        [
+          {
+            "node": "Initialize Section 01",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Section 01": {
+      "main": [
+        [
+          {
+            "node": "RAG Knowledge Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Knowledge Search": {
+      "main": [
+        [
+          {
+            "node": "Create Enhanced Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Enhanced Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Section Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section Content": {
+      "main": [
+        [
+          {
+            "node": "Format Section Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "Section01Fixed",
+  "tags": []
+}

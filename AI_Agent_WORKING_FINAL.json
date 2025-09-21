@@ -1,0 +1,488 @@
+{
+  "name": "AI Agent Auto-Provisioning BULLETPROOF",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "kanboard_url",
+              "value": "http://localhost:8000/jsonrpc.php"
+            }
+          ],
+          "object": [
+            {
+              "name": "ai_agents",
+              "value": "=[\n  {\n    \"username\": \"ai-strategy-planner\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI Strategy Planner\",\n    \"email\": \"strategy-planner@company.local\",\n    \"group\": \"Strategy Department\",\n    \"project\": \"🎯 AI Strategy Department\",\n    \"project_desc\": \"Strategic planning and competitive analysis AI agents\"\n  },\n  {\n    \"username\": \"ai-market-analyst\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI Market Analyst\",\n    \"email\": \"market-analyst@company.local\",\n    \"group\": \"Strategy Department\",\n    \"project\": \"🎯 AI Strategy Department\",\n    \"project_desc\": \"Strategic planning and competitive analysis AI agents\"\n  },\n  {\n    \"username\": \"ai-content-creator\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI Content Creator\",\n    \"email\": \"content-creator@company.local\",\n    \"group\": \"Marketing Department\",\n    \"project\": \"📈 AI Marketing Department\",\n    \"project_desc\": \"Content creation and digital marketing AI agents\"\n  },\n  {\n    \"username\": \"ai-social-manager\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI Social Media Manager\",\n    \"email\": \"social-manager@company.local\",\n    \"group\": \"Marketing Department\",\n    \"project\": \"📈 AI Marketing Department\",\n    \"project_desc\": \"Content creation and digital marketing AI agents\"\n  },\n  {\n    \"username\": \"ai-code-reviewer\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI Code Reviewer\",\n    \"email\": \"code-reviewer@company.local\",\n    \"group\": \"Development Department\",\n    \"project\": \"💻 AI Development Department\",\n    \"project_desc\": \"Software development and testing AI agents\"\n  },\n  {\n    \"username\": \"ai-qa-tester\",\n    \"password\": \"aiagent123\",\n    \"name\": \"AI QA Tester\",\n    \"email\": \"qa-tester@company.local\",\n    \"group\": \"Development Department\",\n    \"project\": \"💻 AI Development Department\",\n    \"project_desc\": \"Software development and testing AI agents\"\n  }\n]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-1",
+      "name": "Load AI Agent Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "fieldsToSplitOut": "ai_agents",
+        "options": {}
+      },
+      "id": "split-1",
+      "name": "Split Agents",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getProjectByName\",\n  \"params\": {\n    \"name\": \"{{ $json.project }}\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "check-project-1",
+      "name": "Check Project Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [800, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.result }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-project-1",
+      "name": "Project Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $('Split Agents').item.json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createProject\",\n  \"params\": {\n    \"name\": \"{{ $('Split Agents').item.json.project }}\",\n    \"description\": \"{{ $('Split Agents').item.json.project_desc }}\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "create-project-1",
+      "name": "Create Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1200, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $('Split Agents').item.json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getUserByUsername\",\n  \"params\": {\n    \"username\": \"{{ $('Split Agents').item.json.username }}\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "check-user-1",
+      "name": "Check User Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1400, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.result }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-user-1",
+      "name": "User Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $('Split Agents').item.json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createUser\",\n  \"params\": {\n    \"username\": \"{{ $('Split Agents').item.json.username }}\",\n    \"password\": \"{{ $('Split Agents').item.json.password }}\",\n    \"name\": \"{{ $('Split Agents').item.json.name }}\",\n    \"email\": \"{{ $('Split Agents').item.json.email }}\",\n    \"role\": \"app-user\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "create-user-1",
+      "name": "Create User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1800, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $('Split Agents').item.json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getGroupByName\",\n  \"params\": {\n    \"name\": \"{{ $('Split Agents').item.json.group }}\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "check-group-1",
+      "name": "Check Group Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2000, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.result }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-group-1",
+      "name": "Group Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2200, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "url": "={{ $('Split Agents').item.json.kanboard_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createGroup\",\n  \"params\": {\n    \"name\": \"{{ $('Split Agents').item.json.group }}\"\n  },\n  \"id\": {{ Math.floor(Math.random() * 1000000) }}\n}"
+      },
+      "id": "create-group-1",
+      "name": "Create Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2400, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard-admin",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "✅ SUCCESS: AI Agent {{ $('Split Agents').item.json.username }} provisioned successfully!"
+            },
+            {
+              "name": "agent_name",
+              "value": "={{ $('Split Agents').item.json.name }}"
+            },
+            {
+              "name": "agent_username",
+              "value": "={{ $('Split Agents').item.json.username }}"
+            },
+            {
+              "name": "agent_email",
+              "value": "={{ $('Split Agents').item.json.email }}"
+            },
+            {
+              "name": "agent_group",
+              "value": "={{ $('Split Agents').item.json.group }}"
+            },
+            {
+              "name": "agent_project",
+              "value": "={{ $('Split Agents').item.json.project }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "success-1",
+      "name": "Success Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2600, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load AI Agent Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load AI Agent Config": {
+      "main": [
+        [
+          {
+            "node": "Split Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Agents": {
+      "main": [
+        [
+          {
+            "node": "Check Project Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Project Exists": {
+      "main": [
+        [
+          {
+            "node": "Project Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project Exists?": {
+      "main": [
+        [
+          {
+            "node": "Check User Exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Project": {
+      "main": [
+        [
+          {
+            "node": "Check User Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User Exists": {
+      "main": [
+        [
+          {
+            "node": "User Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Exists?": {
+      "main": [
+        [
+          {
+            "node": "Check Group Exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Check Group Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Group Exists": {
+      "main": [
+        [
+          {
+            "node": "Group Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group Exists?": {
+      "main": [
+        [
+          {
+            "node": "Success Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Group": {
+      "main": [
+        [
+          {
+            "node": "Success Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "bulletproof-v1"
+}

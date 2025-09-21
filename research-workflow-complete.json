@@ -1,0 +1,185 @@
+{
+  "name": "Research Request Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "research-request",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "research-request"
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  json: {\n    company: $json.company,\n    sections: [\n      \"Introduction\",\n      \"Financial Analysis\",\n      \"Legal Structure\",\n      \"Market Position\",\n      \"Products/Services\",\n      \"Customer Analysis\",\n      \"Supply Chain\",\n      \"Operational Efficiency\",\n      \"Technology Stack\",\n      \"Intellectual Property\",\n      \"Regulatory Compliance\",\n      \"Legal Risks\",\n      \"Management Team\",\n      \"Funding History\",\n      \"Competitive Analysis\",\n      \"Growth Strategy\",\n      \"SWOT Analysis\",\n      \"Exit Potential\",\n      \"Environmental Impact\",\n      \"Final Assessment\"\n    ]\n  }\n}];"
+      },
+      "id": "add-sections",
+      "name": "Add Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const results = [];\nfor (const section of $json.sections) {\n  results.push({\n    json: {\n      company: $json.company,\n      section: section\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "split-sections",
+      "name": "Split into Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/v1/chat/completions",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\": \"system\", \"content\": \"You are a financial analyst conducting due diligence. Only output JSON.\"}, {\"role\": \"user\", \"content\": \"Research \" + $json.section + \" for \" + $json.company + \". Output: {\\\"status\\\":\\\"completed\\\",\\\"findings\\\":\\\"Analysis complete\\\",\\\"missing_data\\\":[],\\\"human_tasks\\\":[],\\\"confidence_score\\\":85}\"}]"
+            }
+          ]
+        }
+      },
+      "id": "llm-request",
+      "name": "HTTP Request LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract LLM response and parse it\nconst company = $json.company;\nconst section = $json.section;\nconst llmResponse = $json.choices?.[0]?.message?.content || '{}';\n\nlet parsedResponse;\ntry {\n  // Try to parse the JSON response from LLM\n  parsedResponse = JSON.parse(llmResponse);\n} catch (e) {\n  // If parsing fails, create a default response\n  parsedResponse = {\n    status: 'requires_human',\n    findings: llmResponse,\n    missing_data: ['LLM response parsing failed'],\n    human_tasks: ['Manual review required'],\n    confidence_score: 0\n  };\n}\n\nreturn {\n  json: {\n    company: company,\n    section: section,\n    status: parsedResponse.status || 'requires_human',\n    findings: parsedResponse.findings || '',\n    missing_data: parsedResponse.missing_data || [],\n    human_tasks: parsedResponse.human_tasks || [],\n    confidence_score: parsedResponse.confidence_score || 0\n  }\n};"
+      },
+      "id": "parse-llm-response",
+      "name": "Parse LLM Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO research_results (company, section, status, findings, missing_data, human_tasks, confidence_score) VALUES ('{{ $json.company }}', '{{ $json.section }}', '{{ $json.status }}', '{{ $json.findings }}', '{{ JSON.stringify($json.missing_data) }}', '{{ JSON.stringify($json.human_tasks) }}', {{ $json.confidence_score }});",
+        "additionalFields": {}
+      },
+      "id": "postgres-save",
+      "name": "Postgres Save",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1340, 300],
+      "credentials": {
+        "postgres": {
+          "id": "local-postgres",
+          "name": "Local PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\"message\": \"Research queued for \" + $json.company, \"status\": \"success\", \"sections_count\": 20} }}"
+      },
+      "id": "webhook-response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Add Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Sections": {
+      "main": [
+        [
+          {
+            "node": "Split into Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split into Sections": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request LLM": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Postgres Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Save": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "research-workflow-v1",
+  "id": "research-request-workflow"
+}

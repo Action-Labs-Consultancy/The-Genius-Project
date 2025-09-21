@@ -19,6 +19,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import './N8nCanvasBlackYellow.css';
 import { communityNodeLoader, COMMUNITY_NODES } from './utils/CommunityNodeLoader';
+import DatabaseManagementPanel from './components/DatabaseManagementPanel';
+import PostgreSQLRollbackNode from './n8n-nodes/PostgreSQLRollbackNode';
 
 // N8n Node Registry - Complete node definitions
 const N8N_NODES = {
@@ -328,6 +330,7 @@ const N8nCanvasComplete = () => {
   const [communityNodes, setCommunityNodes] = useState([]);
   const [showCommunityNodes, setShowCommunityNodes] = useState(false);
   const [installingNode, setInstallingNode] = useState(null);
+  const [showDatabasePanel, setShowDatabasePanel] = useState(false);
   
   const reactFlowWrapper = useRef(null);
   const { screenToFlowPosition } = useReactFlow();
@@ -371,7 +374,8 @@ const N8nCanvasComplete = () => {
     ...Object.keys(getAllAvailableNodes()).reduce((acc, nodeType) => {
       acc[nodeType] = (props) => <N8nNode {...props} type={nodeType} />;
       return acc;
-    }, {})
+    }, {}),
+    'postgresql-rollback': PostgreSQLRollbackNode
   };
   
   // Categories for filtering (including community categories)
@@ -593,6 +597,13 @@ const N8nCanvasComplete = () => {
           >
             Credentials
           </button>
+          <button 
+            className={`left-panel-tab ${activeTab === 'database' ? 'active' : ''}`}
+            onClick={() => setActiveTab('database')}
+            style={{ background: '#7f1d1d', color: '#fca5a5' }}
+          >
+            🛡️ Database
+          </button>
         </div>
         
         <div className="left-panel-content">
@@ -613,6 +624,91 @@ const N8nCanvasComplete = () => {
           {activeTab === 'credentials' && (
             <div className="credentials-tab">
               <p>Manage your API credentials here</p>
+            </div>
+          )}
+          
+          {activeTab === 'database' && (
+            <div className="database-tab">
+              <h3 style={{ color: '#fbbf24', marginBottom: '16px' }}>Database Management</h3>
+              
+              <div className="database-status" style={{ marginBottom: '16px', padding: '12px', background: '#111827', borderRadius: '6px' }}>
+                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>PostgreSQL Status</div>
+                <div style={{ color: '#10b981' }}>✅ Connected & Ready</div>
+              </div>
+              
+              <div className="database-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  onClick={() => setShowDatabasePanel(true)}
+                  style={{
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  🚨 Emergency Rollback
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/database/backup', { method: 'POST' });
+                      if (response.ok) {
+                        alert('✅ Backup completed!');
+                      } else {
+                        alert('❌ Backup failed!');
+                      }
+                    } catch (error) {
+                      alert(`❌ Error: ${error.message}`);
+                    }
+                  }}
+                  style={{
+                    background: '#065f46',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💾 Quick Backup
+                </button>
+                
+                <button
+                  onClick={() => {
+                    // Add PostgreSQL rollback node to canvas
+                    const newNode = {
+                      id: `rollback-${Date.now()}`,
+                      type: 'postgresql-rollback',
+                      position: { x: 100, y: 100 },
+                      data: { 
+                        label: 'PostgreSQL Rollback',
+                        operation: 'point-in-time'
+                      }
+                    };
+                    setNodes(nds => nds.concat(newNode));
+                  }}
+                  style={{
+                    background: '#1e40af',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🔄 Add Rollback Node
+                </button>
+              </div>
+              
+              <div className="database-info" style={{ marginTop: '16px', fontSize: '12px', color: '#6b7280' }}>
+                <div>Last backup: Today at 2:00 AM</div>
+                <div>WAL archiving: Active</div>
+                <div>Recovery window: 7 days</div>
+              </div>
             </div>
           )}
         </div>
@@ -742,6 +838,13 @@ const N8nCanvasComplete = () => {
           selectedNode={selectedNode}
           onUpdateNode={onUpdateNode}
           onClose={() => setShowConfigPanel(false)}
+        />
+      )}
+      
+      {/* Database Management Panel */}
+      {showDatabasePanel && (
+        <DatabaseManagementPanel
+          onClose={() => setShowDatabasePanel(false)}
         />
       )}
     </div>

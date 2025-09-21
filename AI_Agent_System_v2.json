@@ -1,0 +1,187 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "hours",
+                            "hoursInterval": 6
+                        }
+                    ]
+                }
+            },
+            "id": "f1f76d89-b47e-4f1a-a0a7-6c11bb15e78b",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [240, 300]
+        },
+        {
+            "parameters": {
+                "jsCode": "const agentConfig = {\n  \"Strategy\": {\n    projectName: \"🎯 AI Strategy Department\",\n    description: \"Strategic planning and competitive analysis AI agents\",\n    agents: [\n      { name: \"Strategic Planner AI\", username: \"ai-strategy-planner\", email: \"ai-strategy-planner@company.local\", role: \"Strategic planning and roadmap development\" },\n      { name: \"Market Analyst AI\", username: \"ai-market-analyst\", email: \"ai-market-analyst@company.local\", role: \"Market research and trend analysis\" }\n    ]\n  },\n  \"Marketing\": {\n    projectName: \"📈 AI Marketing Department\",\n    description: \"Content creation and digital marketing AI agents\",\n    agents: [\n      { name: \"Content Creator AI\", username: \"ai-content-creator\", email: \"ai-content-creator@company.local\", role: \"Blog posts, articles, and copy creation\" },\n      { name: \"Social Media Manager AI\", username: \"ai-social-manager\", email: \"ai-social-manager@company.local\", role: \"Social media content and scheduling\" }\n    ]\n  }\n};\n\nreturn { agentConfig };"
+            },
+            "id": "84a1cf72-724c-43b2-a3f1-338e47c4d3e8",
+            "name": "Load Configuration",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [460, 300]
+        },
+        {
+            "parameters": {
+                "url": "http://localhost:8000/jsonrpc.php",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpBasicAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "jsonrpc",
+                            "value": "2.0"
+                        },
+                        {
+                            "name": "method",
+                            "value": "getAllProjects"
+                        },
+                        {
+                            "name": "id",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "method": "POST"
+            },
+            "id": "b5b43ec8-d9cc-4c48-9d06-70d3fc14e31e",
+            "name": "Get Projects",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [680, 300],
+            "credentials": {
+                "httpBasicAuth": {
+                    "id": "1",
+                    "name": "Kanboard Admin"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForAllItems",
+                "jsCode": "// Input data\nconst config = $input.first().json.agentConfig;\nconst existingProjects = $input.last().json.result || [];\n\n// Create map of existing projects\nconst projectMap = new Map(\n  existingProjects.map(p => [p.name, p])\n);\n\n// Find projects to create\nconst projectsToCreate = [];\n\nObject.entries(config).forEach(([dept, info]) => {\n  if (!projectMap.has(info.projectName)) {\n    projectsToCreate.push({\n      name: info.projectName,\n      description: info.description\n    });\n  }\n});\n\nif (projectsToCreate.length === 0) {\n  return [{json: { message: 'No new projects needed' }}];\n}\n\nreturn projectsToCreate.map(project => ({json: project}));"
+            },
+            "id": "c7d8e561-93c4-4f63-8bcd-9d9d7c0f841d",
+            "name": "Process Projects",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1.1,
+            "position": [900, 300]
+        },
+        {
+            "parameters": {
+                "url": "http://localhost:8000/jsonrpc.php",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpBasicAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "jsonrpc",
+                            "value": "2.0"
+                        },
+                        {
+                            "name": "method",
+                            "value": "createProject"
+                        },
+                        {
+                            "name": "id",
+                            "value": "2"
+                        },
+                        {
+                            "name": "params",
+                            "value": "={{ {name: $json.name, description: $json.description} }}"
+                        }
+                    ]
+                },
+                "method": "POST"
+            },
+            "id": "d9e10f74-8b5c-4f63-9d07-70d3fc14e31f",
+            "name": "Create Projects",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [1120, 300],
+            "credentials": {
+                "httpBasicAuth": {
+                    "id": "1",
+                    "name": "Kanboard Admin"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Load Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Load Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Get Projects",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Projects": {
+            "main": [
+                [
+                    {
+                        "node": "Process Projects",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Process Projects": {
+            "main": [
+                [
+                    {
+                        "node": "Create Projects",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {},
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 0,
+    "versionId": 2
+}

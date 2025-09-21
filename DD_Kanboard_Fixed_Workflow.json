@@ -1,0 +1,621 @@
+{
+  "name": "DD Kanboard Workflow - FIXED",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes", 
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [1080, 160],
+      "id": "schedule-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 160],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract Due Diligence tasks and prepare for database\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks`);\n\nconst dueDiligenceTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const description = task.description ? task.description.toString().trim() : '';\n  \n  // Check if title contains \"Due Diligence\" (case insensitive)\n  const titleLower = title.toLowerCase();\n  if (titleLower.includes('due diligence')) {\n    let companyName = '';\n    \n    // Extract company name from title\n    const colonPattern = /due diligence:\\s*(.+)/i;\n    const colonMatch = title.match(colonPattern);\n    if (colonMatch) {\n      companyName = colonMatch[1].trim().replace(/^[\"']+|[\"']+$/g, '');\n    } else {\n      const afterDD = title.substring(title.toLowerCase().indexOf('due diligence') + 13).trim();\n      companyName = afterDD.replace(/^[:\\s\"']+/, '').replace(/[\"']+$/, '').trim() || 'Unknown Company';\n    }\n    \n    // Extract website from description\n    const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n    const urls = description.match(urlRegex) || [];\n    const website = urls.length > 0 ? urls[0] : '';\n    \n    console.log(`✅ Found Due Diligence task: \"${companyName}\" (ID: ${task.id})`);\n    \n    dueDiligenceTasks.push({\n      json: {\n        task_id: parseInt(task.id),\n        kanboard_task_id: parseInt(task.id),\n        title: title,\n        company_name: companyName,\n        website: website,\n        description: description,\n        project_id: task.project_id || 1,\n        status: 'pending',\n        created_at: new Date().toISOString(),\n        updated_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found');\n  // Return empty result to stop the workflow gracefully\n  return [];\n}\n\nconsole.log(`📋 Processing ${dueDiligenceTasks.length} Due Diligence tasks`);\nreturn dueDiligenceTasks;"
+      },
+      "name": "Find Due Diligence Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1520, 160],
+      "id": "extract-dd-tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Task Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 160],
+      "id": "get-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check what we received from the Get Task Files node\nconst taskData = $('Find Due Diligence Task').first().json;\nconst files = $input.first().json.result || [];\n\nif (files.length === 0) {\n  console.log('ℹ️ No files found attached to this task, proceeding without attachments');\n  return [{\n    json: {\n      ...taskData,\n      has_attachments: false,\n      attachment_text: '',\n      skip_download: true\n    }\n  }];\n}\n\n// Log the file information for debugging\nconsole.log('Files found:', JSON.stringify(files, null, 2));\n\n// Get the first PDF file\nconst pdfFile = files.find(file => \n  file.name && file.name.toLowerCase().endsWith('.pdf')\n) || files[0];\n\nconsole.log(`📎 Processing file: ${pdfFile.name} (ID: ${pdfFile.id})`);\n\n// Return the file ID and name along with the original task data\nreturn [{\n  json: {\n    ...taskData,\n    file_id: pdfFile.id,\n    file_name: pdfFile.name,\n    file_path: pdfFile.path,\n    has_attachments: true,\n    skip_download: false\n  }\n}];"
+      },
+      "name": "Process Files",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1960, 160],
+      "id": "process-files"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              },
+              "leftValue": "={{ $json.skip_download }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-files-check",
+      "name": "Has Files?",
+      "type": "n8n-nodes-base.if",
+      "position": [2180, 160],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8000{{ $json.file_path }}",
+        "authentication": "genericCredentialType", 
+        "genericAuthType": "httpBasicAuth",
+        "responseFormat": "file",
+        "options": {
+          "response": {
+            "responseFormat": "file"
+          }
+        }
+      },
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 60],
+      "id": "download-pdf",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CRITICAL FIX: Move binary data to the 'data' property\n// The extractFromFile node specifically looks for binary data in a property called 'data'\n\nconst items = $input.all();\nconst processedItems = [];\n\nfor (const item of items) {\n  const newItem = {\n    json: item.json,\n    binary: {}\n  };\n  \n  // Check if we have binary data\n  if (item.binary && Object.keys(item.binary).length > 0) {\n    // Find the first binary property (usually 'data' from HTTP Request)\n    const binaryKey = Object.keys(item.binary)[0];\n    const binaryData = item.binary[binaryKey];\n    \n    console.log(`📋 Found binary data with key: ${binaryKey}`);\n    console.log(`📋 Binary data info:`, {\n      mimeType: binaryData.mimeType,\n      fileExtension: binaryData.fileExtension,\n      fileName: binaryData.fileName\n    });\n    \n    // Move binary data to the 'data' property that extractFromFile expects\n    newItem.binary.data = {\n      data: binaryData.data,\n      mimeType: binaryData.mimeType || 'application/pdf',\n      fileExtension: binaryData.fileExtension || 'pdf',\n      fileName: binaryData.fileName || item.json.file_name || 'document.pdf'\n    };\n    \n    console.log(`✅ Moved binary data to 'data' property for extractFromFile`);\n  } else {\n    console.log('⚠️ No binary data found in item');\n  }\n  \n  processedItems.push(newItem);\n}\n\nreturn processedItems;"
+      },
+      "name": "Fix Binary Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2620, 60],
+      "id": "fix-binary"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [2840, 60],
+      "id": "extract-pdf",
+      "name": "Extract Text from PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine extracted text with task data\nconst taskData = $('Has Files?').first().json;\nconst extractedData = $input.first().json;\n\nconst attachmentText = extractedData.data || extractedData.text || '';\n\nconsole.log(`📄 Extracted ${attachmentText.length} characters from PDF`);\n\nreturn [{\n  json: {\n    ...taskData,\n    attachment_text: attachmentText,\n    extracted_successfully: true\n  }\n}];"
+      },
+      "name": "Combine Text Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3060, 60],
+      "id": "combine-text"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2400, 260],
+      "id": "merge-paths",
+      "name": "Merge Paths"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle both paths - with and without attachments\nconst allItems = $input.all();\nconsole.log(`📋 Merge received ${allItems.length} items`);\n\n// Find the item with the most complete data\nlet bestItem = null;\nfor (const item of allItems) {\n  console.log(`📋 Item data:`, {\n    kanboard_task_id: item.json.kanboard_task_id,\n    company_name: item.json.company_name,\n    has_attachments: item.json.has_attachments,\n    extracted_successfully: item.json.extracted_successfully\n  });\n  \n  if (item.json.kanboard_task_id && item.json.company_name) {\n    bestItem = item;\n    break;\n  }\n}\n\nif (!bestItem) {\n  console.error('❌ No valid item found with required data');\n  throw new Error('No valid task data found');\n}\n\nconst finalData = bestItem.json;\n\n// Ensure required fields exist\nif (!finalData.kanboard_task_id) {\n  console.error('❌ Missing kanboard_task_id:', finalData);\n  throw new Error('kanboard_task_id is required but missing');\n}\n\nif (finalData.has_attachments && finalData.extracted_successfully) {\n  console.log(`📄 Task with PDF attachment processed: ${finalData.company_name}`);\n} else if (!finalData.has_attachments) {\n  console.log(`📋 Task without attachments processed: ${finalData.company_name}`);\n} else {\n  console.log(`⚠️ Task with attachment but extraction failed: ${finalData.company_name}`);\n}\n\nreturn [{ json: finalData }];"
+      },
+      "name": "Prepare for Database",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2620, 260],
+      "id": "prepare-db"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.kanboard_task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "website": "={{ $json.website }}",
+            "description": "={{ $json.description }}",
+            "attachment_info": "={{ $json.attachment_text || '' }}",
+            "status": "in_progress"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2840, 260],
+      "id": "insert-db",
+      "name": "Insert to Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "status",
+              "condition": "equal",
+              "value": "in_progress"
+            }
+          ]
+        },
+        "limit": 1,
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Get Next Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1080, 460],
+      "id": "get-next-report",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check which sections are missing for the report\nconst reports = $input.all();\n\nif (reports.length === 0) {\n  return [{ json: { message: 'No in-progress reports found', skip: true } }];\n}\n\nconst report = reports[0].json;\n\n// Define all 20 due diligence sections in order\nconst ddSections = [\n  'introduction_engagement_context',\n  'methodology_reliability_levels', \n  'company_overview',\n  'business_model_unit_economics',\n  'products_technology',\n  'target_market_competitive_set',\n  'financials_multi_year',\n  'cash_burn_runway',\n  'revenue_quality_client_cohorts',\n  'partnerships_ecosystem',\n  'intellectual_property',\n  'legal_regulatory',\n  'governance_board_effectiveness',\n  'capital_structure_dilution',\n  'risk_matrix_mitigations',\n  'gaps_uncertainties_disclaimers',\n  'scenario_analysis',\n  'strategic_options',\n  'recommendations_next_steps',\n  'source_map_integrity_log'\n];\n\n// Find the first missing section\nfor (const section of ddSections) {\n  if (!report[section] || report[section].trim() === '') {\n    const sectionTitle = section.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());\n    \n    console.log(`📝 Generating section: ${sectionTitle}`);\n    \n    return [{\n      json: {\n        id: report.id,\n        kanboard_task_id: report.kanboard_task_id,\n        company_name: report.company_name,\n        website: report.website,\n        description: report.description,\n        attachment_text: report.attachment_info || '',\n        section_name: section,\n        section_title: sectionTitle,\n        existing_sections: ddSections.filter(s => report[s] && report[s].trim() !== '').map(s => s.replace(/_/g, ' ')).join(', ')\n      }\n    }];\n  }\n}\n\n// All sections are complete\nconsole.log(`✅ All sections complete for ${report.company_name}`);\nreturn [{ json: { message: 'All sections complete', skip: true, report_id: report.id } }];"
+      },
+      "name": "Find Missing Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1300, 460],
+      "id": "find-missing"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              },
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-work",
+      "name": "Has Work to Do?",
+      "type": "n8n-nodes-base.if",
+      "position": [1520, 460],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "=You are an expert financial analyst conducting due diligence on {{ $json.company_name }}.\n\nCOMPANY INFORMATION:\n- Name: {{ $json.company_name }}\n- Website: {{ $json.website || 'Not provided' }}\n- Description: {{ $json.description || 'Not provided' }}\n\nATTACHMENT CONTENT:\n{{ $json.attachment_text || 'No additional documents provided' }}\n\nPREVIOUSLY COMPLETED SECTIONS:\n{{ $json.existing_sections || 'None yet' }}\n\nTASK: Generate the \"{{ $json.section_title }}\" section for this due diligence report.\n\nREQUIREMENTS:\n- Be specific and factual based on the provided information\n- If attachment content is available, incorporate relevant details\n- Minimum 300 words\n- Professional analysis format\n- Include key metrics and insights where possible\n- Reference the company's actual business model and industry\n- Use real information from attachments when available\n\nGenerate ONLY the content for the \"{{ $json.section_title }}\" section:",
+          "stream": false,
+          "options": {
+            "num_predict": 2000,
+            "temperature": 0.3
+          }
+        },
+        "options": {}
+      },
+      "name": "Generate Section with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 360],
+      "id": "generate-ai"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process AI response and prepare for database update\nconst sectionData = $('Has Work to Do?').first().json;\nconst aiResponse = $input.first().json;\n\nconst generatedContent = aiResponse.response || '';\nconst cleanContent = generatedContent.trim();\n\nconsole.log(`📝 Generated ${sectionData.section_title}: ${cleanContent.substring(0, 100)}...`);\n\nreturn [{\n  json: {\n    id: sectionData.id,\n    section_name: sectionData.section_name,\n    section_content: cleanContent,\n    updated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1960, 360],
+      "id": "process-ai"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "updateKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "={{ $json.section_name }}": "={{ $json.section_content }}",
+            "updated_at": "={{ $json.updated_at }}"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Update Section in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2180, 360],
+      "id": "update-section",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Next Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find Due Diligence Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Due Diligence Task": {
+      "main": [
+        [
+          {
+            "node": "Get Task Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task Files": {
+      "main": [
+        [
+          {
+            "node": "Process Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files": {
+      "main": [
+        [
+          {
+            "node": "Has Files?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Files?": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "merge-paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Fix Binary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Binary Data": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Combine Text Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Text Data": {
+      "main": [
+        [
+          {
+            "node": "merge-paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "merge-paths": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Database": {
+      "main": [
+        [
+          {
+            "node": "Insert to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Next Report": {
+      "main": [
+        [
+          {
+            "node": "Find Missing Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Missing Sections": {
+      "main": [
+        [
+          {
+            "node": "Has Work to Do?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Work to Do?": {
+      "main": [
+        [
+          {
+            "node": "Generate Section with AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Section with AI": {
+      "main": [
+        [
+          {
+            "node": "Process AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process AI Response": {
+      "main": [
+        [
+          {
+            "node": "Update Section in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dd-kanboard-fixed-v1",
+  "meta": {
+    "instanceId": "dd-kanboard-fixed"
+  },
+  "id": "dd-kanboard-workflow-fixed",
+  "tags": [
+    "due-diligence",
+    "kanboard",
+    "pdf-extraction",
+    "fixed"
+  ]
+}

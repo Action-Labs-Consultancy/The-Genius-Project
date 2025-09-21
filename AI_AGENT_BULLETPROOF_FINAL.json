@@ -1,0 +1,562 @@
+{
+  "name": "AI Agent Auto-Provisioning - BULLETPROOF SYSTEM",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Agent Department Configuration\nconst agentConfig = {\n  \"Strategy\": {\n    projectName: \"🎯 AI Strategy Department\",\n    description: \"Strategic planning and competitive analysis AI agents\",\n    agents: [\n      { name: \"Strategic Planner AI\", username: \"ai-strategy-planner\", email: \"ai-strategy-planner@company.local\", role: \"Strategic planning and roadmap development\" },\n      { name: \"Market Analyst AI\", username: \"ai-market-analyst\", email: \"ai-market-analyst@company.local\", role: \"Market research and trend analysis\" },\n      { name: \"Competitive Intelligence AI\", username: \"ai-competitive-intel\", email: \"ai-competitive-intel@company.local\", role: \"Competitor monitoring and analysis\" }\n    ]\n  },\n  \"Marketing\": {\n    projectName: \"📈 AI Marketing Department\",\n    description: \"Content creation and digital marketing AI agents\",\n    agents: [\n      { name: \"Content Creator AI\", username: \"ai-content-creator\", email: \"ai-content-creator@company.local\", role: \"Blog posts, articles, and copy creation\" },\n      { name: \"Social Media Manager AI\", username: \"ai-social-manager\", email: \"ai-social-manager@company.local\", role: \"Social media content and scheduling\" },\n      { name: \"SEO Optimizer AI\", username: \"ai-seo-optimizer\", email: \"ai-seo-optimizer@company.local\", role: \"SEO optimization and keyword research\" }\n    ]\n  },\n  \"Operations\": {\n    projectName: \"⚙️ AI Operations Department\",\n    description: \"Process optimization and quality control AI agents\",\n    agents: [\n      { name: \"Process Optimizer AI\", username: \"ai-process-optimizer\", email: \"ai-process-optimizer@company.local\", role: \"Workflow automation and optimization\" },\n      { name: \"Quality Controller AI\", username: \"ai-quality-controller\", email: \"ai-quality-controller@company.local\", role: \"Quality assurance and testing\" },\n      { name: \"Resource Manager AI\", username: \"ai-resource-manager\", email: \"ai-resource-manager@company.local\", role: \"Resource allocation and planning\" }\n    ]\n  },\n  \"Support\": {\n    projectName: \"🎧 AI Customer Support Department\",\n    description: \"Customer service and support automation AI agents\",\n    agents: [\n      { name: \"Ticket Classifier AI\", username: \"ai-ticket-classifier\", email: \"ai-ticket-classifier@company.local\", role: \"Support ticket classification and routing\" },\n      { name: \"Response Generator AI\", username: \"ai-response-generator\", email: \"ai-response-generator@company.local\", role: \"Automated response generation\" },\n      { name: \"Escalation Manager AI\", username: \"ai-escalation-manager\", email: \"ai-escalation-manager@company.local\", role: \"Issue escalation and priority management\" }\n    ]\n  },\n  \"Development\": {\n    projectName: \"💻 AI Development Department\",\n    description: \"Software development and code optimization AI agents\",\n    agents: [\n      { name: \"Code Reviewer AI\", username: \"ai-code-reviewer\", email: \"ai-code-reviewer@company.local\", role: \"Code review and quality assessment\" },\n      { name: \"Bug Hunter AI\", username: \"ai-bug-hunter\", email: \"ai-bug-hunter@company.local\", role: \"Bug detection and analysis\" },\n      { name: \"Documentation AI\", username: \"ai-documentation\", email: \"ai-documentation@company.local\", role: \"Technical documentation generation\" }\n    ]\n  }\n};\n\nconsole.log('🚀 Loaded ' + Object.keys(agentConfig).length + ' departments with ' + Object.values(agentConfig).reduce((sum, dept) => sum + dept.agents.length, 0) + ' total agents');\n\nreturn [{ json: { agentConfig, totalDepartments: Object.keys(agentConfig).length, totalAgents: Object.values(agentConfig).reduce((sum, dept) => sum + dept.agents.length, 0) } }];"
+      },
+      "id": "load-config",
+      "name": "Load AI Agent Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllUsers",
+          "id": 1
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "fetch-users",
+      "name": "Fetch Users from Kanboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 200],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "agentConfig": "={{$json.agentConfig}}",
+          "users": "={{$('Fetch Users from Kanboard').first().json}}",
+          "projects": []
+        }
+      },
+      "id": "get-existing-users",
+      "name": "Get Existing Kanboard Users",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [640, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllProjects",
+          "id": 2
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "fetch-projects",
+      "name": "Fetch Projects from Kanboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 400],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "agentConfig": "={{$json.agentConfig}}",
+          "users": "={{$json.users}}",
+          "projects": "={{$('Fetch Projects from Kanboard').first().json}}"
+        }
+      },
+      "id": "get-existing-projects",
+      "name": "Get Existing Kanboard Projects",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all previous node outputs\nconst allInputs = $input.all();\n\n// Get last item which has both previous results\nconst lastInput = allInputs[allInputs.length - 1];\nconst prevInput = lastInput.$binary?.data ? JSON.parse(lastInput.$binary.data) : lastInput;\n\n// Load configuration from first node\nconst agentConfig = prevInput.agentConfig;\n\n// Get users and projects data\nconst existingUsers = prevInput.users?.result || [];\nconst existingProjects = prevInput.projects?.result || [];\n\n// Validate required data\nif (!agentConfig) {\n    throw new Error('Agent configuration not found in input');\n}\nif (!Array.isArray(existingUsers)) {\n    throw new Error('Users list not found in input');\n}\nif (!Array.isArray(existingProjects)) {\n    throw new Error('Projects list not found in input');\n}\n\nif (!configInput) {\n  throw new Error('Agent configuration input not found');\n}\nif (!usersInput) {\n  throw new Error('Users input not found');\n}\nif (!projectsInput) {\n  throw new Error('Projects input not found');\n}\n\nconst config = configInput.json.agentConfig;\nconst existingUsers = usersInput.json.result || [];\nconst existingProjects = projectsInput.json.result || [];\n\nconsole.log('📊 Analysis starting...');\nconsole.log('Found ' + existingUsers.length + ' existing users');\nconsole.log('Found ' + existingProjects.length + ' existing projects');\n\n// Create maps for quick lookup\nconst userMap = new Map(existingUsers.map(u => [u.username, u]));\nconst projectMap = new Map(existingProjects.map(p => [p.name, p]));\n\nconst actions = {\n  projectsToCreate: [],\n  agentsToCreate: [],\n  existingAgents: [],\n  stats: {\n    totalDepartments: Object.keys(config).length,\n    totalAgents: Object.values(config).reduce((sum, dept) => sum + dept.agents.length, 0),\n    existingUsers: existingUsers.length,\n    existingProjects: existingProjects.length\n  }\n};\n\n// Generate secure password function with validation\nconst generatePassword = () => {\n  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';\n  let password = '';\n  for (let i = 0; i < 16; i++) {\n    password += chars.charAt(Math.floor(Math.random() * chars.length));\n  }\n  const finalPassword = password + 'Ai1!';\n  \n  // Validate password meets requirements\n  if (finalPassword.length < 16) {\n    throw new Error('Generated password too short');\n  }\n  if (!/[A-Z]/.test(finalPassword)) {\n    throw new Error('Generated password missing uppercase');\n  }\n  if (!/[a-z]/.test(finalPassword)) {\n    throw new Error('Generated password missing lowercase');\n  }\n  if (!/[0-9]/.test(finalPassword)) {\n    throw new Error('Generated password missing numbers');\n  }\n  if (!/[!@#$%^&*]/.test(finalPassword)) {\n    throw new Error('Generated password missing special characters');\n  }\n  \n  return finalPassword;\n};\n\n// Check each department with enhanced error handling\nObject.entries(config).forEach(([deptName, deptConfig]) => {\n  if (!deptName || !deptConfig) {\n    console.log('⚠️ Skipping invalid department: ' + deptName);\n    return;\n  }\n  \n  if (!deptConfig.projectName || !deptConfig.agents) {\n    console.log('⚠️ Skipping incomplete department config: ' + deptName);\n    return;\n  }\n  \n  console.log('🔍 Checking department: ' + deptName);\n  \n  // Check if project exists\n  if (!projectMap.has(deptConfig.projectName)) {\n    console.log('   📋 Project needs creation: ' + deptConfig.projectName);\n    actions.projectsToCreate.push({\n      department: deptName,\n      projectName: deptConfig.projectName,\n      description: deptConfig.description || (deptName + ' department project')\n    });\n  } else {\n    console.log('   ✅ Project exists: ' + deptConfig.projectName);\n  }\n  \n  // Check each agent in department with validation\n  if (Array.isArray(deptConfig.agents)) {\n    deptConfig.agents.forEach(agent => {\n      if (!agent || !agent.username || !agent.name) {\n        console.log('   ⚠️ Skipping invalid agent in ' + deptName);\n        return;\n      }\n      \n      if (!userMap.has(agent.username)) {\n        console.log('   🤖 Agent needs creation: ' + agent.name + ' (' + agent.username + ')');\n        try {\n          const password = generatePassword();\n          actions.agentsToCreate.push({\n            ...agent,\n            department: deptName,\n            projectName: deptConfig.projectName,\n            password: password,\n            needsUser: true,\n            needsProjectAssignment: true\n          });\n        } catch (err) {\n          console.log('   ❌ Failed to generate password for ' + agent.name + ': ' + err.message);\n        }\n      } else {\n        console.log('   ✅ Agent exists: ' + agent.name);\n        actions.existingAgents.push({\n          ...agent,\n          department: deptName,\n          kanboardId: userMap.get(agent.username).id\n        });\n      }\n    });\n  } else {\n    console.log('   ⚠️ No agents array found for department: ' + deptName);\n  }\n});\n\nconsole.log('📋 Summary:');\nconsole.log('   Projects to create: ' + actions.projectsToCreate.length);\nconsole.log('   Agents to create: ' + actions.agentsToCreate.length);\nconsole.log('   Existing agents: ' + actions.existingAgents.length);\n\n// Return items properly for n8n workflow\nconst results = [];\n\n// Add projects that need creation\nactions.projectsToCreate.forEach(project => {\n  results.push({ json: project });\n});\n\n// Add agents that need creation\nactions.agentsToCreate.forEach(agent => {\n  results.push({ json: agent });\n});\n\n// If no items need creation, return a single item with stats\nif (results.length === 0) {\n  results.push({ json: { noItemsToCreate: true, stats: actions.stats } });\n}\n\nreturn results;"
+      },
+      "id": "analyze-requirements",
+      "name": "Analyze What Needs Creation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-project-name",
+              "leftValue": "={{$json.projectName}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-projects-needed",
+      "name": "Projects Need Creation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createProject",
+          "id": 3,
+          "params": {
+            "name": "={{$json.projectName}}",
+            "description": "={{$json.description}}"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "create-project",
+      "name": "Create Department Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, 160],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-username",
+              "leftValue": "={{$json.username}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-agents-needed",
+      "name": "Agents Need Creation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createUser",
+          "id": 4,
+          "params": {
+            "username": "={{$json.username}}",
+            "password": "={{$json.password}}",
+            "name": "={{$json.name}}",
+            "email": "={{$json.email}}",
+            "role": "app-user"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "create-agent-user",
+      "name": "Create AI Agent User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, 360],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getProjectByName",
+          "id": 5,
+          "params": {
+            "name": "={{$json.projectName}}"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "get-project-for-assignment",
+      "name": "Get Project for Assignment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 360],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "addProjectUser",
+          "id": 6,
+          "params": {
+            "project_id": "={{$('Get Project for Assignment').first().json.result.id}}",
+            "user_id": "={{$('Create AI Agent User').first().json.result}}",
+            "role": "project-member"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "assign-agent-to-project",
+      "name": "Assign Agent to Department",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 360],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createTask",
+          "id": 7,
+          "params": {
+            "title": "🤖 AI Agent Profile: {{$json.name}}",
+            "project_id": "={{$('Get Project for Assignment').first().json.result.id}}",
+            "description": "**AI Agent Information**\\n\\n👤 **Name:** {{$json.name}}\\n🏷️ **Username:** {{$json.username}}\\n📧 **Email:** {{$json.email}}\\n🏢 **Department:** {{$json.department}}\\n⚙️ **Role:** {{$json.role}}\\n🔐 **Password:** {{$json.password}}\\n⏰ **Created:** {{$now}}\\n\\n**Status:** ✅ Active and Ready for n8n workflows",
+            "owner_id": "={{$('Create AI Agent User').first().json.result}}",
+            "color_id": "blue"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "create-agent-profile-task",
+      "name": "Create Agent Profile Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 360],
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-all-results",
+      "name": "Merge All Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate comprehensive execution summary\nconst allResults = $input.all();\nconst timestamp = new Date().toISOString();\n\n// Count different types of operations\nconst projectsCreated = allResults.filter(r => r.json.id === 3 && r.json.result).length;\nconst agentsCreated = allResults.filter(r => r.json.id === 4 && r.json.result).length;\nconst assignmentsCreated = allResults.filter(r => r.json.id === 6 && r.json.result).length;\nconst profileTasksCreated = allResults.filter(r => r.json.id === 7 && r.json.result).length;\n\n// Extract department information\nconst departments = [...new Set(allResults\n  .filter(r => r.json.department)\n  .map(r => r.json.department))];\n\n// Generate agent credentials summary\nconst agentCredentials = allResults\n  .filter(r => r.json.username && r.json.password)\n  .map(r => ({\n    username: r.json.username,\n    name: r.json.name,\n    department: r.json.department,\n    email: r.json.email,\n    password: r.json.password,\n    role: r.json.role\n  }));\n\nconst summary = {\n  executionId: $execution.id,\n  timestamp,\n  success: true,\n  metrics: {\n    projectsCreated,\n    agentsCreated,\n    assignmentsCreated,\n    profileTasksCreated,\n    departmentsProcessed: departments.length\n  },\n  departments,\n  agentCredentials,\n  message: '🚀 AI Agent provisioning completed successfully! Created ' + agentsCreated + ' agents across ' + departments.length + ' departments.',\n  nextSteps: [\n    \"✅ All AI agents are now available in Kanboard\",\n    \"✅ Each agent has a profile task in their department project\",\n    \"✅ Credentials are available in the execution output\",\n    \"✅ Use these credentials in your n8n workflows\",\n    \"🔄 System will check for new agents every 6 hours\"\n  ]\n};\n\nconsole.log('🎉 EXECUTION SUMMARY:');\nconsole.log('   Projects created: ' + projectsCreated);\nconsole.log('   Agents created: ' + agentsCreated);\nconsole.log('   Assignments created: ' + assignmentsCreated);\nconsole.log('   Profile tasks created: ' + profileTasksCreated);\nconsole.log('   Departments: ' + departments.join(', '));\n\nreturn [{ json: summary }];"
+      },
+      "id": "generate-summary",
+      "name": "Generate Execution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2620, 300]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Load AI Agent Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load AI Agent Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch Users from Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Users from Kanboard": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Kanboard Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Kanboard Users": {
+      "main": [
+        [
+          {
+            "node": "Fetch Projects from Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Projects from Kanboard": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Kanboard Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Kanboard Projects": {
+      "main": [
+        [
+          {
+            "node": "Analyze What Needs Creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze What Needs Creation": {
+      "main": [
+        [
+          {
+            "node": "Projects Need Creation?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agents Need Creation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projects Need Creation?": {
+      "main": [
+        [
+          {
+            "node": "Create Department Project",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Department Project": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agents Need Creation?": {
+      "main": [
+        [
+          {
+            "node": "Create AI Agent User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create AI Agent User": {
+      "main": [
+        [
+          {
+            "node": "Get Project for Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project for Assignment": {
+      "main": [
+        [
+          {
+            "node": "Assign Agent to Department",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Agent to Department": {
+      "main": [
+        [
+          {
+            "node": "Create Agent Profile Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Agent Profile Task": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bulletproof-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "bulletproof-v1",
+  "tags": []
+}

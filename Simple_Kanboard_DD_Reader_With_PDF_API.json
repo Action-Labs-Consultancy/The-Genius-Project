@@ -1,0 +1,388 @@
+{
+  "name": "Simple Kanboard Due Diligence Reader with PDF API",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [80, 300],
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 300],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Kanboard tasks to find Due Diligence tasks\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks`);\n\nconst dueDiligenceTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const description = task.description ? task.description.toString().trim() : '';\n  \n  console.log(`Checking task: \"${title}\"`);\n  \n  // Check if task title contains \"Due Diligence:\" pattern with quotes\n  const ddPattern = /Due Diligence:\\s*[\"']([^\"']+)[\"']/i;\n  const match = title.match(ddPattern);\n  \n  if (match) {\n    // Extract company name from quotes\n    const companyName = match[1].trim();\n    \n    // Extract website from description (look for URLs)\n    const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n    const urls = description.match(urlRegex) || [];\n    const website = urls.length > 0 ? urls[0] : '';\n    \n    console.log(`✅ Found Due Diligence task: \"${companyName}\" (ID: ${task.id})`);\n    console.log(`   Website: ${website || 'Not found'}`);\n    \n    dueDiligenceTasks.push({\n      json: {\n        task_id: task.id,\n        title: title,\n        company_name: companyName,\n        website: website,\n        description: description,\n        project_id: task.project_id || 1,\n        has_attachments: false,\n        attachment_count: 0\n      }\n    });\n  }\n}\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found');\n  return [{ json: { message: 'No Due Diligence tasks found' } }];\n}\n\nconsole.log(`📋 Processing ${dueDiligenceTasks.length} Due Diligence tasks`);\nreturn dueDiligenceTasks;"
+      },
+      "name": "Filter Due Diligence Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "id": "filter-tasks"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "string",
+                "operation": "notEqual",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "No Due Diligence tasks found"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "check-tasks-found",
+      "name": "Tasks Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [680, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Task Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 300],
+      "id": "get-attachments",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process attachments and combine with task data\nconst taskData = $input.first().json;\nconst attachments = $input.last().json.result || [];\n\n// Filter for PDF attachments\nconst pdfAttachments = attachments.filter(file => {\n  const fileName = file.name ? file.name.toLowerCase() : '';\n  return fileName.endsWith('.pdf');\n});\n\nconsole.log(`📎 Task ${taskData.task_id} has ${attachments.length} total attachments, ${pdfAttachments.length} PDFs`);\n\n// Log attachment details\nif (pdfAttachments.length > 0) {\n  pdfAttachments.forEach(pdf => {\n    console.log(`   📄 PDF: ${pdf.name} (ID: ${pdf.id}, Size: ${pdf.size} bytes)`);\n  });\n}\n\nreturn [{\n  json: {\n    ...taskData,\n    has_attachments: attachments.length > 0,\n    attachment_count: attachments.length,\n    pdf_count: pdfAttachments.length,\n    attachments: attachments,\n    pdf_attachments: pdfAttachments\n  }\n}];"
+      },
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1080, 300],
+      "id": "process-attachments"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-pdf",
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.pdf_count }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "check-has-pdfs",
+      "name": "Has PDFs?",
+      "type": "n8n-nodes-base.if",
+      "position": [1280, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate summary report for tasks without PDFs\nconst taskData = $input.first().json;\n\nconst summary = {\n  task_info: {\n    task_id: taskData.task_id,\n    title: taskData.title,\n    company_name: taskData.company_name,\n    website: taskData.website || 'Not specified',\n    project_id: taskData.project_id\n  },\n  attachments: {\n    total_files: taskData.attachment_count,\n    pdf_files: taskData.pdf_count,\n    has_pdfs: false\n  },\n  status: 'No PDFs found - manual review required'\n};\n\nconsole.log(`\\n=== DUE DILIGENCE TASK SUMMARY (NO PDFs) ===`);\nconsole.log(`Company: ${summary.task_info.company_name}`);\nconsole.log(`Website: ${summary.task_info.website}`);\nconsole.log(`Status: No PDF documents found`);\nconsole.log(`=============================================\\n`);\n\nreturn [{ json: summary }];"
+      },
+      "name": "Generate Summary (No PDFs)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1480, 420],
+      "id": "generate-summary-no-pdfs"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process each PDF and create extraction tasks\nconst taskData = $input.first().json;\nconst pdfAttachments = taskData.pdf_attachments || [];\n\nif (pdfAttachments.length === 0) {\n  console.log('📄 No PDF attachments found');\n  return [{ json: { no_pdfs: true } }];\n}\n\nconsole.log(`📄 Processing ${pdfAttachments.length} PDF files`);\n\n// For each PDF, we'll create a summary without text extraction\n// since we can't use PyPDF2 in n8n environment\nconst pdfSummaries = pdfAttachments.map((pdf, index) => {\n  const downloadUrl = `http://localhost:8000/?controller=TaskFileController&action=download&file_id=${pdf.id}&project_id=${taskData.project_id}`;\n  \n  return {\n    json: {\n      file_name: pdf.name,\n      file_id: pdf.id,\n      size_bytes: pdf.size,\n      download_url: downloadUrl,\n      task_id: taskData.task_id,\n      project_id: taskData.project_id,\n      company_name: taskData.company_name,\n      website: taskData.website,\n      extracted_text: `PDF Document Analysis Required\\n\\nFile: ${pdf.name}\\nSize: ${pdf.size} bytes\\nCompany: ${taskData.company_name}\\nWebsite: ${taskData.website}\\n\\nThis PDF document requires manual review or external processing for text extraction. Download URL: ${downloadUrl}\\n\\nProcessing timestamp: ${new Date().toISOString()}`,\n      extraction_method: 'manual_review_required',\n      extraction_success: true\n    }\n  };\n});\n\nreturn pdfSummaries;"
+      },
+      "name": "Process PDFs (Manual)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1480, 180],
+      "id": "process-pdfs-manual"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "name": "Merge PDF Contents",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1680, 180],
+      "id": "merge-pdf-contents"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama2",
+          "prompt": "={{ 'You are an expert business analyst conducting due diligence analysis. Based on the available information, provide an analysis framework for the following company.\\n\\nCompany: ' + $json.data[0].company_name + '\\nWebsite: ' + $json.data[0].website + '\\n\\nAvailable Documents: ' + $json.data.length + ' PDF files\\n\\nDocument Information:\\n' + $json.data.map((item, index) => `${index + 1}. ${item.file_name} (${item.size_bytes} bytes)`).join('\\n') + '\\n\\nSince automatic text extraction is not available, please provide:\\n\\n1. Due Diligence Framework - Key areas to investigate\\n2. Document Review Checklist - What to look for in the PDF documents\\n3. Risk Assessment Categories - Financial, operational, legal, market risks\\n4. Key Questions - Critical questions that need answers\\n5. Next Steps - Recommended analysis approach\\n\\nNote: The actual PDF content needs to be manually reviewed. This analysis provides the framework for that review.' }}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "Generate Analysis Framework",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 180],
+      "id": "generate-framework"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $('Merge PDF Contents').first().json.data[0].task_id }}",
+            "content": "={{ '🤖 **Due Diligence Analysis Framework**\\n\\n📋 **Company:** ' + $('Merge PDF Contents').first().json.data[0].company_name + '\\n🌐 **Website:** ' + $('Merge PDF Contents').first().json.data[0].website + '\\n📄 **Documents Found:** ' + $('Merge PDF Contents').first().json.data.length + ' PDFs\\n\\n**Document List:**\\n' + $('Merge PDF Contents').first().json.data.map((item, index) => `${index + 1}. [${item.file_name}](${item.download_url}) (${(item.size_bytes / 1024).toFixed(1)} KB)`).join('\\n') + '\\n\\n---\\n\\n' + $json.response + '\\n\\n---\\n\\n⚠️ **Action Required:** Please manually review the PDF documents listed above using the framework provided.\\n\\n*Framework generated on ' + new Date().toISOString() + ' using local Llama AI*' }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Framework to Kanboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2080, 180],
+      "id": "post-framework",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard Credentials"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Diligence Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Diligence Tasks": {
+      "main": [
+        [
+          {
+            "node": "Tasks Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tasks Found?": {
+      "main": [
+        [
+          {
+            "node": "Get Task Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Task Attachments": {
+      "main": [
+        [
+          {
+            "node": "Process Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Attachments": {
+      "main": [
+        [
+          {
+            "node": "Has PDFs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has PDFs?": {
+      "main": [
+        [
+          {
+            "node": "Process PDFs (Manual)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Summary (No PDFs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process PDFs (Manual)": {
+      "main": [
+        [
+          {
+            "node": "Merge PDF Contents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDF Contents": {
+      "main": [
+        [
+          {
+            "node": "Generate Analysis Framework",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Analysis Framework": {
+      "main": [
+        [
+          {
+            "node": "Post Framework to Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary (No PDFs)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "simple-dd-reader-v2-manual",
+  "meta": {
+    "instanceId": "simple-kanboard-reader-manual"
+  },
+  "id": "simple-due-diligence-reader-manual",
+  "tags": [
+    "due-diligence",
+    "kanboard",
+    "manual-pdf"
+  ]
+}

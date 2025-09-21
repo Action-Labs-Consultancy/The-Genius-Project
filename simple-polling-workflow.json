@@ -1,0 +1,155 @@
+{
+  "name": "Simple Taiga Polling Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "intervalType": "minutes",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "every-minute",
+      "name": "Check Every Minute",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-back:8000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 9fb5fa1279d94709df70b3eed65f545f229b8dfe"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "created__gte",
+              "value": "={{ DateTime.now().minus({minutes: 2}).toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "get-new-tasks",
+      "name": "Get New Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [400, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process each new task\nif (!$json || !Array.isArray($json)) {\n  return [];\n}\n\nconst results = [];\nfor (const task of $json) {\n  // Check if task contains 'action' and hasn't been processed\n  const hasAction = task.subject && task.subject.toLowerCase().includes('action');\n  const isProcessed = task.tags && task.tags.some(tag => tag.includes('auto-generated'));\n  \n  if (hasAction && !isProcessed) {\n    results.push({\n      json: {\n        task_id: task.id,\n        project_id: task.project,\n        title: task.subject,\n        description: task.description || '',\n        creator_id: task.owner || task.assigned_to,\n        task_ref: task.ref\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "filter-action-tasks",
+      "name": "Filter Action Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-back:8000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer 9fb5fa1279d94709df70b3eed65f545f229b8dfe"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "={{ $json.project_id }}"
+            },
+            {
+              "name": "subject",
+              "value": "=🔥 ACTION FOLLOW-UP: {{ $json.title }}"
+            },
+            {
+              "name": "description",
+              "value": "=**AUTO-GENERATED ACTION TASK**\\n\\nThis task was automatically created because the original task contained 'action'.\\n\\nOriginal Task: {{ $json.title }}\\nOriginal Task ID: #{{ $json.task_ref }}\\n\\n✅ **Next Steps:**\\n- Review the original task requirements\\n- Take appropriate action\\n- Update status when complete\\n\\n🤖 Created by automation workflow"
+            },
+            {
+              "name": "assigned_to",
+              "value": "={{ $json.creator_id }}"
+            },
+            {
+              "name": "tags",
+              "value": "[\"action-item\", \"auto-generated\", \"follow-up\"]"
+            }
+          ]
+        }
+      },
+      "id": "create-follow-up-task",
+      "name": "Create Follow-up Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [800, 300],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Check Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Get New Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Action Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Action Tasks": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-up Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "polling-v1",
+  "id": "simple-polling-workflow"
+}

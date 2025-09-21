@@ -1,0 +1,1155 @@
+{
+  "name": "REader",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "f865ab8f-f1e6-4853-84b4-3fdd14b8a790",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        176
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255),\n    company_name VARCHAR(255) NOT NULL,\n    file_name VARCHAR(255) NOT NULL,\n    file_id VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT,\n    full_text_content TEXT,\n    websites TEXT,\n    primary_website VARCHAR(500),\n    emails TEXT,\n    primary_email VARCHAR(255),\n    phones TEXT,\n    primary_phone VARCHAR(50),\n    addresses TEXT,\n    primary_address TEXT,\n    file_size BIGINT,\n    content_length INTEGER,\n    extraction_method VARCHAR(50),\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE INDEX IF NOT EXISTS idx_company_data_company_name ON company_data(company_name);\nCREATE INDEX IF NOT EXISTS idx_company_data_folder_id ON company_data(folder_id);",
+        "options": {}
+      },
+      "id": "fd74369a-b260-4271-b30a-5cc8dc80e14b",
+      "name": "Setup Database Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -560,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2ba08e9d-eb5d-4419-a6c6-42b3c158a24e",
+      "name": "List PDFs via HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -368,
+        176
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  console.log(`Preparing file: ${file.name} (${file.id})`);\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      webViewLink: file.webViewLink,\n      webContentLink: file.webContentLink,\n      company_name: folderName,\n      folder_id: folderId\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing`);\nreturn results;"
+      },
+      "id": "aaf6b903-739e-4496-bd6d-d941f65cd2f3",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "8194b852-20e8-4e72-822e-29d4d31f3660",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        48,
+        176
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "031c8856-0332-41f4-b344-7bb247331ca7",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract ALL content from PDF and save everything to database\nconst extractedData = $input.first().json;\nconst pdfInfo = $node[\"Download PDF File\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters of text`);\n} else {\n  // If direct extraction failed, try to get any available text\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    // Try to find text in any property\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = 'PDF extraction failed - file may be image-based or corrupted';\n    extractionMethod = 'failed';\n    console.log('⚠️ Could not extract text from PDF');\n  }\n}\n\n// Log what we got\nconsole.log(`PDF File: ${pdfInfo.name}`);\nconsole.log(`Company: ${pdfInfo.company_name}`);\nconsole.log(`Extraction method: ${extractionMethod}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`First 300 chars: ${fullTextContent.substring(0, 300)}`);\n\n// Enhanced extraction functions\nfunction extractWebsites(text) {\n  // More comprehensive URL regex\n  const urlRegex = /(?:https?:\\/\\/)?(?:www\\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}(?:\\/[^\\s]*)?/g;\n  const matches = text.match(urlRegex) || [];\n  return matches.map(url => {\n    url = url.trim().replace(/[,;)]*$/, ''); // Clean trailing punctuation\n    if (!url.startsWith('http')) {\n      return 'https://' + url;\n    }\n    return url;\n  }).filter((url, index, self) => self.indexOf(url) === index && url.includes('.')); // Remove duplicates and ensure valid\n}\n\nfunction extractEmails(text) {\n  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  const matches = text.match(emailRegex) || [];\n  return matches.filter((email, index, self) => self.indexOf(email) === index); // Remove duplicates\n}\n\nfunction extractPhones(text) {\n  // Multiple phone number patterns\n  const phonePatterns = [\n    /(?:\\+?1[-. ]?)?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g, // US format\n    /\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g, // Basic format\n    /([0-9]{3})[-.\\s]?([0-9]{3})[-.\\s]?([0-9]{4})/g // Simple format\n  ];\n  \n  let allPhones = [];\n  phonePatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allPhones = allPhones.concat(matches);\n  });\n  \n  return allPhones.filter((phone, index, self) => self.indexOf(phone) === index); // Remove duplicates\n}\n\nfunction extractAddresses(text) {\n  // Enhanced address patterns\n  const addressPatterns = [\n    /\\d+\\s+[a-zA-Z\\s,]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)\\s*,?\\s*[a-zA-Z\\s,]+\\s+\\d{5}(?:-\\d{4})?/gi,\n    /\\d+\\s+[A-Za-z\\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)/gi\n  ];\n  \n  let allAddresses = [];\n  addressPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    allAddresses = allAddresses.concat(matches);\n  });\n  \n  return allAddresses.filter((addr, index, self) => self.indexOf(addr) === index); // Remove duplicates\n}\n\nfunction extractCompanyNames(text) {\n  // Try to find additional company names in the text\n  const companyPatterns = [\n    /([A-Z][a-zA-Z\\s&]+(?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited))/g,\n    /([A-Z][a-zA-Z\\s&]+ (?:Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited))/g\n  ];\n  \n  let companies = [];\n  companyPatterns.forEach(pattern => {\n    const matches = text.match(pattern) || [];\n    companies = companies.concat(matches);\n  });\n  \n  return companies.filter((comp, index, self) => self.indexOf(comp) === index);\n}\n\n// Extract all types of information\nconst websites = extractWebsites(fullTextContent);\nconst emails = extractEmails(fullTextContent);\nconst phones = extractPhones(fullTextContent);\nconst addresses = extractAddresses(fullTextContent);\nconst companyNames = extractCompanyNames(fullTextContent);\n\n// Generate company ID\nconst companyId = `${pdfInfo.folder_id}_${pdfInfo.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfInfo.id.substring(0, 8)}`;\n\n// Create the final data object with ALL information\nconst finalData = {\n  company_id: companyId,\n  company_name: pdfInfo.company_name,\n  file_name: pdfInfo.name,\n  file_id: pdfInfo.id,\n  folder_id: pdfInfo.folder_id,\n  content: fullTextContent, // Store the complete extracted text\n  full_text_content: fullTextContent, // Also store in dedicated field\n  websites: websites.length > 0 ? websites.join(', ') : null,\n  primary_website: websites.length > 0 ? websites[0] : null,\n  emails: emails.length > 0 ? emails.join(', ') : null,\n  primary_email: emails.length > 0 ? emails[0] : null,\n  phones: phones.length > 0 ? phones.join(', ') : null,\n  primary_phone: phones.length > 0 ? phones[0] : null,\n  addresses: addresses.length > 0 ? addresses.join(', ') : null,\n  primary_address: addresses.length > 0 ? addresses[0] : null,\n  file_size: parseInt(pdfInfo.size) || 0,\n  content_length: fullTextContent.length,\n  extraction_method: extractionMethod,\n  processed_at: new Date().toISOString(),\n  // Add section property for the switch\n  section: 'topic_1'\n};\n\n// Log extraction results\nconsole.log(`\\n=== EXTRACTION RESULTS ===`);\nconsole.log(`Company: ${finalData.company_name}`);\nconsole.log(`File: ${finalData.file_name}`);\nconsole.log(`Content length: ${finalData.content_length} characters`);\nconsole.log(`Extraction method: ${finalData.extraction_method}`);\nconsole.log(`Websites found: ${websites.length} - [${websites.slice(0, 3).join(', ')}]`);\nconsole.log(`Emails found: ${emails.length} - [${emails.slice(0, 3).join(', ')}]`);\nconsole.log(`Phones found: ${phones.length} - [${phones.slice(0, 3).join(', ')}]`);\nconsole.log(`Addresses found: ${addresses.length}`);\nconsole.log(`Company names in text: ${companyNames.length} - [${companyNames.slice(0, 3).join(', ')}]`);\nconsole.log(`========================\\n`);\n\nif (finalData.content_length === 0) {\n  console.log('⚠️ WARNING: No text content extracted from PDF!');\n  console.log('This could mean:');\n  console.log('- PDF is image-based (scanned document)');\n  console.log('- PDF is password protected');\n  console.log('- PDF file is corrupted');\n  console.log('- Download failed');\n}\n\nreturn { json: finalData };"
+      },
+      "id": "28867014-d798-4336-9035-0a989aa5dfe7",
+      "name": "Extract ALL Company Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        448,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "file_size": "={{ $json.file_size }}",
+            "content_length": "={{ $json.content_length }}",
+            "company_name": "={{ $json.company_name }}",
+            "file_name": "={{ $json.file_name }}",
+            "file_id": "={{ $json.file_id }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "primary_website": "={{ $json.primary_website }}",
+            "emails": "={{ $json.emails }}",
+            "primary_email": "={{ $json.primary_email }}",
+            "phones": "={{ $json.phones }}",
+            "primary_phone": "={{ $json.primary_phone }}",
+            "addresses": "={{ $json.addresses }}",
+            "primary_address": "={{ $json.primary_address }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "company_id": "={{ $json.company_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_id",
+              "displayName": "file_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "websites",
+              "displayName": "websites",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "primary_website",
+              "displayName": "primary_website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emails",
+              "displayName": "emails",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_email",
+              "displayName": "primary_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phones",
+              "displayName": "phones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_phone",
+              "displayName": "primary_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "addresses",
+              "displayName": "addresses",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_address",
+              "displayName": "primary_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_size",
+              "displayName": "file_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "content_length",
+              "displayName": "content_length",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "column": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "file_name",
+              "value": "={{ $json.file_name }}"
+            },
+            {
+              "column": "file_id",
+              "value": "={{ $json.file_id }}"
+            },
+            {
+              "column": "folder_id",
+              "value": "={{ $json.folder_id }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "column": "full_text_content",
+              "value": "={{ $json.full_text_content }}"
+            },
+            {
+              "column": "websites",
+              "value": "={{ $json.websites }}"
+            },
+            {
+              "column": "primary_website",
+              "value": "={{ $json.primary_website }}"
+            },
+            {
+              "column": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "column": "primary_email",
+              "value": "={{ $json.primary_email }}"
+            },
+            {
+              "column": "phones",
+              "value": "={{ $json.phones }}"
+            },
+            {
+              "column": "primary_phone",
+              "value": "={{ $json.primary_phone }}"
+            },
+            {
+              "column": "addresses",
+              "value": "={{ $json.addresses }}"
+            },
+            {
+              "column": "primary_address",
+              "value": "={{ $json.primary_address }}"
+            },
+            {
+              "column": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "column": "content_length",
+              "value": "={{ $json.content_length }}"
+            },
+            {
+              "column": "extraction_method",
+              "value": "={{ $json.extraction_method }}"
+            },
+            {
+              "column": "processed_at",
+              "value": "={{ $json.processed_at }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b4f32108-3d73-4b10-8764-c0c87e110197",
+      "name": "Save ALL Data to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        656,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const company = $json.company_name;\nconst today = new Date().toISOString().split('T')[0];\nconst companyContent = $json.content || 'No content available';\nconst primaryWebsite = $json.primary_website || 'No website available';\nconst primaryEmail = $json.primary_email || 'No email available';\n\nconst prompt = `Generate Section 1 of a due diligence report for '${company}' as an expert financial analyst using the provided company information.\nThis section is titled: \"Introduction & Engagement Context\".\n\nCOMPANY INFORMATION:\n- Company: ${company}\n- Website: ${primaryWebsite}\n- Email: ${primaryEmail}\n- Content Extract: ${companyContent.substring(0, 500)}...\n\nSECTION STRUCTURE:\n# Due Diligence Report: ${company}\n## Section 1: Introduction & Engagement Context\n- Purpose of the due diligence engagement\n- Scope of the review (what areas are covered)\n- Context for why this due diligence is being performed\n- Relevance of the engagement to stakeholders\n- Timeframe and current date reference\n\nREQUIREMENTS:\n- Use the provided company information from PDFs\n- Be specific and factual (no placeholders)\n- Write at least 300 words\n- Make it professional and concise\n- Current date: ${today}`;\n\nconsole.log(`Prompt for ${company} - Section 1: ${prompt.substring(0, 200)}...`);\n\nreturn {\n  json: {\n    ...$json,\n    prompt,\n    task_id: Math.floor(Math.random() * 10000),\n    project_id: 1,\n    current_section: {\n      name: 'Introduction & Engagement Context',\n      id: 1\n    }\n  }\n};\n"
+      },
+      "name": "Create Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        -144
+      ],
+      "id": "8eba3953-bbbe-40dd-ba25-23ebfd5aee6f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3.1:latest",
+          "prompt": "={{ $json.prompt }}",
+          "stream": false,
+          "options": {
+            "num_predict": 4000
+          }
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1408,
+        -144
+      ],
+      "id": "7ee6ff7e-8f40-47ff-99d7-6b418be76aad"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst inputData = $node['Create Prompt'].json;\n\nconsole.log(`Report received (Section 1): ${report.substring(0, 100)}...`);\n\n// Handle HTTP errors from the LLM\nif ($node['Generate Report'].error) {\n  console.error('Report generation error:', $node['Generate Report'].error.message);\n  return {\n    json: {\n      task_id: inputData.task_id,\n      description: `# ⚠️ Report Generation Failed - Section 1\\n\\n**Company:** ${inputData.company_name}\\n**Error:** ${$node['Generate Report'].error.message}\\n\\nPlease generate Section 1 manually.`\n    }\n  };\n}\n\n// Clean up unwanted placeholders from the report\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, 'information not available')\n  .replace(/\\$json\\.[\\w.]+/g, 'information not available');\n\nconsole.log(`Cleaned Section 1 report: ${cleanReport.substring(0, 100)}...`);\n\n// Return the processed Section 1 content\nreturn {\n  json: {\n    task_id: inputData.task_id,\n    project_id: inputData.project_id,\n    description: `# Due Diligence Report: ${inputData.company_name}\\n\\n## Section 1: Introduction & Engagement Context\\n\\n**Generated:** ${new Date().toISOString()}\\n\\n${cleanReport.substring(0, 1000)} [truncated for debugging]\\n\\n---\\n\\n_Automatically generated by n8n_`\n  }\n};\n"
+      },
+      "name": "Format Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        -144
+      ],
+      "id": "d1708125-c804-4cca-8503-1b2d0d9e77f1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7081a8b9-aa72-4841-8392-908e2387acf9"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1b2472f8-0fb4-4812-bfd8-3a9417fab4a8",
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6d0dad77-6120-441a-ae74-55c18a550a8a",
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5aff824d-531d-4134-b2a6-f694e1c1f8bf",
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_4",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c80cc85a-2e2e-4cb2-9e62-dd8c4a48248d",
+                    "leftValue": "={{ $json.section }}",
+                    "rightValue": "topic_5",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ebdd5c63-bccf-4092-8812-2e05367599fa",
+                    "leftValue": "",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        64
+      ],
+      "id": "9bc053b2-2546-4bbb-921d-b2c269a14ec1",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "attachment_info",
+              "displayName": "attachment_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "methodology_reliability_levels",
+              "displayName": "methodology_reliability_levels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "company_overview",
+              "displayName": "company_overview",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "business_model_unit_economics",
+              "displayName": "business_model_unit_economics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "products_technology",
+              "displayName": "products_technology",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_market_competitive_set",
+              "displayName": "target_market_competitive_set",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "financials_multi_year",
+              "displayName": "financials_multi_year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "cash_burn_runway",
+              "displayName": "cash_burn_runway",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "revenue_quality_client_cohorts",
+              "displayName": "revenue_quality_client_cohorts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "partnerships_ecosystem",
+              "displayName": "partnerships_ecosystem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "intellectual_property",
+              "displayName": "intellectual_property",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "legal_regulatory",
+              "displayName": "legal_regulatory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "governance_board_effectiveness",
+              "displayName": "governance_board_effectiveness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "capital_structure_dilution",
+              "displayName": "capital_structure_dilution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "risk_matrix_mitigations",
+              "displayName": "risk_matrix_mitigations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "gaps_uncertainties_disclaimers",
+              "displayName": "gaps_uncertainties_disclaimers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "scenario_analysis",
+              "displayName": "scenario_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "strategic_options",
+              "displayName": "strategic_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "recommendations_next_steps",
+              "displayName": "recommendations_next_steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_map_integrity_log",
+              "displayName": "source_map_integrity_log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "pdf_filename",
+              "displayName": "pdf_filename",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1808,
+        -144
+      ],
+      "id": "a0fa1593-526c-47a8-97c7-53fb4256fc1f",
+      "name": "Insert or update rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Database Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Database Table": {
+      "main": [
+        [
+          {
+            "node": "List PDFs via HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs via HTTP": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Extract ALL Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract ALL Company Data": {
+      "main": [
+        [
+          {
+            "node": "Save ALL Data to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save ALL Data to Database": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Insert or update rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Create Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [
+          {
+            "node": "Create Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e50df89c-1c70-4a77-af5f-7455dfc46ec0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "eOGMOkxv96RXdva8",
+  "tags": []
+}

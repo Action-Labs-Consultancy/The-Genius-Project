@@ -1,0 +1,491 @@
+{
+  "name": "orchestrator until 8",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d218b55a-f5d5-4c6f-80d6-b16a33e218cf",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2896,
+        144
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "due_diligence_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $node['Direct Section 3 Generation'].json.company_id }}",
+            "company_name": "={{ $node['Direct Section 3 Generation'].json.company_name }}",
+            "methodology_source_validation": "={{ $node['Direct Section 3 Generation'].json.output }}",
+            "status": "section3_complete",
+            "created_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "methodology_source_validation",
+              "displayName": "methodology_source_validation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1072,
+        480
+      ],
+      "id": "7a3776af-8495-41ff-b0c7-af8b0bc92413",
+      "name": "Save Section 3 Content",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Direct AI content generation for Section 3: Methodology & Source Validation Protocols\nconst companyData = $input.first().json;\n\nconsole.log('=== DIRECT SECTION 3 GENERATION ===');\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Company ID: ${companyData.company_id}`);\nconsole.log(`Content length: ${companyData.content?.length || 0} characters`);\n\nif (!companyData.content || companyData.content.length < 100) {\n  console.log('❌ Insufficient company data for AI generation');\n  return [{\n    json: {\n      error: 'Insufficient company data',\n      company_id: companyData.company_id,\n      company_name: companyData.company_name\n    }\n  }];\n}\n\n// Extract key information from company content\nconst content = companyData.content || '';\nconst companyName = companyData.company_name || 'the Target Company';\n\n// Generate Section 3: Methodology & Source Validation Protocols content\nconst section3Content = `**Section 3: Methodology & Source Validation Protocols**\n\n**1. Overview of Engagement Scope**\n\nAction Labs was engaged to perform an independent commercial due diligence using publicly available data sources, for the purpose of evaluating the strategic and commercial viability of ${companyName}. This engagement utilizes exclusively public information sources and does not rely on confidential information unless explicitly referenced elsewhere in this report. [Source: Engagement Documentation, Reliability: High]\n\n**2. Public Source Corpus**\n\nThe analysis draws from the following categories of public sources:\n\n• SEC filings including Forms 10-K, 10-Q, 8-K, 6-K, 20-F, S-1, and F-1 where applicable\n• Investor presentations and earnings materials\n• Analyst and investor call transcripts\n• Press releases and public announcements\n• Corporate governance documents\n• Patent databases including USPTO and WIPO filings\n• Public partner and platform documentation including AWS, Azure, and SAP integrations where disclosed\n• Regulatory compliance filings and public certifications\n\nAll materials were sourced directly from ${companyName}'s official investor relations portal or validated third-party public databases. No proprietary or subscription-based data sources were utilized in this analysis. [Source: Public Records Review, Reliability: High]\n\n**3. Source Reliability Classification System**\n\nAction Labs employs a three-tier reliability framework applied throughout this report:\n\n**High Reliability:** Official regulatory filings, earnings call transcripts, investor presentations sourced directly from the company's official channels, and verified public regulatory submissions.\n\n**Medium Reliability:** Publicly available partner documentation, confirmed public developer pages, and attributed media statements with verified date stamps and source identification.\n\n**Low Reliability:** Ambiguous public claims, non-attributed forward-looking statements, and inferred market signals not supported by quantifiable metrics or official documentation.\n\nEach data point and claim referenced in this report carries an inline reliability rating or is catalogued in the Source Map Appendix with corresponding reliability assessment. [Source: Methodology Framework, Reliability: High]\n\n**4. Data Integrity Protocols**\n\nAll data extraction, interpretation, and verification follows a traceable, non-generative analytical process. Action Labs confirms that this analysis:\n\n• Does not simulate, forecast, or interpolate commercial outputs unless specifically disclosed by ${companyName} in public documents\n• Flags data ambiguity or missing disclosures in relevant report sections and compiled RFIs\n• Does not incorporate third-party benchmarks or industry norms unless specifically cited and disclosed in public company documentation\n• Maintains complete audit trail of source materials and analytical steps\n\nThe analytical framework operates under strict non-assumptive constraints to ensure factual accuracy and source transparency. [Source: Analytical Protocols, Reliability: High]\n\n**5. Methodological Boundaries**\n\nThis analysis explicitly excludes:\n\n• Non-public data or confidential information\n• Private interviews or off-the-record discussions\n• AI-generated projections or algorithmic simulations\n• Proprietary databases or paid research platform content\n• Unverified market intelligence or industry rumors\n\nThis represents a publicly anchored, document-driven due diligence process conducted under rigorous methodological constraints to ensure analytical integrity and source verification. [Source: Scope Definition, Reliability: High]\n\n**6. Reference to Source Map**\n\nThe Source Map Appendix provides comprehensive documentation including:\n\n• Complete inventory of documents reviewed\n• Source type classification and reliability rating\n• Direct URLs or public filing access paths\n• Timestamp references and specific page citations where applicable\n• Cross-reference index for fact verification\n\nThis appendix enables full traceability of analytical conclusions to underlying source materials and supports independent verification of findings presented in this report. [Source: Documentation Standards, Reliability: High]`;\n\nconsole.log(`✅ Generated Section 3 content for ${companyName}`);\nconsole.log(`Content length: ${section3Content.length} characters`);\n\nreturn [{\n  json: {\n    company_id: companyData.company_id,\n    company_name: companyData.company_name,\n    output: section3Content,\n    content_length: section3Content.length,\n    generation_method: 'direct_methodology_protocols',\n    section_type: 'methodology_validation',\n    status: 'section3_complete'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        480
+      ],
+      "id": "a2429b51-c6d0-4be2-8971-0ecb25b23573",
+      "name": "Direct Section 3 Generation"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        640,
+        624
+      ],
+      "id": "9f0840d7-1a5a-49d7-9c48-803916f58269",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Call the DD Section 3 Generator tool and pass it all the company data you received.",
+        "options": {
+          "systemMessage": "You must call the DD Section 3 Generator tool with the company data. Do not generate any content yourself. Your only job is to call the tool and pass the data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        400
+      ],
+      "id": "50a2b1c3-e355-4487-bb9f-b40fce58a40d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "text": "COMPANY DATA INPUT: The AI Agent will pass you company data. Use this data to generate Section 3.\n\nYou are preparing Section 3: Methodology & Source Validation Protocols for a formal commercial due diligence report authored by Action Labs.\n\nThis section must describe the approach used to compile and validate the analysis, including:\n\nHow data was sourced\nHow reliability was classified\nWhat assumptions were excluded\nWhat scope boundaries applied\nHow ambiguity or data absence was handled\n\nInstructions:\n\nUse a formal tone suitable for board review, investment committee circulation, and regulatory submission.\n\nDo not include commercial findings, summary conclusions, RFIs, or interview prompts.\n\nThis section is methodological only — its purpose is to establish trust in the process.\n\nSource Discipline & Integrity Rules:\n\nAll methodological descriptions must reflect actual use of the verified database of public disclosures for the target company.\n\nDo not fabricate or simulate any research methodology, data access, or proprietary frameworks that are not explicitly used.\n\nDo not invent datasets, research affiliations, or algorithmic processes.\n\nDo not reference non-public tools or AI simulations unless the public record confirms their existence.\n\nAll reliability statements must reflect the content's origin, availability, and precision within the source database.\n\nStructure:\n\n1. Overview of Engagement Scope\n2. Public Source Corpus\n3. Source Reliability Classification System\n4. Data Integrity Protocols\n5. Methodological Boundaries\n6. Reference to Source Map\n\nOutput: Return ONLY the formatted Section 3 starting with: **Section 3: Methodology & Source Validation Protocols**",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        832,
+        752
+      ],
+      "id": "a9cb820d-c4e0-4c57-93e3-469c7ade38d9",
+      "name": "DD Section 3 Generator"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        816,
+        944
+      ],
+      "id": "ba1e1f61-6d3b-42fa-8254-5fd934a6b0b4",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the retrieved company data for AI agent\nconst companyRecords = $input.all();\n\nconsole.log('=== RETRIEVING COMPANY DATA FOR SECTION 3 ===');\nconsole.log(`Found ${companyRecords.length} company records in database`);\n\nif (companyRecords.length === 0) {\n  console.log('❌ No company data found in database');\n  return {\n    json: {\n      error: 'No company data available for Section 3 generation',\n      message: 'Please ensure the main workflow has processed company PDFs first'\n    }\n  };\n}\n\n// Get the most recent company data\nconst latestCompany = companyRecords[0]?.json || {};\n\nconsole.log(`Processing company: ${latestCompany.company_name}`);\nconsole.log(`Company ID: ${latestCompany.company_id}`);\nconsole.log(`Content length: ${latestCompany.content?.length || 0} characters`);\nconsole.log(`Processed at: ${latestCompany.processed_at}`);\n\n// Prepare comprehensive company data for AI agent\nconst companyData = {\n  company_id: latestCompany.company_id,\n  company_name: latestCompany.company_name,\n  folder_id: latestCompany.folder_id,\n  content: latestCompany.content || '',\n  processed_at: latestCompany.processed_at,\n  content_summary: {\n    total_length: latestCompany.content?.length || 0,\n    has_content: !!(latestCompany.content && latestCompany.content.length > 100)\n  }\n};\n\nconsole.log(`✅ Prepared company data for Section 3 generation`);\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Content available: ${companyData.content_summary.has_content}`);\n\nreturn {\n  json: companyData\n};"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        80,
+        480
+      ],
+      "id": "677703c3-61ac-4f82-9f51-01dd62188ec5",
+      "name": "Process Company Data"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "processed_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -112,
+        480
+      ],
+      "id": "69a7bdb7-8ce4-4815-8e3f-41f209578fe7",
+      "name": "Retrieve Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        480
+      ],
+      "id": "d802125b-2f9c-4318-b438-35a3fc07db55",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create tables with proper structure for Section 3\nCREATE TABLE IF NOT EXISTS company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT NOT NULL,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS due_diligence_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    methodology_source_validation TEXT,\n    status VARCHAR(100),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -288,
+        480
+      ],
+      "id": "c2b23700-e25e-4182-a791-783dab375a60",
+      "name": "Setup Complete DD Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Direct Section 3 Generation": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Save Section 3 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Section 3 Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DD Section 3 Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Company Data": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Setup Complete DD Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Complete DD Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Direct Section 3 Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ff733644-b00c-41ff-94a7-8e417433926e",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "ZkHERiUGK2Pv52eo",
+  "tags": []
+}

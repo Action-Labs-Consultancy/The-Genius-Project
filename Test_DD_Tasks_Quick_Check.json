@@ -1,0 +1,88 @@
+{
+  "name": "Test DD Tasks - Quick Check",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [460, 240],
+      "id": "manual-test"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get All Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 240],
+      "id": "get-all-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const tasks = $input.first().json.result || [];\nconsole.log(`Total tasks found: ${tasks.length}`);\n\nconst allTasks = [];\nconst ddTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const titleLower = title.toLowerCase();\n  \n  allTasks.push({\n    id: task.id,\n    title: title,\n    is_due_diligence: titleLower.includes('due diligence')\n  });\n  \n  if (titleLower.includes('due diligence')) {\n    ddTasks.push({\n      id: task.id,\n      title: title,\n      description: task.description || ''\n    });\n  }\n}\n\nconsole.log('📋 All tasks:', allTasks);\nconsole.log('🎯 Due Diligence tasks:', ddTasks);\n\nreturn [{\n  json: {\n    total_tasks: tasks.length,\n    all_tasks: allTasks,\n    dd_tasks: ddTasks,\n    dd_count: ddTasks.length,\n    message: ddTasks.length > 0 \n      ? `Found ${ddTasks.length} Due Diligence tasks` \n      : 'No Due Diligence tasks found. Create a task with title containing \"Due Diligence\"'\n  }\n}];"
+      },
+      "name": "Analyze Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 240],
+      "id": "analyze-tasks"
+    }
+  ],
+  "connections": {
+    "Manual Test": {
+      "main": [
+        [
+          {
+            "node": "Get All Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Tasks": {
+      "main": [
+        [
+          {
+            "node": "Analyze Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "test-dd-tasks-v1",
+  "meta": {
+    "instanceId": "test-dd-tasks"
+  },
+  "id": "test-dd-tasks",
+  "tags": ["test", "debug"]
+}

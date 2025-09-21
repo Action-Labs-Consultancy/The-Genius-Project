@@ -1,0 +1,272 @@
+{
+  "name": "Company PDF Importer - Fixed",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "trigger",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-400, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "list",
+        "parentId": "={{ $json.id }}",
+        "options": {
+          "query": "mimeType='application/pdf'"
+        }
+      },
+      "id": "list-pdfs",
+      "name": "List PDFs in New Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [-200, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Add company name from the folder to each PDF item\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst pdfFiles = $input.all();\n\nconsole.log(`Processing ${pdfFiles.length} PDF files from folder: ${folderName}`);\n\nconst results = pdfFiles.map(item => {\n  const pdf = item.json;\n  return {\n    json: {\n      ...pdf,\n      company_name: folderName,\n      folder_id: $node[\"Google Drive Trigger\"].json.id\n    }\n  };\n});\n\nif (results.length === 0) {\n  console.log('No PDF files found in the new folder');\n  throw new Error('No PDF files found - workflow completed');\n}\n\nconsole.log(`Prepared ${results.length} PDFs for processing`);\nreturn results;"
+      },
+      "id": "add-company-name",
+      "name": "Add Company Name to PDFs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [0, 100]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "download",
+        "fileId": "={{ $json.id }}",
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "doNotConvert": true
+            }
+          }
+        }
+      },
+      "id": "download-pdf",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [200, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "extract-pdf",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [400, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract comprehensive company data from PDF text\nconst pdfInfo = $input.first().json;\nconst extractedText = $input.last().json;\nconst textContent = extractedText.data || 'Could not extract PDF text';\n\n// Function to extract website URLs\nfunction extractWebsites(text) {\n  const urlRegex = /(?:https?:\\/\\/)?(?:www\\.)?([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})(?:\\/[^\\s]*)?/g;\n  const matches = text.match(urlRegex) || [];\n  return matches.map(url => {\n    if (!url.startsWith('http')) {\n      return 'https://' + url;\n    }\n    return url;\n  }).filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates\n}\n\n// Function to extract email addresses\nfunction extractEmails(text) {\n  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  return text.match(emailRegex) || [];\n}\n\n// Function to extract phone numbers\nfunction extractPhones(text) {\n  const phoneRegex = /(?:\\+?1[-. ]?)?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g;\n  return text.match(phoneRegex) || [];\n}\n\n// Function to extract potential addresses\nfunction extractAddresses(text) {\n  const addressRegex = /\\d+\\s+[a-zA-Z\\s,]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)\\s*,?\\s*[a-zA-Z\\s,]+\\s+\\d{5}/gi;\n  return text.match(addressRegex) || [];\n}\n\n// Extract all data\nconst websites = extractWebsites(textContent);\nconst emails = extractEmails(textContent);\nconst phones = extractPhones(textContent);\nconst addresses = extractAddresses(textContent);\n\n// Generate a unique company ID based on folder ID and company name\nconst companyId = `${pdfInfo.folder_id}_${pdfInfo.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;\n\nconst finalData = {\n  company_id: companyId,\n  company_name: pdfInfo.company_name,\n  file_name: pdfInfo.name,\n  file_id: pdfInfo.id,\n  folder_id: pdfInfo.folder_id,\n  content: textContent,\n  websites: websites.length > 0 ? websites.join(', ') : null,\n  primary_website: websites.length > 0 ? websites[0] : null,\n  emails: emails.length > 0 ? emails.join(', ') : null,\n  primary_email: emails.length > 0 ? emails[0] : null,\n  phones: phones.length > 0 ? phones.join(', ') : null,\n  primary_phone: phones.length > 0 ? phones[0] : null,\n  addresses: addresses.length > 0 ? addresses.join(', ') : null,\n  primary_address: addresses.length > 0 ? addresses[0] : null,\n  file_size: pdfInfo.size,\n  processed_at: new Date().toISOString(),\n  content_length: textContent.length\n};\n\nconsole.log(`Processed: ${finalData.company_name} - ${finalData.file_name}`);\nconsole.log(`Text length: ${finalData.content_length} characters`);\nconsole.log(`Websites found: ${websites.length}`);\nconsole.log(`Emails found: ${emails.length}`);\nconsole.log(`Phones found: ${phones.length}`);\nconsole.log(`Addresses found: ${addresses.length}`);\n\nreturn { json: finalData };"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Final Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 100]
+    },
+    {
+      "parameters": {
+        "table": "company_data",
+        "columns": {
+          "column": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "file_name",
+              "value": "={{ $json.file_name }}"
+            },
+            {
+              "column": "file_id",
+              "value": "={{ $json.file_id }}"
+            },
+            {
+              "column": "folder_id",
+              "value": "={{ $json.folder_id }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "column": "websites",
+              "value": "={{ $json.websites }}"
+            },
+            {
+              "column": "primary_website",
+              "value": "={{ $json.primary_website }}"
+            },
+            {
+              "column": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "column": "primary_email",
+              "value": "={{ $json.primary_email }}"
+            },
+            {
+              "column": "phones",
+              "value": "={{ $json.phones }}"
+            },
+            {
+              "column": "primary_phone",
+              "value": "={{ $json.primary_phone }}"
+            },
+            {
+              "column": "addresses",
+              "value": "={{ $json.addresses }}"
+            },
+            {
+              "column": "primary_address",
+              "value": "={{ $json.primary_address }}"
+            },
+            {
+              "column": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "column": "content_length",
+              "value": "={{ $json.content_length }}"
+            },
+            {
+              "column": "processed_at",
+              "value": "={{ $json.processed_at }}"
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "store-db",
+      "name": "Store in PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [800, 100],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "List PDFs in New Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs in New Folder": {
+      "main": [
+        [
+          {
+            "node": "Add Company Name to PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Company Name to PDFs": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Data": {
+      "main": [
+        [
+          {
+            "node": "Store in PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

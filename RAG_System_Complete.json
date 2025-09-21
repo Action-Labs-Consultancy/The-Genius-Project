@@ -1,0 +1,465 @@
+{
+  "name": "rag",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list",
+          "cachedResultName": "Due",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1hDbczPdamC3FDROskKamg9MdCYV5PY06"
+        },
+        "event": "folderCreated"
+      },
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        384
+      ],
+      "id": "348704dd-11ea-4827-9c6a-d716f409e805",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)&pageSize=1000",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "List PDF Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1808,
+        384
+      ],
+      "id": "99682e75-a75d-4f78-b014-3fdfb93dea8e",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Initialize processing session and track all files\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconsole.log('🔍 RAW API RESPONSE DEBUG:');\nconsole.log('Response type:', typeof response);\nconsole.log('Response keys:', response ? Object.keys(response) : 'null');\nconsole.log('Response structure:', JSON.stringify(response, null, 2));\n\n// Safely get files array with proper error handling\nconst files = (response && response.files) ? response.files : [];\n\nconsole.log('📂 FILES EXTRACTION DEBUG:');\nconsole.log('Files found:', files ? files.length : 0);\nconsole.log('Files type:', typeof files);\nconsole.log('Is array:', Array.isArray(files));\n\nif (!files || !Array.isArray(files) || files.length === 0) {\n  console.log('❌ No PDF files found in the new folder');\n  console.log('📊 DEBUG INFO:');\n  console.log('- Folder Name:', folderName);\n  console.log('- Folder ID:', folderId);\n  console.log('- Response received:', JSON.stringify(response, null, 2));\n  console.log('- Files variable:', files);\n  \n  return [{\n    json: {\n      error: 'No PDF files found',\n      response_received: response,\n      processing_status: 'no_files_found',\n      debug_info: {\n        folder_name: folderName,\n        folder_id: folderId,\n        response_type: typeof response,\n        response_keys: response ? Object.keys(response) : null,\n        files_type: typeof files,\n        files_is_array: Array.isArray(files)\n      }\n    }\n  }];\n}\n\n// Extract company name from folder name\nlet companyName = folderName || 'Unknown_Company';\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nif (companyName.length < 2 || /^(new|folder|doc|file|temp|test)$/i.test(companyName)) {\n  companyName = 'Unknown_Company';\n}\n\n// Generate processing session ID\nconst sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n\nconsole.log(`🚀 Starting RAG processing session: ${sessionId}`);\nconsole.log(`📁 Folder: ${folderName}`);\nconsole.log(`🏢 Company: ${companyName}`);\nconsole.log(`📄 Found ${files.length} PDF files to process`);\nconsole.log(`📋 Files details:`, files.map(f => ({ name: f.name, id: f.id, size: f.size })));\n\n// Calculate total expected pages (estimate)\nconst totalExpectedSize = files.reduce((sum, file) => sum + parseInt(file.size || 0), 0);\nconst estimatedPages = Math.ceil(totalExpectedSize / 50000); // Rough estimate: 50KB per page\n\nreturn [{\n  json: {\n    session_id: sessionId,\n    company_name: companyName,\n    folder_id: folderId,\n    original_folder_name: folderName,\n    total_files: files.length,\n    files_to_process: files,\n    processed_files: [],\n    failed_files: [],\n    current_file_index: 0,\n    total_estimated_pages: estimatedPages,\n    total_size_bytes: totalExpectedSize,\n    processing_status: 'initialized',\n    start_time: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Initialize Processing Session",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        384
+      ],
+      "id": "6634fa22-839a-482d-8ced-ce719b99d5e5"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get next file to process and check if all files are done\nconst session = $input.first().json;\n\n// Handle error cases\nif (session.processing_status === 'no_files_found') {\n  console.log('❌ No files found to process');\n  return [{\n    json: {\n      ...session,\n      processing_status: 'error_no_files',\n      error_message: 'No PDF files found in the folder'\n    }\n  }];\n}\n\n// Ensure files_to_process exists and is an array\nif (!session.files_to_process || !Array.isArray(session.files_to_process)) {\n  console.log('❌ Invalid files_to_process array');\n  console.log('Session received:', JSON.stringify(session, null, 2));\n  return [{\n    json: {\n      ...session,\n      processing_status: 'error_invalid_files',\n      error_message: 'Invalid or missing files_to_process array',\n      debug_info: {\n        has_files_to_process: !!session.files_to_process,\n        files_to_process_type: typeof session.files_to_process,\n        is_array: Array.isArray(session.files_to_process)\n      }\n    }\n  }];\n}\n\n// Check if we have more files to process\nif (session.current_file_index >= session.files_to_process.length) {\n  console.log('✅ All files processed, proceeding to validation');\n  return [{\n    json: {\n      ...session,\n      processing_status: 'all_files_processed',\n      completed_time: new Date().toISOString()\n    }\n  }];\n}\n\n// Get current file to process\nconst currentFile = session.files_to_process[session.current_file_index];\n\n// Validate current file exists\nif (!currentFile) {\n  console.log('❌ Current file is undefined at index:', session.current_file_index);\n  return [{\n    json: {\n      ...session,\n      processing_status: 'error_missing_file',\n      error_message: `File at index ${session.current_file_index} is undefined`\n    }\n  }];\n}\n\nconsole.log(`📄 Processing file ${session.current_file_index + 1}/${session.files_to_process.length}: ${currentFile.name || 'Unknown'}`);\n\nreturn [{\n  json: {\n    ...session,\n    current_file: {\n      id: currentFile.id || '',\n      name: currentFile.name || 'Unknown',\n      size: currentFile.size || 0,\n      mimeType: currentFile.mimeType || 'application/pdf',\n      index: session.current_file_index\n    },\n    processing_status: 'processing_file'\n  }\n}];"
+      },
+      "name": "Get Next File",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1400,
+        384
+      ],
+      "id": "get-next-file-node"
+    },
+    {
+      "parameters": {
+        "url": "=https://drive.google.com/uc?export=download&id={{ $json.current_file.id }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        384
+      ],
+      "id": "323819fb-2f0d-4948-981f-c9efb123178b"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        384
+      ],
+      "id": "5081f0dd-bc6a-469b-948f-5061c8e2652a"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process extracted PDF text and prepare for vector storage\nconst extractedData = $input.first().json;\nconst session = $node[\"Get Next File\"].json;\nconst currentFile = session.current_file;\n\n// Get the extracted text\nlet fullText = '';\nif (extractedData && extractedData.data) {\n  fullText = extractedData.data;\n} else if (typeof extractedData === 'string') {\n  fullText = extractedData;\n}\n\nif (!fullText || fullText.length < 100) {\n  console.error(`PDF text extraction failed for ${currentFile.name}`);\n  return {\n    json: {\n      ...session,\n      error: 'Text extraction failed',\n      file_name: currentFile.name,\n      processing_status: 'file_failed'\n    }\n  };\n}\n\n// Count actual pages from extracted text (rough estimate based on content)\nconst estimatedPages = Math.max(1, Math.ceil(fullText.length / 2000)); // ~2000 chars per page\n\nconsole.log(`📄 Extracted ${fullText.length} characters (~${estimatedPages} pages) from ${currentFile.name}`);\n\n// Split text into chunks for better vector storage\nconst chunkSize = 1000; // characters per chunk\nconst overlap = 200; // overlap between chunks\nconst chunks = [];\n\nfor (let i = 0; i < fullText.length; i += (chunkSize - overlap)) {\n  const chunk = fullText.substring(i, i + chunkSize);\n  if (chunk.trim().length > 50) { // Only include meaningful chunks\n    chunks.push({\n      content: chunk.trim(),\n      metadata: {\n        session_id: session.session_id,\n        file_name: currentFile.name,\n        company_name: session.company_name,\n        file_id: currentFile.id,\n        folder_id: session.folder_id,\n        chunk_index: chunks.length,\n        total_chunks_this_file: Math.ceil(fullText.length / (chunkSize - overlap)),\n        file_index: currentFile.index,\n        total_files: session.total_files,\n        actual_pages: estimatedPages,\n        extracted_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nconsole.log(`📦 Created ${chunks.length} text chunks for vector storage`);\n\n// Add file processing metadata to session\nconst updatedSession = {\n  ...session,\n  current_file_chunks: chunks.length,\n  current_file_pages: estimatedPages,\n  current_file_characters: fullText.length,\n  processing_status: 'chunks_created'\n};\n\n// Return all chunks as separate items, each containing session info\nreturn chunks.map(chunk => ({\n  json: {\n    pageContent: chunk.content,\n    metadata: chunk.metadata,\n    session_info: updatedSession\n  }\n}));"
+      },
+      "name": "Prepare Text Chunks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        384
+      ],
+      "id": "975a19e6-a56a-471d-b704-406035483734"
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        304
+      ],
+      "id": "fa0b0282-de47-4693-963a-7a558d8147be",
+      "name": "Embeddings Ollama (mxbai-embed-large)",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -600,
+        336
+      ],
+      "id": "50a3b58d-267d-4ce2-b5e6-f66645673d68",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate all chunks and check if file processing is complete\nconst allInputs = $input.all();\n\nif (!allInputs || allInputs.length === 0) {\n  console.log('❌ No chunks received');\n  return {\n    json: {\n      error: 'No chunks to process',\n      processing_status: 'error'\n    }\n  };\n}\n\n// Get the session info from the last chunk (they all have the same session info)\nconst lastInput = allInputs[allInputs.length - 1];\n\n// Safely extract session info and metadata\nif (!lastInput || !lastInput.json) {\n  console.log('❌ Invalid input data structure');\n  return {\n    json: {\n      error: 'Invalid input data',\n      processing_status: 'error'\n    }\n  };\n}\n\nconst sessionInfo = lastInput.json.session_info;\nconst lastMetadata = lastInput.json.metadata;\n\nif (!sessionInfo || !lastMetadata) {\n  console.log('❌ Missing session info or metadata');\n  return {\n    json: {\n      error: 'Missing session info or metadata',\n      processing_status: 'error',\n      received_data: {\n        has_session_info: !!sessionInfo,\n        has_metadata: !!lastMetadata,\n        input_structure: Object.keys(lastInput.json || {})\n      }\n    }\n  };\n}\n\nconsole.log(`📦 Received ${allInputs.length} chunks for processing`);\nconsole.log(`📄 File: ${lastMetadata.file_name}`);\nconsole.log(`🔢 Expected chunks: ${lastMetadata.total_chunks_this_file}`);\n\n// Verify we have all chunks for this file\nif (allInputs.length >= lastMetadata.total_chunks_this_file) {\n  console.log(`✅ All ${allInputs.length} chunks processed for ${lastMetadata.file_name}`);\n  \n  // File is complete, update session\n  const updatedSession = {\n    ...sessionInfo,\n    current_file_index: sessionInfo.current_file_index + 1,\n    processed_files: [\n      ...(sessionInfo.processed_files || []),\n      {\n        file_name: lastMetadata.file_name,\n        file_id: lastMetadata.file_id,\n        chunks_created: allInputs.length,\n        pages_processed: lastMetadata.actual_pages,\n        characters: sessionInfo.current_file_characters,\n        completed_at: new Date().toISOString()\n      }\n    ],\n    total_chunks_processed: (sessionInfo.total_chunks_processed || 0) + allInputs.length,\n    total_pages_processed: (sessionInfo.total_pages_processed || 0) + lastMetadata.actual_pages,\n    processing_status: 'file_completed'\n  };\n  \n  return {\n    json: updatedSession\n  };\n} else {\n  console.log(`⏳ Still processing: ${allInputs.length}/${lastMetadata.total_chunks_this_file} chunks`);\n  \n  // Return current status - chunks still processing\n  return {\n    json: {\n      ...sessionInfo,\n      processing_status: 'chunks_in_progress',\n      chunks_completed: allInputs.length,\n      chunks_expected: lastMetadata.total_chunks_this_file,\n      current_file_name: lastMetadata.file_name\n    }\n  };\n}"
+      },
+      "name": "Track File Completion",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        384
+      ],
+      "id": "track-file-completion-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check if all files are processed, if not loop back to next file\nconst session = $input.first().json;\n\nconsole.log('🔍 CHECK PROCESSING STATUS DEBUG:');\nconsole.log('Current processing status:', session.processing_status);\nconsole.log('Current file index:', session.current_file_index);\nconsole.log('Total files to process:', session.files_to_process ? session.files_to_process.length : 'undefined');\nconsole.log('Files processed so far:', session.processed_files ? session.processed_files.length : 0);\n\n// Handle error cases\nif (session.processing_status && session.processing_status.startsWith('error')) {\n  console.log(`❌ Error detected: ${session.error_message || 'Unknown error'}`);\n  return [{\n    json: {\n      ...session,\n      processing_status: 'failed',\n      final_error: session.error_message || 'Processing failed'\n    }\n  }];\n}\n\n// If chunks are still in progress, wait for completion\nif (session.processing_status === 'chunks_in_progress') {\n  console.log(`⏳ Waiting for chunks to complete: ${session.chunks_completed}/${session.chunks_expected}`);\n  return [{\n    json: {\n      ...session,\n      processing_status: 'waiting_for_chunks'\n    }\n  }];\n}\n\n// Ensure we have the files_to_process array\nif (!session.files_to_process || !Array.isArray(session.files_to_process)) {\n  console.log('❌ Missing or invalid files_to_process array');\n  return [{\n    json: {\n      ...session,\n      processing_status: 'error_invalid_session',\n      error_message: 'Session data is corrupted or invalid'\n    }\n  }];\n}\n\n// Check if we need to process more files\nif (session.current_file_index >= session.files_to_process.length) {\n  // All files processed, proceed to validation\n  console.log('🎯 All files processed! Proceeding to validation phase...');\n  return [{\n    json: {\n      ...session,\n      processing_status: 'ready_for_validation',\n      processing_completed_at: new Date().toISOString()\n    }\n  }];\n} else {\n  // More files to process, loop back\n  console.log(`🔄 Looping back to process file ${session.current_file_index + 1}/${session.files_to_process.length}`);\n  console.log(`🔄 LOOP DEBUG: Setting status to 'continuing_loop'`);\n  return [{\n    json: {\n      ...session,\n      processing_status: 'continuing_loop'\n    }\n  }];\n}"
+      },
+      "name": "Check Processing Status",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        384
+      ],
+      "id": "check-processing-status-node"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.processing_status }}",
+              "rightValue": "ready_for_validation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-node-loop-control",
+      "name": "Loop Control",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -50,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Comprehensive validation of all processed files\nconst session = $input.first().json;\n\nconsole.log('🔍 Starting comprehensive validation...');\n\n// Validation metrics\nconst totalFiles = session.files_to_process.length;\nconst processedFiles = session.processed_files.length;\nconst totalChunks = session.total_chunks_processed || 0;\nconst totalPages = session.total_pages_processed || 0;\nconst failedFiles = session.failed_files ? session.failed_files.length : 0;\n\n// Calculate success rate\nconst successRate = totalFiles > 0 ? (processedFiles / totalFiles * 100).toFixed(2) : 0;\n\n// Validation checks\nconst validationResults = {\n  files_check: {\n    expected: totalFiles,\n    processed: processedFiles,\n    failed: failedFiles,\n    success_rate: `${successRate}%`,\n    status: processedFiles === totalFiles ? '✅ PASS' : '❌ FAIL'\n  },\n  chunks_check: {\n    total_chunks: totalChunks,\n    avg_chunks_per_file: totalFiles > 0 ? (totalChunks / processedFiles).toFixed(1) : 0,\n    status: totalChunks > 0 ? '✅ PASS' : '❌ FAIL'\n  },\n  pages_check: {\n    total_pages: totalPages,\n    avg_pages_per_file: totalFiles > 0 ? (totalPages / processedFiles).toFixed(1) : 0,\n    status: totalPages > 0 ? '✅ PASS' : '❌ FAIL'\n  },\n  data_integrity: {\n    company_consistency: session.company_name ? '✅ PASS' : '❌ FAIL',\n    session_tracking: session.session_id ? '✅ PASS' : '❌ FAIL',\n    timestamp_tracking: session.start_time && session.processing_completed_at ? '✅ PASS' : '❌ FAIL'\n  }\n};\n\n// Overall validation status\nconst allChecks = [\n  validationResults.files_check.status.includes('✅'),\n  validationResults.chunks_check.status.includes('✅'),\n  validationResults.pages_check.status.includes('✅'),\n  validationResults.data_integrity.company_consistency.includes('✅'),\n  validationResults.data_integrity.session_tracking.includes('✅'),\n  validationResults.data_integrity.timestamp_tracking.includes('✅')\n];\n\nconst overallStatus = allChecks.every(check => check === true);\n\nconsole.log('📊 VALIDATION RESULTS:');\nconsole.log(`Files: ${validationResults.files_check.status} (${processedFiles}/${totalFiles})`);\nconsole.log(`Chunks: ${validationResults.chunks_check.status} (${totalChunks} total)`);\nconsole.log(`Pages: ${validationResults.pages_check.status} (${totalPages} total)`);\nconsole.log(`Overall: ${overallStatus ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED'}`);\n\nreturn {\n  json: {\n    ...session,\n    validation_results: validationResults,\n    validation_status: overallStatus ? 'passed' : 'failed',\n    validation_completed_at: new Date().toISOString(),\n    processing_status: overallStatus ? 'validation_passed' : 'validation_failed',\n    ready_for_approval: overallStatus\n  }\n};"
+      },
+      "name": "Validate Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        384
+      ],
+      "id": "validate-processing-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final approval and completion summary\nconst session = $input.first().json;\nconst validation = session.validation_results;\n\nif (!session.ready_for_approval) {\n  console.log('❌ Processing failed validation. Manual review required.');\n  return {\n    json: {\n      ...session,\n      final_status: 'failed',\n      requires_manual_review: true,\n      completion_message: '❌ RAG processing failed validation checks'\n    }\n  };\n}\n\n// Processing approved!\nconst processingTime = new Date(session.processing_completed_at) - new Date(session.start_time);\nconst processingTimeMinutes = (processingTime / 60000).toFixed(2);\n\nconsole.log('🎉 RAG PROCESSING APPROVED AND COMPLETE!');\nconsole.log('═'.repeat(50));\nconsole.log(`🏢 Company: ${session.company_name}`);\nconsole.log(`📁 Folder: ${session.original_folder_name}`);\nconsole.log(`📄 Files Processed: ${session.processed_files.length}/${session.files_to_process.length}`);\nconsole.log(`📦 Total Chunks: ${session.total_chunks_processed}`);\nconsole.log(`📑 Total Pages: ${session.total_pages_processed}`);\nconsole.log(`⏱️ Processing Time: ${processingTimeMinutes} minutes`);\nconsole.log(`💾 Vector Store: Pinecone index 'n8n'`);\nconsole.log(`🤖 Embedding Model: mxbai-embed-large (1024 dimensions)`);\nconsole.log(`🔍 Ready for RAG queries!`);\nconsole.log('═'.repeat(50));\n\nreturn {\n  json: {\n    processing_complete: true,\n    final_status: 'approved',\n    session_id: session.session_id,\n    company_processed: session.company_name,\n    summary: {\n      files_processed: `${session.processed_files.length}/${session.files_to_process.length}`,\n      total_chunks: session.total_chunks_processed,\n      total_pages: session.total_pages_processed,\n      processing_time_minutes: processingTimeMinutes,\n      success_rate: validation.files_check.success_rate\n    },\n    technical_details: {\n      pinecone_index: 'n8n',\n      embedding_model: 'mxbai-embed-large',\n      embedding_dimensions: 1024,\n      chunk_size: 1000,\n      chunk_overlap: 200\n    },\n    validation_passed: true,\n    ready_for_rag_queries: true,\n    completed_at: new Date().toISOString(),\n    status_message: '🎉 RAG processing approved and ready for queries!'\n  }\n};"
+      },
+      "name": "Final Approval",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        200,
+        384
+      ],
+      "id": "final-approval-node"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -720,
+        48
+      ],
+      "id": "2e5e2897-c917-40be-87a0-0b5f594cdb01",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "List PDF Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDF Files": {
+      "main": [
+        [
+          {
+            "node": "Initialize Processing Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Processing Session": {
+      "main": [
+        [
+          {
+            "node": "Get Next File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Next File": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Text Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Text Chunks": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama (mxbai-embed-large)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Track File Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track File Completion": {
+      "main": [
+        [
+          {
+            "node": "Check Processing Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Processing Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Control": {
+      "main": [
+        [
+          {
+            "node": "Validate Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Next File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Processing": {
+      "main": [
+        [
+          {
+            "node": "Final Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1651e4f0-7e4c-49d1-95d4-14b080bc7782",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "ordIK1jxl5Io7CiA",
+  "tags": []
+}

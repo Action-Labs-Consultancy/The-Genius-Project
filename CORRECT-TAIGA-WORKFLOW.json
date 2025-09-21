@@ -1,0 +1,134 @@
+{
+  "name": "CORRECT Taiga Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "intervalType": "minutes",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "timer",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-back-exposed:8000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "created__gte",
+              "value": "={{ DateTime.now().minus({minutes: 2}).toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "get-tasks",
+      "name": "Get New Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [400, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple filter for action tasks\nif (!$json || !Array.isArray($json)) {\n  return [];\n}\n\nconst results = [];\nfor (const task of $json) {\n  if (task.subject && task.subject.toLowerCase().includes('action')) {\n    results.push({\n      json: {\n        id: task.id,\n        project: task.project,\n        title: task.subject,\n        ref: task.ref\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "filter",
+      "name": "Filter Action Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://taiga-back-exposed:8000/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "={{ $json.project }}"
+            },
+            {
+              "name": "subject",
+              "value": "=🔥 FOLLOW-UP: {{ $json.title }}"
+            },
+            {
+              "name": "description",
+              "value": "=Auto-created follow-up for: {{ $json.title }} (ID: #{{ $json.ref }})"
+            }
+          ]
+        }
+      },
+      "id": "create-task",
+      "name": "Create Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [800, 300],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Get New Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Action Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Action Tasks": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "correct-v1",
+  "id": "correct-taiga-workflow"
+}

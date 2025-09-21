@@ -1,0 +1,107 @@
+{
+  "name": "Simple DD Test",
+  "nodes": [
+    {
+      "parameters": {
+        "functionCode": "// Simple test to insert a test record\nconst testData = {\n  kanboard_task_id: 12345,\n  company_name: \"Test Company\",\n  description: \"Test description for Due Diligence\",\n  status: \"in_progress\"\n};\n\nconsole.log('Creating test record:', testData);\n\nreturn [{ json: testData }];"
+      },
+      "name": "Create Test Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "create-test"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list", 
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.kanboard_task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "description": "={{ $json.description }}",
+            "status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Insert Test Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [460, 300],
+      "id": "insert-test",
+      "credentials": {
+        "postgres": {
+          "id": "your-actual-credential-id-here",
+          "name": "DD PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list", 
+          "value": "due_diligence_reports"
+        },
+        "limit": 5,
+        "options": {}
+      },
+      "name": "Read Test Records",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [680, 300],
+      "id": "read-test",
+      "credentials": {
+        "postgres": {
+          "id": "your-actual-credential-id-here", 
+          "name": "DD PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Create Test Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Test Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Test Record": {
+      "main": [
+        [
+          {
+            "node": "Read Test Records", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

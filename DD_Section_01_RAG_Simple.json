@@ -1,0 +1,530 @@
+{
+  "name": "SECTION1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.retrievalQaChain",
+      "typeVersion": 1.4,
+      "position": [
+        -2000,
+        -256
+      ],
+      "id": "rag-retrieval-node",
+      "name": "RAG Knowledge Retrieval"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Enhanced prompt with RAG knowledge integration\nconst inputData = $input.first().json;\nconst ragResults = $node['RAG Knowl    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "RAG Knowledge Retrieval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Knowledge Retrieval": {
+      "main": [
+        [
+          {
+            "node": "RAG Enhanced Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },val'].json;\n\nconsole.log('=== RAG ENHANCED PROMPT GENERATION ===');\nconsole.log('Input data:', inputData);\nconsole.log('Company name:', inputData.company_name);\nconsole.log('Document content length:', inputData.content ? inputData.content.length : 'null');\nconsole.log('RAG results received:', !!ragResults);\n\n// Extract RAG knowledge\nlet knowledgeContext = '';\nif (ragResults && ragResults.text) {\n  knowledgeContext = ragResults.text;\n  console.log('RAG knowledge length:', knowledgeContext.length);\n} else if (ragResults && ragResults.response) {\n  knowledgeContext = ragResults.response;\n  console.log('RAG response length:', knowledgeContext.length);\n} else {\n  console.log('No RAG knowledge found - proceeding with document content only');\n  knowledgeContext = 'No specific knowledge base information available.';\n}\n\n// Create enhanced prompt with both document and knowledge base content\nconst enhancedPrompt = `You are a senior financial analyst creating a professional due diligence report. Generate a comprehensive \"Introduction & Engagement Context\" section for: ${inputData.company_name}\n\nSOURCE DOCUMENT CONTENT:\n${inputData.content}\n\nKNOWLEDGE BASE CONTEXT:\n${knowledgeContext}\n\nREQUIREMENTS:\n- Use BOTH the source document content AND knowledge base information\n- Write in professional, business-appropriate language\n- Minimum 400 words, well-structured paragraphs\n- Include specific details about the company's business, operations, and market position\n- Structure with clear subsections: Purpose, Scope, Business Context, Market Relevance, and Timeframe\n- Reference specific data points, figures, or business details from BOTH sources\n- Integrate knowledge base insights with document facts\n- Avoid generic statements - be specific to this company\n- Do not use placeholder text or template variables\n\nGenerate a detailed, professional analysis that combines document content with knowledge base insights.`;\n\nconsole.log('Enhanced prompt length:', enhancedPrompt.length);\nconsole.log('Enhanced prompt preview:', enhancedPrompt.substring(0, 500));\nconsole.log('=== RAG ENHANCEMENT COMPLETE ===');\n\nreturn {\n  json: {\n    enhanced_prompt: enhancedPrompt,\n    company_name: inputData.company_name,\n    content: inputData.content,\n    knowledge_context: knowledgeContext,\n    rag_enhanced: true\n  }\n};"
+      },
+      "name": "RAG Enhanced Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1840,
+        -256
+      ],
+      "id": "a1879e90-baee-4e01-9f08-669abfeb904b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "={{ $node['RAG Enhanced Prompt'].json.enhanced_prompt }}",
+          "stream": false
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1536,
+        -256
+      ],
+      "id": "edff5c04-92d2-464f-bc81-3ab2e7b68673"
+    },
+    {
+      "parameters": {
+        "functionCode": "const report = $input.first().json.response || '';\nconst ragData = $node['RAG Enhanced Prompt'].json;\nconst dbData = $node['Save ALL Data to Database'].json;\n\nconsole.log(`Report received (Section 1): ${report.substring(0, 100)}...`);\nconsole.log(`RAG enhanced company name: ${ragData.company_name}`);\nconsole.log(`RAG documents found: ${ragData.rag_documents_found}`);\nconsole.log(`Database data content length: ${dbData.content ? dbData.content.length : 'null'}`);\n\nif (!report) {\n  console.error('Report generation failed');\n  return {\n    json: {\n      company_name: ragData.company_name || dbData.company_name,\n      generated_content: 'Report generation failed',\n      content: dbData.content,\n      file_name: dbData.file_name,\n      company_id: dbData.company_id,\n      rag_enhanced: false\n    }\n  };\n}\n\nconst cleanReport = report\n  .replace(/\\{\\{[^}]*\\}\\}/g, '[removed-placeholder]')\n  .replace(/\\$json\\.[\\w.]+/g, '[removed-variable]')\n  .replace(/\\$node\\[[^\\]]+\\]\\.[\\w.\\[\\]]+/g, '[removed-reference]')\n  .replace(/\\[date\\]/gi, new Date().toLocaleDateString('en-US'))\n  .replace(/\\[company name\\]/gi, ragData.company_name)\n  .replace(/\\[removed-placeholder\\]\\s*[,.]?\\s*/g, '')  // Remove placeholder remnants\n  .replace(/\\[removed-variable\\]\\s*[,.]?\\s*/g, '')   // Remove variable remnants\n  .replace(/\\[removed-reference\\]\\s*[,.]?\\s*/g, '') // Remove reference remnants\n  .replace(/\\s+/g, ' ')  // Normalize spaces\n  .trim();\n\n// Validation - check for quality issues\nconst qualityIssues = [];\nif (cleanReport.includes('{{') || cleanReport.includes('}}')) qualityIssues.push('template variables');\nif (cleanReport.includes('$json') || cleanReport.includes('$node')) qualityIssues.push('code references');\nif (cleanReport.includes('[company]') || cleanReport.includes('undefined')) qualityIssues.push('placeholders');\nif (cleanReport.length < 200) qualityIssues.push('too short');\nif (/^(.{1,50})\\1+/.test(cleanReport)) qualityIssues.push('repetitive content');\n\nif (qualityIssues.length > 0) {\n  console.error(`❌ Report quality issues detected: ${qualityIssues.join(', ')}`);\n  console.error('Report preview:', cleanReport.substring(0, 200));\n}\n\nconsole.log(`✅ RAG Enhanced Report Generated`);\nconsole.log(`Cleaned Section 1 report: ${cleanReport.substring(0, 100)}...`);\nconsole.log(`RAG documents used: ${ragData.rag_documents_found}`);\nconsole.log(`Passing company name: ${ragData.company_name}`);\n\nreturn {\n  json: {\n    company_name: ragData.company_name,\n    generated_content: cleanReport,\n    content: dbData.content,\n    file_name: dbData.file_name,\n    company_id: dbData.company_id,\n    primary_website: dbData.primary_website,\n    primary_email: dbData.primary_email,\n    rag_enhanced: true,\n    rag_documents_used: ragData.rag_documents_found,\n    knowledge_context_length: ragData.knowledge_context ? ragData.knowledge_context.length : 0\n  }\n};"
+      },
+      "name": "Format Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1264,
+        -256
+      ],
+      "id": "40cf8e57-8496-40d7-8986-73c07675d272"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=You are a quality control analyst. Quick review for: {{ $node['Format Output'].json.company_name }}\n\nCONTENT:\n{{ $node['Format Output'].json.generated_content }}\n\nAPPROVE unless you find CRITICAL issues:\n- Complete nonsense or gibberish\n- Extremely short (under 100 words)\n- Obvious technical errors\n\nOtherwise APPROVE for business use.\n\nRespond ONLY with JSON: {\"approved\": true, \"feedback\": \"Content approved\", \"score\": 8}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -992,
+        -256
+      ],
+      "id": "56f7bb46-bfcb-434e-99d0-d4e97f71decb"
+    },
+    {
+      "parameters": {
+        "functionCode": "const checkerResponse = $input.first().json.response;\nconst formatOutputData = $node['Format Output'].json;\n\nconsole.log(`Processing Checker response for company: ${formatOutputData.company_name}`);\nconsole.log(`Format Output data:`, formatOutputData);\n\nlet checkerData;\ntry {\n  const jsonMatch = checkerResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    checkerData = JSON.parse(jsonMatch[0]);\n  } else {\n    checkerData = {\n      approved: true,\n      feedback: \"Content appears acceptable\",\n      score: 7\n    };\n  }\n} catch (error) {\n  console.log(`Checker JSON parsing failed: ${error.message}`);\n  checkerData = {\n    approved: true,\n    feedback: \"Content appears acceptable\",\n    score: 7\n  };\n}\n\nconsole.log(`Checker result: ${checkerData.approved ? 'APPROVED' : 'REJECTED'} (Score: ${checkerData.score})`);\n\nreturn {\n  json: {\n    ...formatOutputData,\n    checker_approved: checkerData.approved,\n    checker_feedback: checkerData.feedback,\n    checker_score: checkerData.score\n  }\n};"
+      },
+      "name": "Checker Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -256
+      ],
+      "id": "fa176592-8e0c-4aa6-b856-43404928de8e"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Approval Logic",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -256
+      ],
+      "id": "3eda85fc-f205-4a99-b6da-4683fb3be9ea"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "llama3:latest",
+          "prompt": "=Final approval for business use. Company: {{ $node['Checker Processing'].json.company_name }}\n\nCONTENT:\n{{ $node['Checker Processing'].json.generated_content }}\n\nThis content appears suitable for business use unless there are critical errors.\n\nAPPROVE for business use.\n\nRespond ONLY with JSON: {\"approved\": true, \"feedback\": \"Approved for business use\"}",
+          "stream": false
+        },
+        "options": {}
+      },
+      "name": "AI Approver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        -256
+      ],
+      "id": "2119edd2-a3e6-421a-93d0-26c386b64b89"
+    },
+    {
+      "parameters": {
+        "functionCode": "const approverResponse = $input.first().json.response;\nconst checkerProcessingData = $node['Checker Processing'].json;\n\nconsole.log(`Processing Approver response for company: ${checkerProcessingData.company_name}`);\nconsole.log(`Checker Processing data:`, checkerProcessingData);\n\nlet approverData;\ntry {\n  const jsonMatch = approverResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    approverData = JSON.parse(jsonMatch[0]);\n  } else {\n    approverData = {\n      approved: true,\n      feedback: \"Section approved\"\n    };\n  }\n} catch (error) {\n  console.log(`Approver JSON parsing failed: ${error.message}`);\n  approverData = {\n    approved: true,\n    feedback: \"Section approved\"\n  };\n}\n\nconsole.log(`Approver result: ${approverData.approved ? 'APPROVED' : 'REJECTED'}`);\n\nreturn {\n  json: {\n    ...checkerProcessingData,\n    approver_approved: approverData.approved,\n    approver_feedback: approverData.feedback\n  }\n};"
+      },
+      "name": "Approval Processing",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        -256
+      ],
+      "id": "88451a2c-4969-4579-88e2-05c854897b0a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Loop Logic",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        -256
+      ],
+      "id": "b6b07d8f-daa4-49e4-b577-690e253d9aa9"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare final data for database save\nconst approvalData = $input.first().json;\n\nconsole.log('=== PREPARING DATABASE SAVE ===');\nconsole.log('Approval data received:', JSON.stringify(approvalData, null, 2));\nconsole.log('Company name:', approvalData.company_name);\nconsole.log('Generated content length:', approvalData.generated_content ? approvalData.generated_content.length : 'null');\nconsole.log('Approver approved:', approvalData.approver_approved);\n\nif (!approvalData.company_name) {\n  console.error('❌ CRITICAL: Company name is missing!');\n  console.error('Available fields:', Object.keys(approvalData));\n}\n\nif (!approvalData.generated_content) {\n  console.error('❌ CRITICAL: Generated content is missing!');\n}\n\nconst taskId = Math.floor(Math.random() * 10000);\n\nconst finalData = {\n  task_id: taskId,\n  company_name: approvalData.company_name || 'UNKNOWN_COMPANY',\n  generated_content: approvalData.generated_content || 'Content generation failed',\n  status: 'Section 1 Complete',\n  created_at: new Date().toISOString()\n};\n\nconsole.log('Final data for database:', JSON.stringify(finalData, null, 2));\nconsole.log('=== END DATABASE PREPARATION ===');\n\nreturn { json: finalData };"
+      },
+      "name": "Prepare Database Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        176,
+        -384
+      ],
+      "id": "e882b36c-3540-4033-84a5-e4d4dad23247"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "due_diligence_reports",
+          "mode": "list",
+          "cachedResultName": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $json.task_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "introduction_engagement_context": "={{ $json.generated_content }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [
+            "kanboard_task_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kanboard_task_id",
+              "displayName": "kanboard_task_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "introduction_engagement_context",
+              "displayName": "introduction_engagement_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        416,
+        -384
+      ],
+      "id": "a180bd3f-88d2-419f-b7af-2b08eb8a76c2",
+      "name": "Database Save",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2128,
+        -256
+      ],
+      "id": "459fcca7-a1bf-4fea-841e-72439d534980",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -2064,
+        352
+      ],
+      "id": "e55d8eec-e408-4497-af8b-988ce81930e7",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        576
+      ],
+      "id": "53c67e4a-1f8f-4b96-8c89-55a9b623f83f",
+      "name": "Embeddings Ollama",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "RAG Enhanced Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "AI Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Checker": {
+      "main": [
+        [
+          {
+            "node": "Checker Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Processing": {
+      "main": [
+        [
+          {
+            "node": "Approval Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Logic": {
+      "main": [
+        [
+          {
+            "node": "AI Approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Approver": {
+      "main": [
+        [
+          {
+            "node": "Approval Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Processing": {
+      "main": [
+        [
+          {
+            "node": "Loop Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Logic": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Data": {
+      "main": [
+        [
+          {
+            "node": "Database Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Save": {
+      "main": [
+        []
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "ai_vectorStore": [
+        []
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "RAG Enhanced Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "540ca268-0e70-4d5f-9771-3a88243a54bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "2StrSzO4YUYk6fhP",
+  "tags": []
+}

@@ -1,0 +1,329 @@
+{
+  "name": "Company PDF Importer - WORKING VERSION",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "trigger",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-600, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE,\n    company_name VARCHAR(255) NOT NULL,\n    file_name VARCHAR(255) NOT NULL,\n    file_id VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT,\n    websites TEXT,\n    primary_website VARCHAR(500),\n    emails TEXT,\n    primary_email VARCHAR(255),\n    phones TEXT,\n    primary_phone VARCHAR(50),\n    addresses TEXT,\n    primary_address TEXT,\n    file_size BIGINT,\n    content_length INTEGER,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE INDEX IF NOT EXISTS idx_company_data_company_id ON company_data(company_id);\nCREATE INDEX IF NOT EXISTS idx_company_data_company_name ON company_data(company_name);"
+      },
+      "id": "setup-db",
+      "name": "Setup Database Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [-400, 100],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "list-pdfs-http",
+      "name": "List PDFs via HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-200, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      company_name: folderName,\n      folder_id: folderId\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing`);\nreturn results;"
+      },
+      "id": "process-files",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [0, 100]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "download-pdf",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "extract-text",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [400, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract comprehensive company data from PDF text\n// The input should only be from the Extract PDF Text node\nconst extractedText = $input.first().json;\nconst textContent = extractedText.data || 'Could not extract PDF text';\n\n// Get the original PDF info from the Download PDF node\nconst pdfInfo = $node[\"Download PDF File\"].json;\n\n// Debug logging\nconsole.log('PDF Download Info:', JSON.stringify(pdfInfo, null, 2));\nconsole.log('Extracted text length:', textContent.length);\nconsole.log('First 200 chars of text:', textContent.substring(0, 200));\n\n// Ensure we have all required fields with safe defaults\nconst companyName = pdfInfo.company_name || 'Unknown_Company';\nconst fileName = pdfInfo.name || 'Unknown_File';\nconst fileId = pdfInfo.id || 'Unknown_ID';\nconst folderId = pdfInfo.folder_id || 'Unknown_Folder';\nconst fileSize = parseInt(pdfInfo.size) || 0;\n\n// Function to extract website URLs\nfunction extractWebsites(text) {\n  const urlRegex = /(?:https?:\\/\\/)?(?:www\\.)?([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})(?:\\/[^\\s]*)?/g;\n  const matches = text.match(urlRegex) || [];\n  return matches.map(url => {\n    if (!url.startsWith('http')) {\n      return 'https://' + url;\n    }\n    return url;\n  }).filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates\n}\n\n// Function to extract email addresses\nfunction extractEmails(text) {\n  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  return text.match(emailRegex) || [];\n}\n\n// Function to extract phone numbers\nfunction extractPhones(text) {\n  const phoneRegex = /(?:\\+?1[-. ]?)?\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})/g;\n  return text.match(phoneRegex) || [];\n}\n\n// Function to extract potential addresses\nfunction extractAddresses(text) {\n  const addressRegex = /\\d+\\s+[a-zA-Z\\s,]+\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl)\\s*,?\\s*[a-zA-Z\\s,]+\\s+\\d{5}/gi;\n  return text.match(addressRegex) || [];\n}\n\n// Extract all data\nconst websites = extractWebsites(textContent);\nconst emails = extractEmails(textContent);\nconst phones = extractPhones(textContent);\nconst addresses = extractAddresses(textContent);\n\n// Generate a unique company ID with safe string replacement\nconst companyId = `${folderId}_${companyName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;\n\nconst finalData = {\n  company_id: companyId,\n  company_name: companyName,\n  file_name: fileName,\n  file_id: fileId,\n  folder_id: folderId,\n  content: textContent,\n  websites: websites.length > 0 ? websites.join(', ') : null,\n  primary_website: websites.length > 0 ? websites[0] : null,\n  emails: emails.length > 0 ? emails.join(', ') : null,\n  primary_email: emails.length > 0 ? emails[0] : null,\n  phones: phones.length > 0 ? phones.join(', ') : null,\n  primary_phone: phones.length > 0 ? phones[0] : null,\n  addresses: addresses.length > 0 ? addresses.join(', ') : null,\n  primary_address: addresses.length > 0 ? addresses[0] : null,\n  file_size: fileSize,\n  processed_at: new Date().toISOString(),\n  content_length: textContent.length\n};\n\nconsole.log(`\\n=== PROCESSING COMPLETE ===`);\nconsole.log(`Company: ${finalData.company_name}`);\nconsole.log(`File: ${finalData.file_name}`);\nconsole.log(`Text length: ${finalData.content_length} characters`);\nconsole.log(`Websites found: ${websites.length} - ${websites.join(', ')}`);\nconsole.log(`Emails found: ${emails.length} - ${emails.join(', ')}`);\nconsole.log(`Phones found: ${phones.length} - ${phones.join(', ')}`);\nconsole.log(`Addresses found: ${addresses.length}`);\nconsole.log(`==========================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "extract-data",
+      "name": "Extract Company Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "company_data",
+        "columns": {
+          "column": [
+            {
+              "column": "company_id",
+              "value": "={{ $json.company_id }}"
+            },
+            {
+              "column": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "file_name",
+              "value": "={{ $json.file_name }}"
+            },
+            {
+              "column": "file_id",
+              "value": "={{ $json.file_id }}"
+            },
+            {
+              "column": "folder_id",
+              "value": "={{ $json.folder_id }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "column": "websites",
+              "value": "={{ $json.websites }}"
+            },
+            {
+              "column": "primary_website",
+              "value": "={{ $json.primary_website }}"
+            },
+            {
+              "column": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "column": "primary_email",
+              "value": "={{ $json.primary_email }}"
+            },
+            {
+              "column": "phones",
+              "value": "={{ $json.phones }}"
+            },
+            {
+              "column": "primary_phone",
+              "value": "={{ $json.primary_phone }}"
+            },
+            {
+              "column": "addresses",
+              "value": "={{ $json.addresses }}"
+            },
+            {
+              "column": "primary_address",
+              "value": "={{ $json.primary_address }}"
+            },
+            {
+              "column": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "column": "content_length",
+              "value": "={{ $json.content_length }}"
+            },
+            {
+              "column": "processed_at",
+              "value": "={{ $json.processed_at }}"
+            }
+          ]
+        },
+        "options": {
+          "queryReplacement": "company_id = EXCLUDED.company_id"
+        }
+      },
+      "id": "save-to-db",
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 100],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final success message\nconst data = $input.first().json;\n\nconsole.log(`\\n🎉 SUCCESS! Data saved to database:`);\nconsole.log(`Company: ${data.company_name}`);\nconsole.log(`File: ${data.file_name}`);\nconsole.log(`Website: ${data.primary_website || 'Not found'}`);\nconsole.log(`Email: ${data.primary_email || 'Not found'}`);\nconsole.log(`Phone: ${data.primary_phone || 'Not found'}`);\n\nreturn {\n  json: {\n    status: 'success',\n    message: `Successfully processed and saved: ${data.company_name} - ${data.file_name}`,\n    company_name: data.company_name,\n    file_name: data.file_name,\n    primary_website: data.primary_website,\n    primary_email: data.primary_email,\n    primary_phone: data.primary_phone,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "success-message",
+      "name": "Success Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1000, 100]
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Database Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Database Table": {
+      "main": [
+        [
+          {
+            "node": "List PDFs via HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs via HTTP": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Extract Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Company Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

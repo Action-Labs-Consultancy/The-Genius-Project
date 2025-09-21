@@ -80,42 +80,63 @@ def call_ai_service(prompt, context="", max_tokens=200):
 
 @client_ai_bp.route('/api/clients', methods=['POST'])
 def create_enhanced_client():
-    """Create a new client with enhanced workflow support"""
+    """Create a new client with enhanced workflow support - Fixed to match MongoDB schema"""
+    print(f"[CLIENT AI] Starting enhanced client creation")
     try:
+        print(f"[CLIENT AI] Getting request data...")
         data = request.get_json()
+        print(f"[CLIENT AI] Request data: {data}")
         
         # Validate required fields
-        if not data.get('name'):
+        name = data.get('name', '').strip()
+        if not name:
+            print(f"[CLIENT AI] ERROR: Client name is required")
             return jsonify({'error': 'Client name is required'}), 400
         
+        print(f"[CLIENT AI] Getting MongoDB collection...")
         # Create client using direct MongoDB collection
         collection = mongo.get_collection('clients')
         
+        # Create client document matching existing MongoDB schema
         client_data = {
-            'name': data['name'],
-            'project_type': data.get('project_type', 'Marketing'),
-            'contract_type': data.get('contract_type', ''),
-            'contract_specify': data.get('contract_specify', ''),
-            'created_by': data.get('created_by'),
-            'created_at': datetime.utcnow(),
-            'status': 'onboarding',
-            'knowledge_base': [],
-            'documents': []
+            'name': name,
+            'company': data.get('company', ''),     # Matches existing schema
+            'email': data.get('email', ''),         # Matches existing schema
+            'phone': data.get('phone', ''),         # Matches existing schema
+            'status': data.get('status', 'active'), # Matches existing schema
+            'created_at': datetime.utcnow(),        # Matches existing schema
+            'updated_at': datetime.utcnow()         # Matches existing schema
         }
+        print(f"[CLIENT AI] Client data prepared: {client_data}")
         
+        print(f"[CLIENT AI] Inserting into MongoDB...")
         # Insert into MongoDB
         result = collection.insert_one(client_data)
+        print(f"[CLIENT AI] Insert result: {result}")
         
-        # Return client data with ID
-        client_data['id'] = str(result.inserted_id)
-        client_data['created_at'] = client_data['created_at'].isoformat()
+        # Return client data with ID matching the schema
+        response_data = {
+            'id': str(result.inserted_id),
+            'name': client_data['name'],
+            'company': client_data['company'],
+            'email': client_data['email'],
+            'phone': client_data['phone'],
+            'status': client_data['status'],
+            'created_at': client_data['created_at'].isoformat(),
+            'updated_at': client_data['updated_at'].isoformat()
+        }
+        print(f"[CLIENT AI] Final response data: {response_data}")
         
-        logger.info(f"Created new client: {client_data['name']} with ID: {client_data['id']}")
-        return jsonify(client_data), 201
+        logger.info(f"Created new client: {client_data['name']} with ID: {response_data['id']}")
+        print(f"[CLIENT AI] Returning success response...")
+        return jsonify(response_data), 201
         
     except Exception as e:
+        print(f"[CLIENT AI] ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error creating client: {str(e)}")
-        return jsonify({'error': 'Failed to create client'}), 500
+        return jsonify({'error': f'Failed to create client: {str(e)}'}), 500
 
 @client_ai_bp.route('/api/clients', methods=['GET'])
 def get_clients():

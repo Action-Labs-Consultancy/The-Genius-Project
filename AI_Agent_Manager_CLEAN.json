@@ -1,0 +1,297 @@
+{
+  "name": "AI Agent Manager - CLEAN",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const departments = {\n  'Strategy': 1,\n  'Research': 2,\n  'Content': 3\n};\n\nreturn [{\n  json: {\n    kanboard_url: 'http://localhost:8000/jsonrpc.php',\n    agent_username: 'agent_' + Math.floor(Math.random() * 1000),\n    agent_password: Math.random().toString(36).slice(-12),\n    agent_name: 'AI Agent',\n    group_name: 'Strategy Department',\n    group_id: departments['Strategy'] || 1\n  }\n}];"
+      },
+      "id": "generate-data",
+      "name": "Generate Agent Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.kanboard_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getUserByUsername\",\n  \"id\": 1,\n  \"params\": {\n    \"username\": \"{{ $json.agent_username }}\"\n  }\n}"
+      },
+      "id": "get-user",
+      "name": "Get User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.result }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "id": "user-exists",
+      "name": "User Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Generate Agent Data').item.json.kanboard_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createUser\",\n  \"id\": 2,\n  \"params\": {\n    \"username\": \"{{ $('Generate Agent Data').item.json.agent_username }}\",\n    \"password\": \"{{ $('Generate Agent Data').item.json.agent_password }}\",\n    \"name\": \"{{ $('Generate Agent Data').item.json.agent_name }}\",\n    \"role\": \"app-user\"\n  }\n}"
+      },
+      "id": "create-user",
+      "name": "Create User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 450],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "number": [
+            {
+              "name": "user_id",
+              "value": "={{ $node['Create User'].json['result'] || $node['Get User'].json['result']['id'] }}"
+            },
+            {
+              "name": "group_id",
+              "value": "={{ $('Generate Agent Data').item.json.group_id }}"
+            }
+          ],
+          "string": [
+            {
+              "name": "kanboard_url",
+              "value": "={{ $('Generate Agent Data').item.json.kanboard_url }}"
+            },
+            {
+              "name": "agent_username",
+              "value": "={{ $('Generate Agent Data').item.json.agent_username }}"
+            },
+            {
+              "name": "agent_password",
+              "value": "={{ $('Generate Agent Data').item.json.agent_password }}"
+            },
+            {
+              "name": "group_name",
+              "value": "={{ $('Generate Agent Data').item.json.group_name }}"
+            }
+          ]
+        }
+      },
+      "id": "set-user-id",
+      "name": "Set User ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.kanboard_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"addGroupMember\",\n  \"id\": 3,\n  \"params\": {\n    \"group_id\": {{ $json.group_id }},\n    \"user_id\": {{ $json.user_id }}\n  }\n}"
+      },
+      "id": "add-to-group",
+      "name": "Add to Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "kanboard",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "✅ SUCCESS: AI Agent created and added to group"
+            },
+            {
+              "name": "agent_credentials",
+              "value": "Username: {{ $json.agent_username }}, Password: {{ $json.agent_password }}"
+            },
+            {
+              "name": "group_info",
+              "value": "Added to group: {{ $json.group_name }} (ID: {{ $json.group_id }})"
+            },
+            {
+              "name": "user_id",
+              "value": "User ID: {{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "id": "output-results",
+      "name": "Output Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Generate Agent Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Agent Data": {
+      "main": [
+        [
+          {
+            "node": "Get User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User": {
+      "main": [
+        [
+          {
+            "node": "User Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Exists?": {
+      "main": [
+        [
+          {
+            "node": "Set User ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Set User ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set User ID": {
+      "main": [
+        [
+          {
+            "node": "Add to Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Group": {
+      "main": [
+        [
+          {
+            "node": "Output Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "clean-v1"
+}

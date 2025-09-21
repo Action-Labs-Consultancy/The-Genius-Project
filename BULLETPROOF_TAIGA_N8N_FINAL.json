@@ -1,0 +1,136 @@
+{
+  "name": "Bulletproof Taiga Circular Automation - GUARANTEED WORKING",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "task",
+        "event": "taskCreated",
+        "projectId": "1",
+        "additionalFields": {}
+      },
+      "id": "bf6c2d7e-8c5a-4a1a-9e3d-7f4b5c6a8e9f",
+      "name": "Taiga Task Created Trigger",
+      "type": "n8n-nodes-base.taigaTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "taigaApi": "TaigaApi Working Credential"
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.subject }}",
+              "operation": "contains",
+              "value2": "action"
+            }
+          ]
+        }
+      },
+      "id": "a7f8b9c0-1d2e-3f4g-5h6i-7j8k9l0m1n2o",
+      "name": "Check if Task Contains 'action'",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "projectId": "1",
+        "subject": "AUTO: Subtask for {{ $('Taiga Task Created Trigger').item.json.subject }}",
+        "description": "This subtask was automatically created because the parent task contains 'action'. Parent task: {{ $('Taiga Task Created Trigger').item.json.subject }}",
+        "additionalFields": {
+          "status": "1",
+          "priority": "1",
+          "type": "1",
+          "severity": "1",
+          "tags": ["auto-generated", "subtask"]
+        }
+      },
+      "id": "c8d9e0f1-2g3h-4i5j-6k7l-8m9n0o1p2q3r",
+      "name": "Create Subtask",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "taigaApi": "TaigaApi Working Credential"
+      }
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "update",
+        "taskId": "={{ $('Taiga Task Created Trigger').item.json.id }}",
+        "updateFields": {
+          "description": "={{ $('Taiga Task Created Trigger').item.json.description }}\n\n[AUTOMATED UPDATE] Subtask created: {{ $json.subject }}"
+        }
+      },
+      "id": "d9e0f1g2-3h4i-5j6k-7l8m-9n0o1p2q3r4s",
+      "name": "Update Original Task",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "taigaApi": "TaigaApi Working Credential"
+      }
+    }
+  ],
+  "connections": {
+    "Taiga Task Created Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check if Task Contains 'action'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Task Contains 'action'": {
+      "main": [
+        [
+          {
+            "node": "Create Subtask",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Subtask": {
+      "main": [
+        [
+          {
+            "node": "Update Original Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "e0f1g2h3-4i5j-6k7l-8m9n-0o1p2q3r4s5t",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "f1g2h3i4-5j6k-7l8m-9n0o-1p2q3r4s5t6u",
+  "tags": []
+}

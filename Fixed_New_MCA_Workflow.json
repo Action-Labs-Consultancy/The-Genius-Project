@@ -1,0 +1,731 @@
+{
+  "name": "Fixed MCA Workflow with User ID",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        -48
+      ],
+      "id": "d1508315-91a0-4490-8cd8-12649b2d85b4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        -48
+      ],
+      "id": "01634864-718a-4276-88ed-00d3ff304dd2",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// FIND SINGLE DUE DILIGENCE TASK\nconst tasks = $input.first().json.result || [];\nconsole.log(`🔍 Scanning ${tasks.length} Kanboard tasks`);\n\n// Find first valid Due Diligence task\nlet validTask = null;\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // Must match: \"Due Diligence: [Company Name]\" with website URL in description\n  if (title.toLowerCase().includes('due diligence:') && description.includes('http')) {\n    const companyName = title.replace(/due diligence:\\s*/i, '').trim();\n    const websiteMatch = description.match(/https?:\\/\\/[^\\s]+/);\n    const websiteUrl = websiteMatch ? websiteMatch[0] : null;\n    \n    if (companyName && websiteUrl) {\n      validTask = {\n        kanboard_id: task.id,\n        title: title,\n        description: description,\n        company_name: companyName,\n        website_url: websiteUrl,\n        project_id: task.project_id || 1\n      };\n      break; // Take first valid task only\n    }\n  }\n}\n\nif (!validTask) {\n  console.log('ℹ️ No valid Due Diligence tasks found');\n  throw new Error('No Due Diligence tasks found');\n}\n\nconsole.log(`🎯 Selected Task: ${validTask.company_name}`);\n\nreturn {\n  json: {\n    ...validTask,\n    workflow_action: 'VALIDATE_PREREQUISITES'\n  }\n};"
+      },
+      "name": "Find DD Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        -48
+      ],
+      "id": "fc03bbc8-e5ee-4881-b133-e33785c32f64"
+    },
+    {
+      "parameters": {
+        "functionCode": "// VALIDATE PREREQUISITES (SIMPLIFIED)\nconst taskData = $('Find DD Task').first().json;\n\nconsole.log(`📋 Validating prerequisites for: ${taskData.company_name}`);\n\nconst missingItems = [];\n\n// Check title format\nif (!taskData.title.toLowerCase().includes('due diligence:')) {\n  missingItems.push('Title must start with \"Due Diligence: [Company Name]\"');\n}\n\n// Check website URL in description\nif (!taskData.website_url) {\n  missingItems.push('Description must contain the official website URL');\n}\n\n// Skip attachment validation - proceed with any task that has proper title and URL\n\nif (missingItems.length > 0) {\n  console.log(`❌ Missing prerequisites: ${missingItems.length} items`);\n  missingItems.forEach(item => console.log(`   • ${item}`));\n  \n  return {\n    json: {\n      ...taskData,\n      prerequisites_valid: false,\n      missing_items: missingItems,\n      workflow_action: 'POST_MISSING_COMMENT'\n    }\n  };\n}\n\nconsole.log('✅ All prerequisites valid - proceeding with Knowledge Base');\n\nreturn {\n  json: {\n    ...taskData,\n    prerequisites_valid: true,\n    workflow_action: 'BUILD_KNOWLEDGE_BASE'\n  }\n};"
+      },
+      "name": "Validate Prerequisites",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -48
+      ],
+      "id": "f5175f62-ecf0-42e4-93cc-21e9734cf764"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.prerequisites_valid }}"
+            }
+          ]
+        }
+      },
+      "name": "Prerequisites Missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -48
+      ],
+      "id": "5d095354-e58b-429d-b5b0-94b0ba9c270d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "=❌ **PREREQUISITES MISSING**\\n\\n🏢 **Company:** {{ $json.company_name }}\\n\\n**Missing Requirements:**\\n{{ ($json.missing_items || []).map(item => '• ' + item).join('\\n') }}\\n\\n**Required Format:**\\n• **Title:** Due Diligence: [Company Name]\\n• **Description:** Must contain official website URL\\n\\n⏰ **Checked:** {{ $now }}\\n\\n---\\n\\n**Please fix the missing items and the workflow will automatically retry.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Missing Prerequisites",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        -144
+      ],
+      "id": "3a74c58d-fd84-4cd4-8aca-be0697bb0728",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website_url }}",
+        "options": {
+          "redirect": {},
+          "timeout": 30000
+        }
+      },
+      "name": "Fetch Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        64
+      ],
+      "id": "c4e04add-0063-43d4-9fe7-b16a390dfa99"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "text": "={{ $('Validate Prerequisites').first().json.description + ' ' + $('Validate Prerequisites').first().json.company_name }}"
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "name": "Run FinBERT Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        336,
+        64
+      ],
+      "id": "62fb7984-d8e5-4983-b387-bab198ebb53d"
+    },
+    {
+      "parameters": {
+        "functionCode": "// BUILD KNOWLEDGE BASE FROM WEBSITE ONLY\nconst taskData = $('Validate Prerequisites').first().json;\n\n// Get website content\nlet websiteContent = '';\ntry {\n  const websiteResponse = $('Fetch Website').first();\n  if (websiteResponse && websiteResponse.json) {\n    websiteContent = websiteResponse.json.toString();\n  } else if (websiteResponse && websiteResponse.data) {\n    websiteContent = websiteResponse.data.toString();\n  }\n} catch (error) {\n  console.log(`⚠️ Website fetch failed: ${error.message}`);\n}\n\n// Get FinBERT analysis\nlet finbertData = null;\ntry {\n  const finbertResponse = $('Run FinBERT Analysis').first();\n  if (finbertResponse && finbertResponse.json) {\n    finbertData = finbertResponse.json;\n    console.log('✅ FinBERT analysis completed');\n  }\n} catch (error) {\n  console.log(`⚠️ FinBERT analysis failed: ${error.message}`);\n}\n\nconsole.log(`📚 Building Knowledge Base for: ${taskData.company_name}`);\nconsole.log(`🌐 Website content: ${websiteContent ? 'Available' : 'Failed to fetch'}`);\nconsole.log(` FinBERT data: ${finbertData ? 'Available' : 'Not available'}`);\n\n// Create knowledge base chunks\nlet kbChunks = [];\n\n// Website chunks\nif (websiteContent) {\n  // Extract hostname from URL without using URL constructor\n  let websiteHost = taskData.website_url;\n  try {\n    const match = taskData.website_url.match(/https?:\\/\\/([^\\/]+)/);\n    websiteHost = match ? match[1] : taskData.website_url;\n  } catch (error) {\n    console.log('⚠️ Could not extract hostname, using full URL');\n    websiteHost = taskData.website_url.replace(/[^a-zA-Z0-9]/g, '_');\n  }\n  \n  const websiteChunks = chunkText(websiteContent, 800);\n  websiteChunks.forEach((chunk, index) => {\n    kbChunks.push({\n      chunk_id: `kb://${taskData.kanboard_id}/website:${websiteHost}/p1#c${index + 1}`,\n      content: chunk,\n      source_type: 'website',\n      source_id: websiteHost,\n      page: 1,\n      chunk_index: index + 1\n    });\n  });\n}\n\n// FinBERT analysis chunk\nif (finbertData) {\n  kbChunks.push({\n    chunk_id: `kb://${taskData.kanboard_id}/finance:finbert/p1#c1`,\n    content: `Financial Analysis Results: ${JSON.stringify(finbertData)}`,\n    source_type: 'finance',\n    source_id: 'finbert',\n    page: 1,\n    chunk_index: 1\n  });\n}\n\nconsole.log(`📊 Knowledge Base created: ${kbChunks.length} chunks`);\n\n// Helper function to chunk text\nfunction chunkText(text, maxTokens) {\n  const words = text.split(/\\s+/);\n  const chunks = [];\n  let currentChunk = [];\n  \n  for (const word of words) {\n    currentChunk.push(word);\n    if (currentChunk.length >= maxTokens * 0.75) { // Rough token estimation\n      chunks.push(currentChunk.join(' '));\n      currentChunk = [];\n    }\n  }\n  \n  if (currentChunk.length > 0) {\n    chunks.push(currentChunk.join(' '));\n  }\n  \n  return chunks;\n}\n\nreturn {\n  json: {\n    ...taskData,\n    kb_chunks: kbChunks,\n    website_content_available: !!websiteContent,\n    finbert_available: !!finbertData,\n    total_chunks: kbChunks.length,\n    workflow_action: 'START_MCA_LOOP'\n  }\n};"
+      },
+      "name": "Build Knowledge Base",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        528,
+        64
+      ],
+      "id": "a9cdccdf-9017-407c-8ddc-c31956b0227d"
+    },
+    {
+      "parameters": {
+        "functionCode": "// GENERATE MAKER PROMPT FOR SINGLE SECTION\nconst taskData = $input.first().json;\nconst kbChunks = taskData.kb_chunks || [];\n\n// For this simplified version, we'll use \"Business Model & Unit Economics\" as example\nconst sectionName = \"Business Model & Unit Economics\";\n\n// Format KB chunks for prompt\nconst kbChunksText = kbChunks.map(chunk => \n  `[${chunk.chunk_id}]: ${chunk.content.substring(0, 500)}...`\n).join('\\n\\n');\n\nconst makerPrompt = `SYSTEM:\nYou are the MAKER agent for a Due Diligence (DD) report. You write exactly one section per run.\nUse ONLY the provided KB. Do not invent numbers or data. Cite KB inline as [KB:<chunk_id>].\nIf information is missing in KB, explicitly state \"Insufficient evidence in KB\".\n\nUSER:\nCompany: ${taskData.company_name}\nWebsite: ${taskData.website_url}\nSection: ${sectionName}\n\nRelevant KB Chunks:\n${kbChunksText}\n\nWrite the \"${sectionName}\" section in professional Markdown only. \nInclude headings/subheadings and bullets if helpful.\nFocus on:\n- How the company creates value and makes money\n- Revenue streams, pricing, key cost drivers\n- Unit economics (CAC, LTV, GM%, payback) only if present in KB\n\nDeliver:\n- Value proposition summary\n- Table or bullets for unit economics; if missing, mark \"Insufficient evidence in KB\"\n- Cite each factual claim with [KB:chunk_id] tag`;\n\nconsole.log(`📝 Generated Maker prompt for section: ${sectionName}`);\nconsole.log(`📚 Using ${kbChunks.length} KB chunks`);\n\nreturn {\n  json: {\n    ...taskData,\n    section_name: sectionName,\n    maker_prompt: makerPrompt,\n    workflow_action: 'RUN_MAKER'\n  }\n};"
+      },
+      "name": "Generate Maker Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        736,
+        64
+      ],
+      "id": "ad215c56-b875-4b81-b876-4fb5b8a624ff"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.maker_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "max_tokens": 2000
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Run Maker Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        928,
+        64
+      ],
+      "id": "e52a3b60-45cc-46de-9fcf-ecfd399629f2"
+    },
+    {
+      "parameters": {
+        "functionCode": "// STORE MAKER OUTPUT AND GENERATE CHECKER PROMPT\nconst taskData = $('Generate Maker Prompt').first().json;\nconst makerResponse = $input.first().json.response;\n\nconsole.log(`📝 Maker completed section: ${taskData.section_name}`);\nconsole.log(`📊 Maker output length: ${makerResponse.length} characters`);\n\n// Get relevant KB chunks that were cited or should be checked\nconst kbChunks = taskData.kb_chunks || [];\nconst citedChunks = kbChunks.filter(chunk => \n  makerResponse.includes(chunk.chunk_id)\n);\n\nconst kbChunksForChecker = citedChunks.length > 0 ? citedChunks : kbChunks.slice(0, 5); // Use cited or first 5\n\nconst checkerPrompt = `SYSTEM:\nYou are the CHECKER. Validate the Maker's Markdown against the KB. Do not rewrite.\nReject hallucinations, mock data, or unsupported numbers.\n\nUSER:\nMaker Markdown:\n${makerResponse}\n\nCited KB Chunks:\n${kbChunksForChecker.map(chunk => `[${chunk.chunk_id}]: ${chunk.content}`).join('\\n\\n')}\n\nValidation Rules:\n1) All claims must be supported by cited KB chunks\n2) No hallucinations or invented data\n3) No mock/simulated/placeholder numbers\n4) Section completeness for business model analysis\n5) Proper citations format [KB:chunk_id]\n\nRespond ONLY in JSON:\n{\n  \"approved\": true|false,\n  \"quality_score\": <1-10>,\n  \"issues\": [\"specific problems\"],\n  \"instructions_for_maker\": \"fix instructions\"\n}`;\n\nreturn {\n  json: {\n    ...taskData,\n    maker_output: makerResponse,\n    checker_prompt: checkerPrompt,\n    cited_chunks: citedChunks.length,\n    workflow_action: 'RUN_CHECKER'\n  }\n};"
+      },
+      "name": "Store Maker & Generate Checker",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        64
+      ],
+      "id": "5c43332d-8571-4fcf-ae01-dba5483007eb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.checker_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.1,
+            "top_p": 0.6,
+            "max_tokens": 1000
+          }
+        },
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "name": "Run Checker Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        64
+      ],
+      "id": "933928d5-3d71-467d-a04c-d691ae6a28a0"
+    },
+    {
+      "parameters": {
+        "functionCode": "// PROCESS CHECKER DECISION\nconst taskData = $('Store Maker & Generate Checker').first().json;\nconst checkerResponse = $input.first().json.response;\n\nlet checkerDecision;\ntry {\n  checkerDecision = JSON.parse(checkerResponse);\n} catch (error) {\n  console.log('❌ Failed to parse Checker JSON response');\n  checkerDecision = {\n    approved: false,\n    quality_score: 1,\n    issues: ['Invalid JSON response from Checker'],\n    instructions_for_maker: 'Checker returned invalid JSON. Please retry section.'\n  };\n}\n\nconsole.log(`🔍 Checker Decision: ${checkerDecision.approved ? 'APPROVED' : 'REJECTED'}`);\nconsole.log(`📊 Quality Score: ${checkerDecision.quality_score}/10`);\n\nif (!checkerDecision.approved) {\n  console.log(`⚠️ Issues found:`);\n  (checkerDecision.issues || []).forEach((issue, index) => {\n    console.log(`   ${index + 1}. ${issue}`);\n  });\n  \n  return {\n    json: {\n      ...taskData,\n      checker_approved: false,\n      checker_decision: checkerDecision,\n      workflow_action: 'POST_CHECKER_REJECTION'\n    }\n  };\n}\n\n// Checker approved - proceed to Approver\nconst approverPrompt = `SYSTEM:\nYou are the APPROVER. Evaluate Maker output and Checker findings for business relevance.\n\nUSER:\nMaker Markdown:\n${taskData.maker_output}\n\nChecker Findings:\n${JSON.stringify(checkerDecision)}\n\nEvaluation Criteria:\n- Business/strategic relevance for executives\n- Clarity, focus, and usefulness\n- No unresolved red flags from Checker\n- Professional quality for investment decisions\n\nRespond ONLY in JSON:\n{\n  \"approved\": true|false,\n  \"final_feedback\": \"rationale\",\n  \"send_back_instructions\": \"instructions if rejected\"\n}`;\n\nreturn {\n  json: {\n    ...taskData,\n    checker_approved: true,\n    checker_decision: checkerDecision,\n    approver_prompt: approverPrompt,\n    workflow_action: 'RUN_APPROVER'\n  }\n};"
+      },
+      "name": "Process Checker Decision",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        64
+      ],
+      "id": "bbe8f599-1de1-47d4-a2b0-417a80bbc916"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.checker_approved }}"
+            }
+          ]
+        }
+      },
+      "name": "Checker Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        64
+      ],
+      "id": "b436349d-3152-4a8e-b570-c82c40b47800"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "=🔍 **CHECKER REJECTED SECTION**\\n\\n📝 **Section:** {{ $json.section_name }}\\n📊 **Quality Score:** {{ $json.checker_decision.quality_score }}/10\\n\\n**Issues Found:**\\n{{ ($json.checker_decision.issues || []).map(issue => '• ' + issue).join('\\n') }}\\n\\n**Instructions for Maker:**\\n{{ $json.checker_decision.instructions_for_maker }}\\n\\n⏰ **Reviewed:** {{ $now }}\\n\\n---\\n\\n**The section will be revised by the Maker in the next workflow run.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Checker Rejection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2096,
+        -208
+      ],
+      "id": "8010ce90-f647-4fe8-b5ba-c26cd6ed32fb",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral",
+          "prompt": "={{ $json.approver_prompt }}",
+          "stream": false,
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 800
+          }
+        },
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "name": "Run Approver Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1936,
+        160
+      ],
+      "id": "b0c3f185-6139-45a9-9039-179563f4a297"
+    },
+    {
+      "parameters": {
+        "functionCode": "// PROCESS APPROVER DECISION\nconst taskData = $('Process Checker Decision').first().json;\nconst approverResponse = $input.first().json.response;\n\nlet approverDecision;\ntry {\n  approverDecision = JSON.parse(approverResponse);\n} catch (error) {\n  console.log('❌ Failed to parse Approver JSON response');\n  approverDecision = {\n    approved: false,\n    final_feedback: 'Invalid JSON response from Approver',\n    send_back_instructions: 'Approver returned invalid JSON. Please retry section.'\n  };\n}\n\nconsole.log(`✅ Approver Decision: ${approverDecision.approved ? 'APPROVED' : 'REJECTED'}`);\nconsole.log(`💼 Feedback: ${approverDecision.final_feedback}`);\n\nif (!approverDecision.approved) {\n  console.log(`⚠️ Approver rejection: ${approverDecision.send_back_instructions}`);\n  \n  return {\n    json: {\n      ...taskData,\n      approver_approved: false,\n      approver_decision: approverDecision,\n      workflow_action: 'POST_APPROVER_REJECTION'\n    }\n  };\n}\n\n// Both Checker and Approver approved - proceed to finalization\nconsole.log('🎉 Section fully approved by MCA workflow!');\n\nreturn {\n  json: {\n    ...taskData,\n    approver_approved: true,\n    approver_decision: approverDecision,\n    checker_decision: taskData.checker_decision,\n    final_markdown: taskData.maker_output,\n    workflow_action: 'GENERATE_PDF'\n  }\n};"
+      },
+      "name": "Process Approver Decision",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        160
+      ],
+      "id": "ce87cc5f-e470-4931-af18-b44dbe4cac16"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approver_approved }}"
+            }
+          ]
+        }
+      },
+      "name": "Approver Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        160
+      ],
+      "id": "422bd4c9-570e-4b3f-bc53-4cd12f83482c"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "=💼 **APPROVER REJECTED SECTION**\\n\\n📝 **Section:** {{ $json.section_name }}\\n🔍 **Checker Score:** {{ $json.checker_decision.quality_score }}/10\\n\\n**Approver Feedback:**\\n{{ $json.approver_decision.final_feedback }}\\n\\n**Instructions for Maker:**\\n{{ $json.approver_decision.send_back_instructions }}\\n\\n⏰ **Reviewed:** {{ $now }}\\n\\n---\\n\\n**The section will be revised by the Maker in the next workflow run.**"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Approver Rejection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2384,
+        -112
+      ],
+      "id": "4167a57d-314a-4f09-88b7-2c4832316525",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// PREPARE FINAL COMMENT WITH SECTION CONTENT\nconst taskData = $input.first().json;\n\nconsole.log(`📄 Preparing final comment for: ${taskData.company_name}`);\nconsole.log(`📝 Section: ${taskData.section_name}`);\n\n// Create complete comment with header and content\nlet finalComment = `🎉 **DUE DILIGENCE SECTION COMPLETED**\\n\\n`;\nfinalComment += `📄 **Company:** ${taskData.company_name}\\n`;\nfinalComment += `📝 **Section:** ${taskData.section_name}\\n`;\nfinalComment += `**Generated:** ${(new Date()).toISOString()}\\n`;\nfinalComment += `**Quality Score:** ${taskData.checker_decision.quality_score}/10\\n`;\nfinalComment += `**Website:** ${taskData.website_url}\\n\\n`;\nfinalComment += `---\\n\\n`;\n\n// Add the approved section content\nfinalComment += taskData.final_markdown;\n\n// Add metadata footer\nfinalComment += `\\n\\n---\\n\\n`;\nfinalComment += `## Quality Assurance\\n\\n`;\nfinalComment += `**Checker Validation:** ✅ Approved (Score: ${taskData.checker_decision.quality_score}/10)\\n`;\nfinalComment += `**Approver Review:** ✅ Approved\\n`;\nfinalComment += `**Knowledge Base Sources:** ${taskData.total_chunks} chunks\\n`;\nfinalComment += `**FinBERT Analysis:** ${taskData.finbert_available ? '✅ Available' : '❌ Not Available'}\\n`;\nfinalComment += `**Website Data:** ${taskData.website_content_available ? '✅ Available' : '❌ Not Available'}\\n`;\nfinalComment += `\\n⏰ **Completed:** ${(new Date()).toISOString()}`;\n\nreturn {\n  json: {\n    ...taskData,\n    final_comment: finalComment,\n    workflow_action: 'POST_FINAL_COMMENT'\n  }\n};"
+      },
+      "name": "Prepare Final Comment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2528,
+        256
+      ],
+      "id": "9cbd0040-450e-41cb-bc43-b6fc0d9f80f8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "createComment",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.kanboard_id }}",
+            "user_id": 1,
+            "content": "={{ $json.final_comment }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Post Final Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2736,
+        256
+      ],
+      "id": "f7c7a0ba-2edc-46cd-a356-adfc3a4421f7",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find DD Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find DD Task": {
+      "main": [
+        [
+          {
+            "node": "Validate Prerequisites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Prerequisites": {
+      "main": [
+        [
+          {
+            "node": "Prerequisites Missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prerequisites Missing?": {
+      "main": [
+        [
+          {
+            "node": "Post Missing Prerequisites",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Website": {
+      "main": [
+        [
+          {
+            "node": "Run FinBERT Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run FinBERT Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Maker Prompt": {
+      "main": [
+        [
+          {
+            "node": "Run Maker Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Maker Agent": {
+      "main": [
+        [
+          {
+            "node": "Store Maker & Generate Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Maker & Generate Checker": {
+      "main": [
+        [
+          {
+            "node": "Run Checker Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Checker Agent": {
+      "main": [
+        [
+          {
+            "node": "Process Checker Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Checker Decision": {
+      "main": [
+        [
+          {
+            "node": "Checker Rejected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker Rejected?": {
+      "main": [
+        [
+          {
+            "node": "Post Checker Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Approver Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Approver Agent": {
+      "main": [
+        [
+          {
+            "node": "Process Approver Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Approver Decision": {
+      "main": [
+        [
+          {
+            "node": "Approver Rejected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver Rejected?": {
+      "main": [
+        [
+          {
+            "node": "Post Approver Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Final Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Comment": {
+      "main": [
+        [
+          {
+            "node": "Post Final Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Approver Rejection": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Checker Rejection": {
+      "main": [
+        [
+          {
+            "node": "Generate Maker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "af1cda64-a9ee-4205-9ee6-1fdd1709f2eb",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "VT0lOJXcQRnqomgN",
+  "tags": []
+}

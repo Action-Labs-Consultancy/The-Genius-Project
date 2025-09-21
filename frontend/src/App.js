@@ -20,6 +20,7 @@ import LlamaChat from './LlamaChat';
 import LlamaRAGChat from './LlamaRAGChat_fixed';
 import WorkflowBuilder from './WorkflowBuilder';
 import WorkflowCanvasAdvanced from './WorkflowCanvasAdvanced';
+import N8nCanvasComplete from './N8nCanvasComplete';
 import AIBrainsPage from './components/AIBrainsPage';
 import BrainsPage from './pages/BrainsPage';
 import MCABrainsPage from './pages/MCABrainsPage';
@@ -43,6 +44,17 @@ import AdminIceBox from './pages/AdminIceBox';
 import ContentCalendarPage from './pages/ContentCalendarPage';
 import AdsPage from './pages/AdsPage';
 import AdSponsorshipPage from './pages/AdSponsorshipPage';
+import ReforgeGrowthDashboard from './pages/ReforgeGrowthDashboard';
+import DueDiligencePage from './pages/DueDiligencePageThemed';
+import FolderExplorer from './components/FolderExplorer';
+import RequestsPage from './RequestsPage';
+import MyTasks from './pages/MyTasks';
+import ClientRequestsManager from './components/ClientRequestsManager';
+import NotificationSystem from './components/NotificationSystem';
+
+// Permission system imports
+import ProtectedRoute from './components/ProtectedRoute';
+import { useUserPermissions, PERMISSION_LEVELS } from './utils/PermissionUtils';
 
 // Wrapper component for client detail page to handle routing
 function ClientDetailWrapper({ user }) {
@@ -261,6 +273,9 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Load user permissions
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user?.id);
+
   // Load user from session on app start
   useEffect(() => {
     console.log('🔥 App: Checking user authentication');
@@ -367,34 +382,116 @@ export default function App() {
         <Routes>
           <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/tiktok-auth-callback" element={<TikTokAuthCallback />} />
-          <Route path="/" element={<Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />} />
-          <Route path="/dashboard" element={<Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />} />
-          <Route path="/data-dashboard" element={<DataDashboard user={user} />} />
-          <Route path="/clients" element={<ClientsPage user={user} />} />
-          <Route path="/clients/:clientId" element={<ClientDetailWrapper user={user} />} />
-          <Route path="/clients/:clientId/insights" element={<ClientInsightsWrapper user={user} />} />
+          <Route path="/" element={<Dashboard user={user} permissions={permissions} onNavigate={handleNavigate} onLogout={handleLogout} />} />
+          <Route path="/dashboard" element={<Dashboard user={user} permissions={permissions} onNavigate={handleNavigate} onLogout={handleLogout} />} />
+          <Route path="/data-dashboard" element={
+            <ProtectedRoute permissions={permissions} route="/data-dashboard" user={user}>
+              <DataDashboard user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/clients" element={
+            <ProtectedRoute permissions={permissions} route="/clients" user={user}>
+              <ClientsPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/clients/:clientId" element={
+            <ProtectedRoute permissions={permissions} route="/clients" user={user}>
+              <ClientDetailWrapper user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/clients/:clientId/insights" element={
+            <ProtectedRoute permissions={permissions} route="/clients" user={user}>
+              <ClientInsightsWrapper user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/requests" element={
+            <ProtectedRoute permissions={permissions} route="/requests" user={user}>
+              <RequestsPage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tasks" element={
+            <ProtectedRoute permissions={permissions} route="/my-tasks" user={user}>
+              <MyTasks user={user} onNavigate={handleNavigate} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} />
+            </ProtectedRoute>
+          } />
+          {(user?.department?.toLowerCase() === 'hr' || user?.is_admin || user?.role === 'hr') && (
+            <Route path="/hr/client-requests" element={
+              <ProtectedRoute permissions={permissions} route="/hr/client-requests" user={user}>
+                <ClientRequestsManager user={user} />
+              </ProtectedRoute>
+            } />
+          )}
           <Route path="/spend-tracker" element={<SpendTracker />} />
-          <Route path="/calendar" element={<CalendarWrapper user={user} />} />
-          <Route path="/chat" element={<ChatPage user={user} />} />
+          <Route path="/calendar" element={
+            <ProtectedRoute permissions={permissions} route="/calendar" user={user}>
+              <CalendarWrapper user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/chat" element={
+            <ProtectedRoute permissions={permissions} route="/chat" user={user}>
+              <ChatPage user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/weekly-standup" element={<WeeklyStandUpPlanner user={user} />} />
           <Route path="/standup" element={<StandUpPage user={user} />} />
-          <Route path="/insights" element={<SocialMediaInsightsDashboard user={user} />} />
+          <Route path="/insights" element={
+            <ProtectedRoute permissions={permissions} route="/insights" user={user}>
+              <SocialMediaInsightsDashboard user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/llama-chat" element={<LlamaChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
           <Route path="/llama-rag" element={<LlamaRAGChat userId={user?.id} user={user} onLogout={handleLogout} onLogoClick={() => navigate('/dashboard')} onNavigate={handleNavigate} />} />
-          <Route path="/ai-content" element={<AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />} />
+          <Route path="/ai-content" element={
+            <ProtectedRoute permissions={permissions} route="/ai-content" user={user}>
+              <AIContentGenerator user={user} onBack={() => navigate('/dashboard')} />
+            </ProtectedRoute>
+          } />
           <Route path="/content-calendar" element={<ContentCalendarPage user={user} />} />
           <Route path="/api-verification" element={<ApiVerification />} />
-          <Route path="/leave-board" element={<LeaveBoard user={user} />} />
-          <Route path="/leaveboard" element={<LeaveBoard user={user} />} />
-          <Route path="/equipment" element={<EquipmentManagement user={user} />} />
-          <Route path="/equipment-request" element={<EquipmentRequest user={user} onNavigate={handleNavigate} />} />
+          <Route path="/leave-board" element={
+            <ProtectedRoute permissions={permissions} route="/leave-board" user={user}>
+              <LeaveBoard user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/leaveboard" element={
+            <ProtectedRoute permissions={permissions} route="/leave-board" user={user}>
+              <LeaveBoard user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/equipment" element={
+            <ProtectedRoute permissions={permissions} route="/equipment" user={user}>
+              <EquipmentManagement user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/equipment-request" element={
+            <ProtectedRoute permissions={permissions} route="/equipment" user={user}>
+              <EquipmentRequest user={user} onNavigate={handleNavigate} />
+            </ProtectedRoute>
+          } />
           <Route path="/enhanced-clients" element={<EnhancedClientTab user={user} onNavigate={handleNavigate} />} />
-          <Route path="/projects" element={<ProjectsDashboard user={user} onNavigate={handleNavigate} />} />
-          <Route path="/workflow" element={<WorkflowBuilder user={user} />} />
+          <Route path="/projects" element={
+            <ProtectedRoute permissions={permissions} route="/projects" user={user}>
+              <ProjectsDashboard user={user} onNavigate={handleNavigate} />
+            </ProtectedRoute>
+          } />
+          <Route path="/workflow" element={
+            <ProtectedRoute permissions={permissions} route="/workflow" user={user}>
+              <WorkflowBuilder user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/workflow-canvas" element={<WorkflowCanvasAdvanced user={user} />} />
-          <Route path="/brains" element={<BrainsPage user={user} />} />
+          <Route path="/n8n-canvas" element={<N8nCanvasComplete user={user} />} />
+          <Route path="/brains" element={
+            <ProtectedRoute permissions={permissions} route="/brains" user={user}>
+              <BrainsPage user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/mca-brains" element={<MCABrainsPage user={user} />} />
-          <Route path="/marketing-lab" element={<MarketingLabPage user={user} />} />
+          <Route path="/marketing-lab" element={
+            <ProtectedRoute permissions={permissions} route="/marketing-lab" user={user}>
+              <MarketingLabPage user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/enhanced-brain" element={<AIBrainsPage user={user} />} />
           <Route path="/logs" element={<LogsPage user={user} />} />
           <Route path="/settings" element={<Settings onNavigate={handleNavigate} onUserUpdate={setUser} user={user} />} />
@@ -402,11 +499,26 @@ export default function App() {
             <Route path="/activity-logs" element={<LoggingPage user={user} />} />
           )}
           <Route path="/logs" element={<LogsPage user={user} />} />
-          <Route path="/marketing-lab" element={<MarketingLabPage user={user} />} />
+          <Route path="/marketing-lab" element={
+            <ProtectedRoute permissions={permissions} route="/marketing-lab" user={user}>
+              <MarketingLabPage user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/submit-request" element={<UserRequestPage user={user} />} />
           <Route path="/ice-box" element={<AdminIceBox user={user} />} />
-          <Route path="/ads" element={<AdsPage user={user} />} />
+          <Route path="/ads" element={
+            <ProtectedRoute permissions={permissions} route="/ads" user={user}>
+              <AdsPage user={user} />
+            </ProtectedRoute>
+          } />
           <Route path="/ad-sponsorship-timeline" element={<AdSponsorshipPage user={user} />} />
+          <Route path="/components" element={<ReforgeGrowthDashboard user={user} />} />
+          <Route path="/due-diligence" element={
+            <ProtectedRoute permissions={permissions} route="/due-diligence" user={user}>
+              <DueDiligencePage user={user} />
+            </ProtectedRoute>
+          } />
+          <Route path="/folders" element={<FolderExplorer user={user} />} />
           {(user?.is_admin || user?.role === 'admin') && (
             <Route path="/admin/requests" element={<AdminIceBox user={user} />} />
           )}

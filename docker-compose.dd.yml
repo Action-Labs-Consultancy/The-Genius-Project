@@ -1,0 +1,141 @@
+version: '3.8'
+
+services:
+  # n8n automation platform
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile.n8n
+      args:
+        N8N_VERSION: 1.19.4
+    container_name: n8n-dd-automation
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme123
+      - DB_TYPE=sqlite
+      - DB_SQLITE_DATABASE=/data/database.sqlite
+      - N8N_AI_ENABLED=true
+      - N8N_COMMUNITY_PACKAGES_ENABLED=true
+      - N8N_LOG_LEVEL=info
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+    volumes:
+      - n8n_data:/data
+      - ./workflows:/data/workflows
+      - ./custom-nodes:/root/.n8n/custom
+    depends_on:
+      - kanboard
+      - ollama
+    networks:
+      - dd-network
+
+  # Kanboard for task management
+  kanboard:
+    image: kanboard/kanboard:latest
+    container_name: kanboard-dd
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      - DATABASE_URL=sqlite:///data/db.sqlite
+      - DEBUG=false
+    volumes:
+      - kanboard_data:/var/www/app/data
+      - kanboard_plugins:/var/www/app/plugins
+    networks:
+      - dd-network
+
+  # Ollama for local AI models
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-dd
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - dd-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # PostgreSQL for advanced data storage (optional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-dd
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=due_diligence
+      - POSTGRES_USER=dduser
+      - POSTGRES_PASSWORD=changeme123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - dd-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: redis-dd
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dd-network
+
+  # File storage service for PDF processing
+  minio:
+    image: minio/minio:latest
+    container_name: minio-dd
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=changeme123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - dd-network
+
+volumes:
+  n8n_data:
+    driver: local
+  kanboard_data:
+    driver: local
+  kanboard_plugins:
+    driver: local
+  ollama_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  dd-network:
+    driver: bridge

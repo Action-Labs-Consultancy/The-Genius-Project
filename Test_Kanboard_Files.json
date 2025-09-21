@@ -1,0 +1,137 @@
+{
+  "name": "Test Kanboard Files",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get All Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "id": "get-all-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check each task for files\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} tasks total`);\n\nconst tasksWithDetails = tasks.map(task => ({\n  task_id: task.id,\n  title: task.title,\n  description: task.description\n}));\n\nif (tasksWithDetails.length === 0) {\n  console.log('No tasks found!');\n  return [{ json: { message: 'No tasks found in Kanboard' } }];\n}\n\nconsole.log('Tasks found:');\ntasksWithDetails.forEach(task => {\n  console.log(`- Task ${task.task_id}: ${task.title}`);\n});\n\n// Return all tasks for file checking\nreturn tasksWithDetails.map(task => ({ json: task }));"
+      },
+      "name": "Process Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "id": "process-tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getTaskFiles",
+          "id": 1,
+          "params": {
+            "task_id": "={{ $json.task_id }}"
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Files for Each Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "id": "get-task-files",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze files for each task\nconst taskData = $input.first().json;\nconst filesData = $input.last().json;\n\nconst files = filesData.result || [];\n\nconsole.log(`\\n=== TASK ${taskData.task_id}: ${taskData.title} ===`);\nconsole.log(`Files found: ${files.length}`);\n\nif (files.length === 0) {\n  console.log('No files attached to this task');\n  return {\n    json: {\n      task_id: taskData.task_id,\n      task_title: taskData.title,\n      files_count: 0,\n      files: [],\n      message: 'No files attached'\n    }\n  };\n}\n\n// Analyze each file\nconst fileDetails = files.map(file => {\n  console.log(`File: ${file.name}`);\n  console.log(`- ID: ${file.id}`);\n  console.log(`- Size: ${file.size} bytes`);\n  console.log(`- MIME: ${file.mimetype || 'unknown'}`);\n  console.log(`- Token: ${file.token}`);\n  console.log(`- Date: ${file.date}`);\n  \n  return {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    mimetype: file.mimetype,\n    token: file.token,\n    download_url: `/index.php?controller=FileController&action=download&file_id=${file.id}&token=${file.token}`,\n    is_pdf: file.name && file.name.toLowerCase().endsWith('.pdf')\n  };\n});\n\nconst pdfFiles = fileDetails.filter(f => f.is_pdf);\nconsole.log(`PDF files: ${pdfFiles.length}`);\n\nreturn {\n  json: {\n    task_id: taskData.task_id,\n    task_title: taskData.title,\n    files_count: files.length,\n    pdf_count: pdfFiles.length,\n    files: fileDetails,\n    pdf_files: pdfFiles\n  }\n};"
+      },
+      "name": "Analyze Files",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "id": "analyze-files"
+    }
+  ],
+  "connections": {
+    "Get All Tasks": {
+      "main": [
+        [
+          {
+            "node": "Process Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Files for Each Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Files for Each Task": {
+      "main": [
+        [
+          {
+            "node": "Analyze Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

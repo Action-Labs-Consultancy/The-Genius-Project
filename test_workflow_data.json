@@ -1,0 +1,10 @@
+{
+  "input_data": {
+    "company_id": "test_123",
+    "company_name": "Test Company",
+    "section_number": 1,
+    "section_title": "Introduction & Engagement Context",
+    "section_description": "Test section description"
+  },
+  "test_prompt": "You are a test. Generate a short introduction for Test Company. Keep it under 100 words."
+}

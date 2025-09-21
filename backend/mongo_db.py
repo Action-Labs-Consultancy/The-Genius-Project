@@ -59,7 +59,7 @@ class MongoUser:
     """MongoDB User model"""
     
     @staticmethod
-    def create_user(name, email, password, role='user', is_admin=False):
+    def create_user(name, email, password, role='user', is_admin=False, **additional_fields):
         """Create a new user"""
         collection = mongo.get_collection('users')
         # Check if user exists
@@ -73,11 +73,19 @@ class MongoUser:
             'password_hash': password_hash,  # store as bytes
             'role': role,
             'user_type': role,
-            'department': 'Administration' if is_admin else 'General',
+            'department': additional_fields.get('department', 'Administration' if is_admin else 'General'),
+            'marketing_role': additional_fields.get('marketing_role', ''),
             'is_admin': is_admin,
             'client_id': None,
             'created_at': datetime.utcnow(),
-            'updated_at': datetime.utcnow()
+            'updated_at': datetime.utcnow(),
+            # New employee fields
+            'responsibilities': additional_fields.get('responsibilities', ''),
+            'skills': additional_fields.get('skills', ''),
+            'hours': additional_fields.get('hours', ''),
+            'office_location': additional_fields.get('office_location', ''),
+            'is_ai_user': additional_fields.get('is_ai_user', False),
+            'start_date': additional_fields.get('start_date')
         }
         result = collection.insert_one(user_doc)
         user_doc['_id'] = result.inserted_id
@@ -86,8 +94,15 @@ class MongoUser:
     @staticmethod
     def find_by_email(email):
         """Find user by email"""
+        print(f"[DEBUG] Looking for user with email: {email}")
         collection = mongo.get_collection('users')
-        return collection.find_one({'email': email})
+        user = collection.find_one({'email': email})
+        if user:
+            print(f"[DEBUG] Found user: {user.get('name', 'NO_NAME')} with email {email}")
+            print(f"[DEBUG] User has password_hash: {bool(user.get('password_hash'))}")
+        else:
+            print(f"[DEBUG] No user found with email: {email}")
+        return user
     
     @staticmethod
     def find_all():
@@ -98,12 +113,30 @@ class MongoUser:
     @staticmethod
     def verify_password(user_doc, password):
         """Verify user password"""
-        if not user_doc or not user_doc.get('password_hash'):
+        email = user_doc.get('email', 'UNKNOWN') if user_doc else 'NO_USER'
+        print(f"[DEBUG] Password verification for: {email}")
+        
+        if not user_doc:
+            print(f"[DEBUG] No user document provided")
             return False
+            
+        if not user_doc.get('password_hash'):
+            print(f"[DEBUG] User {email} has no password_hash field")
+            return False
+            
         hash_val = user_doc['password_hash']
+        print(f"[DEBUG] User {email} hash type: {type(hash_val)}, length: {len(str(hash_val))}")
+        
         if isinstance(hash_val, str):
             hash_val = hash_val.encode('utf-8')
-        return bcrypt.checkpw(password.encode('utf-8'), hash_val)
+            
+        try:
+            result = bcrypt.checkpw(password.encode('utf-8'), hash_val)
+            print(f"[DEBUG] Password check result for {email}: {result}")
+            return result
+        except Exception as e:
+            print(f"[ERROR] Password verification failed for {email}: {str(e)}")
+            return False
 
     @staticmethod
     def ensure_sample_users():
@@ -113,7 +146,7 @@ class MongoUser:
             # Always delete and recreate to ensure login works
             collection.delete_many({'email': {'$in': ['admin@example.com', 'testuser@example.com']}})
             print("[MongoDB] Creating sample users...")
-            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True)
+            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True, department='Marketing', marketing_role='Head of Marketing')
             MongoUser.create_user('Test User', 'testuser@example.com', 'testpass', role='user', is_admin=False)
             print("[MongoDB] Sample users created: admin@example.com / admin123, testuser@example.com / testpass")
         except Exception as e:
@@ -174,7 +207,7 @@ class MongoClientModel:
             # Always delete and recreate to ensure login works
             collection.delete_many({'email': {'$in': ['admin@example.com', 'testuser@example.com']}})
             print("[MongoDB] Creating sample users...")
-            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True)
+            MongoUser.create_user('Admin', 'admin@example.com', 'admin123', role='admin', is_admin=True, department='Marketing', marketing_role='Head of Marketing')
             MongoUser.create_user('Test User', 'testuser@example.com', 'testpass', role='user', is_admin=False)
             print("[MongoDB] Sample users created: admin@example.com / admin123, testuser@example.com / testpass")
         except Exception as e:
@@ -738,3 +771,393 @@ class MongoWorkflowExecution:
             }
         ]
         return list(collection.aggregate(pipeline))
+
+
+class TaskManager:
+    """Task management functions"""
+    
+    @staticmethod
+    def create_task(task_data):
+        """Create a new task"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Add metadata
+            task_data.update({
+                'created_at': datetime.utcnow(),
+                'updated_at': datetime.utcnow(),
+                'comments': [],
+                'attachments': [],
+                'subtasks': task_data.get('subtasks', []),
+                'status': task_data.get('status', 'pending'),
+                'progress': task_data.get('progress', 0)
+            })
+            
+            result = collection.insert_one(task_data)
+            task_data['_id'] = str(result.inserted_id)
+            task_data['id'] = str(result.inserted_id)
+            
+            print(f"[TaskManager] Created task: {task_data.get('title')}")
+            return task_data
+            
+        except Exception as e:
+            print(f"[TaskManager] Error creating task: {e}")
+            return None
+    
+    @staticmethod
+    def get_user_tasks(user_id, filters=None):
+        """Get all tasks assigned to a user"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Build query
+            query = {'assigned_to': user_id}
+            
+            # Apply filters if provided
+            if filters:
+                if filters.get('status'):
+                    query['status'] = filters['status']
+                if filters.get('priority'):
+                    query['priority'] = filters['priority']
+                if filters.get('category'):
+                    query['category'] = filters['category']
+                if filters.get('due_date_filter'):
+                    # Handle date filters
+                    pass
+            
+            tasks = list(collection.find(query).sort('created_at', -1))
+            
+            # Convert ObjectId to string
+            for task in tasks:
+                task['_id'] = str(task['_id'])
+                task['id'] = str(task['_id'])
+                
+                # Format dates
+                if 'created_at' in task:
+                    task['created_at'] = task['created_at'].isoformat() if task['created_at'] else None
+                if 'updated_at' in task:
+                    task['updated_at'] = task['updated_at'].isoformat() if task['updated_at'] else None
+                if 'due_date' in task:
+                    if isinstance(task['due_date'], str):
+                        task['due_date'] = task['due_date']
+                    else:
+                        task['due_date'] = task['due_date'].isoformat() if task['due_date'] else None
+            
+            print(f"[TaskManager] Retrieved {len(tasks)} tasks for user {user_id}")
+            return tasks
+            
+        except Exception as e:
+            print(f"[TaskManager] Error getting user tasks: {e}")
+            return []
+    
+    @staticmethod
+    def get_task_by_id(task_id):
+        """Get a specific task by ID"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Handle both ObjectId and string IDs
+            if isinstance(task_id, str) and ObjectId.is_valid(task_id):
+                query = {'_id': ObjectId(task_id)}
+            else:
+                query = {'_id': task_id}
+            
+            task = collection.find_one(query)
+            
+            if task:
+                task['_id'] = str(task['_id'])
+                task['id'] = str(task['_id'])
+                
+                # Format dates
+                if 'created_at' in task:
+                    task['created_at'] = task['created_at'].isoformat() if task['created_at'] else None
+                if 'updated_at' in task:
+                    task['updated_at'] = task['updated_at'].isoformat() if task['updated_at'] else None
+                if 'due_date' in task:
+                    if isinstance(task['due_date'], str):
+                        task['due_date'] = task['due_date']
+                    else:
+                        task['due_date'] = task['due_date'].isoformat() if task['due_date'] else None
+            
+            return task
+            
+        except Exception as e:
+            print(f"[TaskManager] Error getting task {task_id}: {e}")
+            return None
+    
+    @staticmethod
+    def update_task(task_id, updates):
+        """Update a task"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Add updated timestamp
+            updates['updated_at'] = datetime.utcnow()
+            
+            # Handle both ObjectId and string IDs
+            if isinstance(task_id, str) and ObjectId.is_valid(task_id):
+                query = {'_id': ObjectId(task_id)}
+            else:
+                query = {'_id': task_id}
+            
+            result = collection.update_one(query, {'$set': updates})
+            
+            if result.modified_count > 0:
+                print(f"[TaskManager] Updated task {task_id}")
+                return TaskManager.get_task_by_id(task_id)
+            else:
+                print(f"[TaskManager] No task found with ID {task_id}")
+                return None
+                
+        except Exception as e:
+            print(f"[TaskManager] Error updating task {task_id}: {e}")
+            return None
+    
+    @staticmethod
+    def delete_task(task_id):
+        """Delete a task"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Handle both ObjectId and string IDs
+            if isinstance(task_id, str) and ObjectId.is_valid(task_id):
+                query = {'_id': ObjectId(task_id)}
+            else:
+                query = {'_id': task_id}
+            
+            result = collection.delete_one(query)
+            
+            if result.deleted_count > 0:
+                print(f"[TaskManager] Deleted task {task_id}")
+                return True
+            else:
+                print(f"[TaskManager] No task found with ID {task_id}")
+                return False
+                
+        except Exception as e:
+            print(f"[TaskManager] Error deleting task {task_id}: {e}")
+            return False
+    
+    @staticmethod
+    def add_comment(task_id, comment_data):
+        """Add a comment to a task"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Add metadata to comment
+            comment_data.update({
+                'id': str(ObjectId()),
+                'timestamp': datetime.utcnow().isoformat(),
+                'created_at': datetime.utcnow()
+            })
+            
+            # Handle both ObjectId and string IDs
+            if isinstance(task_id, str) and ObjectId.is_valid(task_id):
+                query = {'_id': ObjectId(task_id)}
+            else:
+                query = {'_id': task_id}
+            
+            result = collection.update_one(
+                query,
+                {
+                    '$push': {'comments': comment_data},
+                    '$set': {'updated_at': datetime.utcnow()}
+                }
+            )
+            
+            if result.modified_count > 0:
+                print(f"[TaskManager] Added comment to task {task_id}")
+                return TaskManager.get_task_by_id(task_id)
+            else:
+                print(f"[TaskManager] No task found with ID {task_id}")
+                return None
+                
+        except Exception as e:
+            print(f"[TaskManager] Error adding comment to task {task_id}: {e}")
+            return None
+    
+    @staticmethod
+    def update_subtask(task_id, subtask_id, completed):
+        """Update a subtask completion status and recalculate task progress"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Handle both ObjectId and string IDs
+            if isinstance(task_id, str) and ObjectId.is_valid(task_id):
+                query = {'_id': ObjectId(task_id)}
+            else:
+                query = {'_id': task_id}
+            
+            # First, update the subtask
+            result = collection.update_one(
+                query,
+                {
+                    '$set': {
+                        'subtasks.$[elem].completed': completed,
+                        'updated_at': datetime.utcnow()
+                    }
+                },
+                array_filters=[{'elem.id': subtask_id}]
+            )
+            
+            if result.modified_count > 0:
+                print(f"[TaskManager] Updated subtask {subtask_id} in task {task_id}")
+                
+                # Get the updated task to recalculate progress
+                updated_task = collection.find_one(query)
+                if updated_task and 'subtasks' in updated_task:
+                    subtasks = updated_task['subtasks']
+                    if len(subtasks) > 0:
+                        completed_count = sum(1 for st in subtasks if st.get('completed', False))
+                        progress = round((completed_count / len(subtasks)) * 100)
+                        
+                        # Determine new status
+                        new_status = updated_task.get('status', 'pending')
+                        if progress == 100:
+                            new_status = 'completed'
+                        elif progress > 0 and new_status == 'pending':
+                            new_status = 'in-progress'
+                        
+                        # Update progress and status
+                        collection.update_one(
+                            query,
+                            {
+                                '$set': {
+                                    'progress': progress,
+                                    'status': new_status,
+                                    'updated_at': datetime.utcnow()
+                                }
+                            }
+                        )
+                        
+                        print(f"[TaskManager] Updated task progress to {progress}% and status to {new_status}")
+                
+                return TaskManager.get_task_by_id(task_id)
+            else:
+                print(f"[TaskManager] No task/subtask found")
+                return None
+                
+        except Exception as e:
+            print(f"[TaskManager] Error updating subtask: {e}")
+            return None
+    
+    @staticmethod
+    def get_task_stats(user_id=None):
+        """Get task statistics"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Build query
+            query = {}
+            if user_id:
+                query['assigned_to'] = user_id
+            
+            # Get status distribution
+            status_pipeline = [
+                {'$match': query},
+                {'$group': {'_id': '$status', 'count': {'$sum': 1}}}
+            ]
+            
+            # Get priority distribution
+            priority_pipeline = [
+                {'$match': query},
+                {'$group': {'_id': '$priority', 'count': {'$sum': 1}}}
+            ]
+            
+            status_stats = list(collection.aggregate(status_pipeline))
+            priority_stats = list(collection.aggregate(priority_pipeline))
+            
+            return {
+                'status': status_stats,
+                'priority': priority_stats
+            }
+            
+        except Exception as e:
+            print(f"[TaskManager] Error getting task stats: {e}")
+            return {'status': [], 'priority': []}
+    
+    @staticmethod
+    def ensure_sample_tasks():
+        """Create sample tasks for development"""
+        try:
+            collection = mongo.get_collection('tasks')
+            
+            # Check if tasks already exist
+            if collection.count_documents({}) > 0:
+                print("[TaskManager] Sample tasks already exist")
+                return
+            
+            sample_tasks = [
+                {
+                    'title': 'Complete UI Design for Dashboard',
+                    'description': 'Design and implement the new dashboard layout with improved user experience',
+                    'due_date': '2025-09-25',
+                    'status': 'in-progress',
+                    'priority': 'high',
+                    'assigned_by': 'Sarah Johnson',
+                    'assigned_to': 'emergency_user_123',
+                    'assigned_date': '2025-09-15',
+                    'progress': 75,
+                    'category': 'Design',
+                    'estimated_hours': 8,
+                    'subtasks': [
+                        {'id': 1, 'title': 'Create wireframes', 'completed': True},
+                        {'id': 2, 'title': 'Design mockups', 'completed': True},
+                        {'id': 3, 'title': 'Implement responsive layout', 'completed': False}
+                    ]
+                },
+                {
+                    'title': 'Review Code Documentation',
+                    'description': 'Review and update API documentation for the new features',
+                    'due_date': '2025-09-20',
+                    'status': 'pending',
+                    'priority': 'medium',
+                    'assigned_by': 'Mike Chen',
+                    'assigned_to': 'emergency_user_123',
+                    'assigned_date': '2025-09-10',
+                    'progress': 30,
+                    'category': 'Development',
+                    'estimated_hours': 4,
+                    'attachments': [
+                        {'id': 1, 'name': 'API_Spec_v2.pdf', 'url': '#'}
+                    ]
+                },
+                {
+                    'title': 'Client Meeting Preparation',
+                    'description': 'Prepare presentation materials for the quarterly client review meeting',
+                    'due_date': '2025-09-19',
+                    'status': 'overdue',
+                    'priority': 'high',
+                    'assigned_by': 'Lisa Anderson',
+                    'assigned_to': 'emergency_user_123',
+                    'assigned_date': '2025-09-12',
+                    'progress': 60,
+                    'category': 'Marketing',
+                    'estimated_hours': 6,
+                    'subtasks': [
+                        {'id': 1, 'title': 'Create slide deck', 'completed': True},
+                        {'id': 2, 'title': 'Prepare demo', 'completed': False},
+                        {'id': 3, 'title': 'Schedule rehearsal', 'completed': False}
+                    ]
+                }
+            ]
+            
+            for task_data in sample_tasks:
+                TaskManager.create_task(task_data)
+            
+            print(f"[TaskManager] Created {len(sample_tasks)} sample tasks")
+            
+        except Exception as e:
+            print(f"[TaskManager] Error creating sample tasks: {e}")
+
+    @staticmethod
+    def delete_all_tasks():
+        """Delete all tasks from the database"""
+        try:
+            collection = mongo.get_collection('tasks')
+            result = collection.delete_many({})
+            print(f"[TaskManager] Deleted {result.deleted_count} tasks")
+            return True
+        except Exception as e:
+            print(f"[TaskManager] Error deleting tasks: {e}")
+            return False

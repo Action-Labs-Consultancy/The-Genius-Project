@@ -1,0 +1,611 @@
+﻿{
+  "name": "My workflow 73",
+  "nodes": [
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "a2d279b5-743f-444d-9f2f-67ccaefce72b",
+      "name": "Upload Report to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1456,
+        32
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const reportData = $input.first().json;\n\nif (!reportData) {\n  throw new Error('No report data found');\n}\n\n// Build comprehensive HTML report\nconst companyName = reportData.company_name || 'Unknown Company';\nconst reportDate = new Date().toLocaleDateString('en-US', { \n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\nconst comprehensiveReport = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Due Diligence Report - ${companyName}</title>\n    <style>\n        /* Modern Black & Yellow Corporate Styling with Animations */\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        html {\n            scroll-behavior: smooth;\n        }\n        \n        body {\n            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;\n            line-height: 1.7;\n            color: #ffd700;\n            background: #000000;\n            font-size: 16px;\n            overflow-x: hidden;\n            position: relative;\n        }\n        \n        /* Animated Background Pattern */\n        body::before {\n            content: '';\n            position: fixed;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 100%;\n            background: \n                radial-gradient(circle at 20% 80%, rgba(255, 215, 0, 0.05) 0%, transparent 50%),\n                radial-gradient(circle at 80% 20%, rgba(255, 215, 0, 0.05) 0%, transparent 50%),\n                radial-gradient(circle at 40% 40%, rgba(255, 215, 0, 0.03) 0%, transparent 50%);\n            animation: backgroundPulse 10s ease-in-out infinite;\n            pointer-events: none;\n            z-index: -1;\n        }\n        \n        @keyframes backgroundPulse {\n            0%, 100% { opacity: 0.3; }\n            50% { opacity: 0.6; }\n        }\n        \n        @keyframes fadeInUp {\n            from {\n                opacity: 0;\n                transform: translateY(30px);\n            }\n            to {\n                opacity: 1;\n                transform: translateY(0);\n            }\n        }\n        \n        @keyframes slideInLeft {\n            from {\n                opacity: 0;\n                transform: translateX(-50px);\n            }\n            to {\n                opacity: 1;\n                transform: translateX(0);\n            }\n        }\n        \n        @keyframes glow {\n            0%, 100% {\n                box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);\n            }\n            50% {\n                box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);\n            }\n        }\n        \n        @keyframes shimmer {\n            0% {\n                background-position: -1000px 0;\n            }\n            100% {\n                background-position: 1000px 0;\n            }\n        }\n        \n        .container {\n            max-width: 1400px;\n            margin: 0 auto;\n            padding: 0 30px;\n        }\n        \n        /* Stunning Header Design */\n        header {\n            background: #000000;\n            color: #ffd700;\n            text-align: center;\n            padding: 100px 30px;\n            margin-bottom: 0;\n            position: relative;\n            overflow: hidden;\n            border-bottom: 5px solid #ffd700;\n            animation: fadeInUp 1s ease-out;\n        }\n        \n        header::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            animation: shimmer 3s infinite;\n        }\n        \n        header::after {\n            content: '';\n            position: absolute;\n            bottom: 0;\n            left: 0;\n            width: 100%;\n            height: 2px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 2s infinite;\n        }\n        \n        .logo {\n            width: 150px;\n            height: 50px;\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%);\n            margin: 0 auto 40px;\n            border-radius: 12px;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            font-weight: 900;\n            color: #000000;\n            font-size: 16px;\n            box-shadow: \n                0 8px 25px rgba(255, 215, 0, 0.4),\n                inset 0 2px 5px rgba(255, 255, 255, 0.2);\n            animation: glow 3s ease-in-out infinite;\n            position: relative;\n            z-index: 2;\n        }\n        \n        h1 {\n            font-size: 4.2em;\n            font-weight: 900;\n            margin-bottom: 25px;\n            text-shadow: \n                0 4px 8px rgba(0, 0, 0, 0.8),\n                0 0 30px rgba(255, 215, 0, 0.5);\n            position: relative;\n            z-index: 2;\n            background: linear-gradient(135deg, #ffd700, #ffb000);\n            -webkit-background-clip: text;\n            -webkit-text-fill-color: transparent;\n            background-clip: text;\n        }\n        \n        .subtitle {\n            font-size: 1.6em;\n            margin-bottom: 25px;\n            font-weight: 400;\n            color: #ffd700;\n            position: relative;\n            z-index: 2;\n            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);\n        }\n        \n        .report-meta {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n            gap: 30px;\n            margin-top: 60px;\n            padding-top: 40px;\n            border-top: 2px solid rgba(255, 215, 0, 0.3);\n            position: relative;\n            z-index: 2;\n        }\n        \n        .report-meta div {\n            background: rgba(255, 215, 0, 0.1);\n            padding: 20px;\n            border-radius: 10px;\n            border: 1px solid rgba(255, 215, 0, 0.3);\n            transition: all 0.3s ease;\n        }\n        \n        .report-meta div:hover {\n            background: rgba(255, 215, 0, 0.2);\n            transform: translateY(-5px);\n            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.2);\n        }\n        \n        /* Beautiful Table of Contents */\n        nav {\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            padding: 80px 50px;\n            border: 3px solid #ffd700;\n            border-radius: 20px;\n            margin: 60px 0;\n            box-shadow: \n                0 20px 40px rgba(0, 0, 0, 0.5),\n                0 0 50px rgba(255, 215, 0, 0.2);\n            position: relative;\n            overflow: hidden;\n            animation: slideInLeft 1s ease-out 0.5s both;\n        }\n        \n        nav::before {\n            content: '';\n            position: absolute;\n            top: -50%;\n            left: -50%;\n            width: 200%;\n            height: 200%;\n            background: conic-gradient(from 0deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            animation: spin 20s linear infinite;\n            z-index: 0;\n        }\n        \n        @keyframes spin {\n            100% { transform: rotate(360deg); }\n        }\n        \n        nav h2 {\n            color: #ffd700;\n            font-size: 2.8em;\n            text-align: center;\n            margin-bottom: 50px;\n            text-transform: uppercase;\n            letter-spacing: 3px;\n            font-weight: 900;\n            text-shadow: \n                0 4px 8px rgba(0, 0, 0, 0.8),\n                0 0 20px rgba(255, 215, 0, 0.6);\n            position: relative;\n            z-index: 2;\n        }\n        \n        .toc-list {\n            list-style: none;\n            max-width: 900px;\n            margin: 0 auto;\n            position: relative;\n            z-index: 2;\n        }\n        \n        .toc-item {\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n            padding: 18px 25px;\n            margin: 8px 0;\n            border: 1px solid rgba(255, 215, 0, 0.3);\n            border-radius: 12px;\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, rgba(0, 0, 0, 0.2) 100%);\n            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);\n            position: relative;\n            overflow: hidden;\n        }\n        \n        .toc-item::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);\n            transition: left 0.5s ease;\n        }\n        \n        .toc-item:hover {\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%);\n            transform: translateX(10px) scale(1.02);\n            border-color: #ffd700;\n            box-shadow: \n                0 10px 25px rgba(255, 215, 0, 0.2),\n                inset 0 1px 0 rgba(255, 215, 0, 0.3);\n        }\n        \n        .toc-item:hover::before {\n            left: 100%;\n        }\n        \n        .toc-item a {\n            text-decoration: none;\n            color: #ffd700;\n            font-weight: 600;\n            flex-grow: 1;\n            padding-right: 20px;\n            transition: all 0.3s ease;\n            position: relative;\n            z-index: 1;\n        }\n        \n        .toc-item a:hover {\n            color: #ffb000;\n            text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);\n        }\n        \n        .page-number {\n            color: #000000;\n            font-weight: 700;\n            background: linear-gradient(135deg, #ffd700, #ffb000);\n            padding: 8px 15px;\n            border-radius: 20px;\n            font-size: 0.9em;\n            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);\n            position: relative;\n            z-index: 1;\n        }\n        \n        /* Enhanced Content Sections */\n        main {\n            padding: 60px 0;\n        }\n        \n        section {\n            margin-bottom: 100px;\n            padding: 50px;\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            border-radius: 20px;\n            box-shadow: \n                0 25px 50px rgba(0, 0, 0, 0.3),\n                0 0 50px rgba(255, 215, 0, 0.1);\n            border: 2px solid rgba(255, 215, 0, 0.5);\n            position: relative;\n            overflow: hidden;\n            animation: fadeInUp 0.8s ease-out;\n        }\n        \n        section::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: 0;\n            right: 0;\n            height: 4px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 3s infinite;\n        }\n        \n        section:hover {\n            transform: translateY(-5px);\n            box-shadow: \n                0 35px 60px rgba(0, 0, 0, 0.4),\n                0 0 80px rgba(255, 215, 0, 0.2);\n        }\n        \n        h2 {\n            color: #ffd700;\n            font-size: 2.6em;\n            margin-bottom: 35px;\n            padding-bottom: 20px;\n            border-bottom: 3px solid #ffd700;\n            font-weight: 800;\n            text-shadow: \n                0 3px 6px rgba(0, 0, 0, 0.8),\n                0 0 20px rgba(255, 215, 0, 0.4);\n            position: relative;\n        }\n        \n        h2::after {\n            content: '';\n            position: absolute;\n            bottom: -3px;\n            left: 0;\n            width: 100px;\n            height: 3px;\n            background: linear-gradient(90deg, #ffb000, #ffd700);\n            border-radius: 2px;\n        }\n        \n        h3 {\n            color: #ffd700;\n            font-size: 1.8em;\n            margin: 35px 0 25px 0;\n            font-weight: 700;\n            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);\n        }\n        \n        p {\n            margin-bottom: 25px;\n            line-height: 1.8;\n            text-align: justify;\n            color: #ffd700;\n            font-size: 1.1em;\n        }\n        \n        ul, ol {\n            margin: 25px 0;\n            padding-left: 40px;\n            color: #ffd700;\n        }\n        \n        li {\n            margin-bottom: 12px;\n            line-height: 1.7;\n        }\n        \n        /* Stunning Highlight Boxes */\n        .highlight {\n            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.08) 100%);\n            border: 2px solid rgba(255, 215, 0, 0.4);\n            border-left: 6px solid #ffd700;\n            padding: 30px;\n            margin: 40px 0;\n            border-radius: 15px;\n            box-shadow: \n                0 10px 25px rgba(255, 215, 0, 0.1),\n                inset 0 1px 0 rgba(255, 215, 0, 0.2);\n            color: #ffd700;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        .highlight::before {\n            content: '💡';\n            position: absolute;\n            top: 15px;\n            right: 20px;\n            font-size: 1.5em;\n            opacity: 0.3;\n        }\n        \n        /* Premium Table Design */\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 40px 0;\n            background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);\n            border-radius: 15px;\n            overflow: hidden;\n            box-shadow: \n                0 15px 35px rgba(0, 0, 0, 0.3),\n                0 0 30px rgba(255, 215, 0, 0.1);\n            border: 2px solid rgba(255, 215, 0, 0.3);\n        }\n        \n        th {\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%);\n            color: #000000;\n            padding: 20px;\n            text-align: left;\n            font-weight: 700;\n            font-size: 1.1em;\n            position: relative;\n        }\n        \n        th::after {\n            content: '';\n            position: absolute;\n            bottom: 0;\n            left: 0;\n            width: 100%;\n            height: 2px;\n            background: linear-gradient(90deg, #ffb000, #ffd700);\n        }\n        \n        td {\n            padding: 18px 20px;\n            border-bottom: 1px solid rgba(255, 215, 0, 0.2);\n            color: #ffd700;\n            transition: all 0.3s ease;\n        }\n        \n        tr:nth-child(even) {\n            background: rgba(255, 215, 0, 0.03);\n        }\n        \n        tr:hover {\n            background: rgba(255, 215, 0, 0.08);\n            transform: scale(1.01);\n        }\n        \n        /* Elegant Section Dividers */\n        hr {\n            border: none;\n            height: 4px;\n            background: linear-gradient(90deg, \n                transparent 0%, \n                #ffd700 25%, \n                #ffb000 50%, \n                #ffd700 75%, \n                transparent 100%);\n            margin: 80px 0;\n            border-radius: 2px;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        hr::after {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: -100%;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);\n            animation: shimmer 2s infinite;\n        }\n        \n        /* Stunning Footer */\n        footer {\n            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);\n            color: #ffd700;\n            padding: 60px 0;\n            text-align: center;\n            margin-top: 80px;\n            border-top: 4px solid #ffd700;\n            position: relative;\n        }\n        \n        footer::before {\n            content: '';\n            position: absolute;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 4px;\n            background: linear-gradient(90deg, #ffd700, #ffb000, #ffd700);\n            animation: shimmer 3s infinite;\n        }\n        \n        .footer-content {\n            max-width: 900px;\n            margin: 0 auto;\n            line-height: 1.9;\n        }\n        \n        .footer-content h3 {\n            font-size: 2.2em;\n            margin-bottom: 20px;\n            color: #ffd700;\n            text-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);\n        }\n        \n        .disclaimer {\n            font-size: 0.95em;\n            opacity: 0.9;\n            margin-top: 30px;\n            font-style: italic;\n            padding: 25px;\n            background: rgba(255, 215, 0, 0.05);\n            border-radius: 10px;\n            border: 1px solid rgba(255, 215, 0, 0.2);\n        }\n        \n        /* Enhanced Button Styling */\n        .return-button {\n            background: linear-gradient(135deg, #ffd700 0%, #ffb000 100%) !important;\n            color: #000000 !important;\n            text-decoration: none !important;\n            padding: 15px 30px !important;\n            border-radius: 25px !important;\n            font-weight: 700 !important;\n            display: inline-block !important;\n            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;\n            box-shadow: \n                0 8px 20px rgba(255, 215, 0, 0.3),\n                inset 0 2px 5px rgba(255, 255, 255, 0.2) !important;\n            text-transform: uppercase !important;\n            letter-spacing: 1px !important;\n            position: relative !important;\n            overflow: hidden !important;\n        }\n        \n        .return-button::before {\n            content: '' !important;\n            position: absolute !important;\n            top: 0 !important;\n            left: -100% !important;\n            width: 100% !important;\n            height: 100% !important;\n            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;\n            transition: left 0.5s ease !important;\n        }\n        \n        .return-button:hover {\n            transform: translateY(-3px) scale(1.05) !important;\n            box-shadow: \n                0 15px 30px rgba(255, 215, 0, 0.4),\n                inset 0 2px 5px rgba(255, 255, 255, 0.3) !important;\n        }\n        \n        .return-button:hover::before {\n            left: 100% !important;\n        }\n        \n        /* Print Optimization */\n        @media print {\n            body {\n                background: white !important;\n                color: black !important;\n            }\n            \n            header, nav, section {\n                background: white !important;\n                color: black !important;\n                box-shadow: none !important;\n                border: 1px solid #333 !important;\n            }\n            \n            h1, h2, h3, p, .toc-item a {\n                color: black !important;\n                text-shadow: none !important;\n            }\n            \n            .return-button {\n                display: none !important;\n            }\n        }\n        \n        /* Mobile Responsive Design */\n        @media (max-width: 768px) {\n            .container {\n                padding: 0 20px;\n            }\n            \n            h1 {\n                font-size: 2.8em;\n            }\n            \n            .report-meta {\n                grid-template-columns: 1fr;\n                gap: 20px;\n            }\n            \n            section {\n                padding: 30px 25px;\n                margin-bottom: 60px;\n            }\n            \n            nav {\n                padding: 50px 25px;\n                margin: 40px 0;\n            }\n            \n            .toc-item {\n                padding: 15px 20px;\n            }\n            \n            h2 {\n                font-size: 2.2em;\n            }\n        }\n    </style>\n</head>\n<body>\n    <!-- Cover Page -->\n    <header>\n        <div class=\"logo\">ACTION LABS</div>\n        <h1>Due Diligence Report</h1>\n        <div class=\"subtitle\">Commercial Risk Assessment & Strategic Analysis</div>\n        <div class=\"subtitle\"><strong>${companyName}</strong></div>\n        <div class=\"report-meta\">\n            <div>\n                <strong>Report Date:</strong><br>\n                ${reportDate}\n            </div>\n            <div>\n                <strong>Analysis Status:</strong><br>\n                ${reportData.status || 'Complete'}\n            </div>\n            <div>\n                <strong>Analyst:</strong><br>\n                Action Labs Team\n            </div>\n        </div>\n    </header>\n\n    <div class=\"container\">\n        <!-- Table of Contents -->\n        <nav id=\"toc\">\n            <h2>Table of Contents</h2>\n            <ul class=\"toc-list\">\n                <li class=\"toc-item\"><a href=\"#section-1\">1. Introduction & Engagement Context</a><span class=\"page-number\">3</span></li>\n                <li class=\"toc-item\"><a href=\"#section-2\">2. Methodology & Reliability Levels</a><span class=\"page-number\">5</span></li>\n                <li class=\"toc-item\"><a href=\"#section-3\">3. Company Overview</a><span class=\"page-number\">7</span></li>\n                <li class=\"toc-item\"><a href=\"#section-4\">4. Business Model & Unit Economics</a><span class=\"page-number\">9</span></li>\n                <li class=\"toc-item\"><a href=\"#section-5\">5. Products & Technology</a><span class=\"page-number\">11</span></li>\n                <li class=\"toc-item\"><a href=\"#section-6\">6. Target Market & Competitive Set</a><span class=\"page-number\">13</span></li>\n                <li class=\"toc-item\"><a href=\"#section-7\">7. Financials & Multi-Year Analysis</a><span class=\"page-number\">15</span></li>\n                <li class=\"toc-item\"><a href=\"#section-8\">8. Cash Burn & Runway</a><span class=\"page-number\">17</span></li>\n                <li class=\"toc-item\"><a href=\"#section-9\">9. Revenue Quality & Client Cohorts</a><span class=\"page-number\">19</span></li>\n                <li class=\"toc-item\"><a href=\"#section-10\">10. Partnerships & Ecosystem</a><span class=\"page-number\">21</span></li>\n                <li class=\"toc-item\"><a href=\"#section-11\">11. Intellectual Property</a><span class=\"page-number\">23</span></li>\n                <li class=\"toc-item\"><a href=\"#section-12\">12. Legal & Regulatory</a><span class=\"page-number\">25</span></li>\n                <li class=\"toc-item\"><a href=\"#section-13\">13. Governance & Board Effectiveness</a><span class=\"page-number\">27</span></li>\n                <li class=\"toc-item\"><a href=\"#section-14\">14. Capital Structure & Dilution</a><span class=\"page-number\">29</span></li>\n                <li class=\"toc-item\"><a href=\"#section-15\">15. Risk Matrix & Mitigations</a><span class=\"page-number\">31</span></li>\n                <li class=\"toc-item\"><a href=\"#section-16\">16. Gaps, Uncertainties & Disclaimers</a><span class=\"page-number\">33</span></li>\n                <li class=\"toc-item\"><a href=\"#section-17\">17. Scenario Analysis</a><span class=\"page-number\">35</span></li>\n                <li class=\"toc-item\"><a href=\"#section-18\">18. Strategic Options</a><span class=\"page-number\">37</span></li>\n                <li class=\"toc-item\"><a href=\"#section-19\">19. Recommendations & Next Steps</a><span class=\"page-number\">39</span></li>\n                <li class=\"toc-item\"><a href=\"#section-20\">20. Source Map & Integrity Log</a><span class=\"page-number\">41</span></li>\n            </ul>\n        </nav>\n\n        <!-- Report Body -->\n        <main>\n            <section id=\"section-1\">\n                <h2>1. Introduction & Engagement Context</h2>\n                ${reportData.introduction_engagement_context ? reportData.introduction_engagement_context.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-2\">\n                <h2>2. Methodology & Reliability Levels</h2>\n                ${reportData.methodology_reliability_levels ? reportData.methodology_reliability_levels.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-3\">\n                <h2>3. Company Overview</h2>\n                ${reportData.company_overview ? reportData.company_overview.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-4\">\n                <h2>4. Business Model & Unit Economics</h2>\n                ${reportData.business_model_unit_economics ? reportData.business_model_unit_economics.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-5\">\n                <h2>5. Products & Technology</h2>\n                ${reportData.products_technology ? reportData.products_technology.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-6\">\n                <h2>6. Target Market & Competitive Set</h2>\n                ${reportData.target_market_competitive_set ? reportData.target_market_competitive_set.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-7\">\n                <h2>7. Financials & Multi-Year Analysis</h2>\n                ${reportData.financials_multi_year ? reportData.financials_multi_year.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-8\">\n                <h2>8. Cash Burn & Runway</h2>\n                ${reportData.cash_burn_runway ? reportData.cash_burn_runway.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-9\">\n                <h2>9. Revenue Quality & Client Cohorts</h2>\n                ${reportData.revenue_quality_client_cohorts ? reportData.revenue_quality_client_cohorts.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-10\">\n                <h2>10. Partnerships & Ecosystem</h2>\n                ${reportData.partnerships_ecosystem ? reportData.partnerships_ecosystem.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-11\">\n                <h2>11. Intellectual Property</h2>\n                ${reportData.intellectual_property ? reportData.intellectual_property.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-12\">\n                <h2>12. Legal & Regulatory</h2>\n                ${reportData.legal_regulatory ? reportData.legal_regulatory.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-13\">\n                <h2>13. Governance & Board Effectiveness</h2>\n                ${reportData.governance_board_effectiveness ? reportData.governance_board_effectiveness.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-14\">\n                <h2>14. Capital Structure & Dilution</h2>\n                ${reportData.capital_structure_dilution ? reportData.capital_structure_dilution.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-15\">\n                <h2>15. Risk Matrix & Mitigations</h2>\n                ${reportData.risk_matrix_mitigations ? reportData.risk_matrix_mitigations.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-16\">\n                <h2>16. Gaps, Uncertainties & Disclaimers</h2>\n                ${reportData.gaps_uncertainties_disclaimers ? reportData.gaps_uncertainties_disclaimers.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-17\">\n                <h2>17. Scenario Analysis</h2>\n                ${reportData.scenario_analysis ? reportData.scenario_analysis.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-18\">\n                <h2>18. Strategic Options</h2>\n                ${reportData.strategic_options ? reportData.strategic_options.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-19\">\n                <h2>19. Recommendations & Next Steps</h2>\n                ${reportData.recommendations_next_steps ? reportData.recommendations_next_steps.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n\n            <hr>\n\n            <section id=\"section-20\">\n                <h2>20. Source Map & Integrity Log</h2>\n                ${reportData.source_map_integrity_log ? reportData.source_map_integrity_log.replace(/\\n/g, '<br>') : '<p class=\"highlight\">Section content not available</p>'}\n                <div style=\"text-align: center; margin-top: 30px;\">\n                    <a href=\"#toc\" class=\"return-button\">⬆ Return to Table of Contents</a>\n                </div>\n            </section>\n        </main>\n    </div>\n\n    <!-- Footer -->\n    <footer>\n        <div class=\"footer-content\">\n            <h3>Action Labs Consultancy</h3>\n            <p><strong>Report Completion Summary</strong></p>\n            <p>Analysis Generated: ${reportDate} | Company ID: ${reportData.company_id}</p>\n            <p>Final Status: ${reportData.status} | Database Entry: ${reportData.created_at ? new Date(reportData.created_at).toLocaleString() : 'N/A'}</p>\n            \n            <div class=\"disclaimer\">\n                <p><strong>Confidentiality Notice:</strong> This report is confidential and intended only for the client named herein. \n                Distribution or disclosure to any other party is strictly prohibited without written consent from Action Labs.</p>\n                <p>This comprehensive due diligence report was generated using automated analysis tools and should be reviewed by qualified professionals before making investment or business decisions.</p>\n            </div>\n        </div>\n    </footer>\n</body>\n</html>\n`;\n\nconst fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Due_Diligence_Report_${new Date().toISOString().split('T')[0]}.html`;\n\nconsole.log(`Generated comprehensive HTML report for ${companyName}`);\nconsole.log(`Report length: ${comprehensiveReport.length} characters`);\nconsole.log(`File name: ${fileName}`);\n\n// Convert text to binary data for Google Drive upload\nconst binaryData = Buffer.from(comprehensiveReport, 'utf8');\n\nreturn {\n  json: {\n    company_name: companyName,\n    company_id: reportData.company_id,\n    report_date: reportDate,\n    file_name: fileName\n  },\n  binary: {\n    data: {\n      data: binaryData.toString('base64'),\n      mimeType: 'text/html',\n      fileName: fileName,\n      fileExtension: 'html'\n    }\n  }\n};"
+      },
+      "id": "7c64eec0-c88b-4639-b1af-9c1369db97c8",
+      "name": "Generate Comprehensive Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  company_id,\n  company_name,\n  introduction_engagement_context,\n  methodology_reliability_levels,\n  company_overview,\n  business_model_unit_economics,\n  products_technology,\n  target_market_competitive_set,\n  financials_multi_year,\n  cash_burn_runway,\n  revenue_quality_client_cohorts,\n  partnerships_ecosystem,\n  intellectual_property,\n  legal_regulatory,\n  governance_board_effectiveness,\n  capital_structure_dilution,\n  risk_matrix_mitigations,\n  gaps_uncertainties_disclaimers,\n  scenario_analysis,\n  strategic_options,\n  recommendations_next_steps,\n  source_map_integrity_log,\n  status,\n  created_at\nFROM due_diligence_reports \nWHERE company_id = (SELECT company_id FROM due_diligence_reports ORDER BY created_at DESC LIMIT 1)\nORDER BY created_at DESC \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "f7ccf9cc-7702-400c-8993-2f5c68d9644a",
+      "name": "Retrieve Complete Report Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        896,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $json.company_id }}",
+            "company_name": "={{ $json.company_name }}",
+            "folder_id": "={{ $json.folder_id }}",
+            "content": "={{ $json.content }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "folder_id",
+              "displayName": "folder_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0a1dca41-90ac-4624-aafa-e51e1e01de1b",
+      "name": "Save Company Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        224,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect and merge ALL extracted content from all PDF files\nconst allExtractions = $input.all();\nconst firstFile = allExtractions[0]?.json || {};\n\nconsole.log('=== MERGING ALL PDF CONTENT ===');\nconsole.log(`Received ${allExtractions.length} extracted PDF files`);\nconsole.log(`Company: ${firstFile.company_name}`);\nconsole.log(`Company ID: ${firstFile.company_id}`);\n\nif (allExtractions.length === 0) {\n  console.error('❌ No extracted content received!');\n  return {\n    json: {\n      error: 'No content extracted from PDFs',\n      company_id: firstFile.company_id,\n      company_name: firstFile.company_name\n    }\n  };\n}\n\n// Merge all content together\nlet mergedContent = '';\nlet totalContentLength = 0;\nlet successfulExtractions = 0;\nlet failedExtractions = 0;\nconst fileDetails = [];\n\nallExtractions.forEach((extraction, index) => {\n  const fileData = extraction.json;\n  const content = fileData.extracted_content || '';\n  \n  console.log(`Processing file ${index + 1}: ${fileData.file_name}`);\n  console.log(`  Content length: ${content.length} characters`);\n  console.log(`  Extraction method: ${fileData.extraction_method}`);\n  \n  if (content && content.length > 50 && !content.includes('extraction failed')) {\n    // Add file separator and content\n    mergedContent += `\\n\\n=== CONTENT FROM: ${fileData.file_name} ===\\n\\n`;\n    mergedContent += content;\n    mergedContent += `\\n\\n=== END OF ${fileData.file_name} ===\\n\\n`;\n    successfulExtractions++;\n  } else {\n    console.log(`  ⚠️ Skipping ${fileData.file_name} - extraction failed or insufficient content`);\n    failedExtractions++;\n  }\n  \n  totalContentLength += content.length;\n  fileDetails.push({\n    name: fileData.file_name,\n    content_length: content.length,\n    extraction_method: fileData.extraction_method,\n    success: content.length > 50 && !content.includes('extraction failed')\n  });\n});\n\n// Final data object\nconst finalData = {\n  company_id: firstFile.company_id,\n  company_name: firstFile.company_name,\n  folder_id: firstFile.folder_id,\n  content: mergedContent,\n  processed_at: new Date().toISOString()\n};\n\n// Log results\nconsole.log(`\\n=== FINAL MERGE RESULTS ===`);\nconsole.log(`Company ID: ${finalData.company_id}`);\nconsole.log(`Final Company Name: ${finalData.company_name}`);\nconsole.log(`Total files processed: ${allExtractions.length}`);\nconsole.log(`Successful extractions: ${successfulExtractions}`);\nconsole.log(`Failed extractions: ${failedExtractions}`);\nconsole.log(`Total merged content length: ${mergedContent.length} characters`);\nconsole.log(`Files processed: ${fileDetails.map(f => f.name).join(', ')}`);\nconsole.log(`============================\\n`);\n\nreturn { json: finalData };"
+      },
+      "id": "9dd142ea-91a3-4aad-8a6d-627ed15bc3e9",
+      "name": "Merge All Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        16,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract content from current PDF file\nconst extractedData = $input.first().json;\nconst fileInfo = $node[\"Prepare All PDFs for Download\"].json;\n\n// Get the full extracted text content\nlet fullTextContent = '';\nlet extractionMethod = 'unknown';\n\nif (extractedData && extractedData.data) {\n  fullTextContent = extractedData.data;\n  extractionMethod = 'text_extraction';\n  console.log(`✅ Successfully extracted ${fullTextContent.length} characters from ${fileInfo.file_name}`);\n} else {\n  if (typeof extractedData === 'string') {\n    fullTextContent = extractedData;\n    extractionMethod = 'string_conversion';\n  } else if (extractedData && typeof extractedData === 'object') {\n    for (const [key, value] of Object.entries(extractedData)) {\n      if (typeof value === 'string' && value.length > 10) {\n        fullTextContent += value + '\\n';\n        extractionMethod = 'object_scanning';\n      }\n    }\n  }\n  \n  if (!fullTextContent) {\n    fullTextContent = `PDF extraction failed for ${fileInfo.file_name} - file may be image-based or corrupted`;\n    extractionMethod = 'failed';\n    console.log(`⚠️ Could not extract text from ${fileInfo.file_name}`);\n  }\n}\n\nconsole.log(`File ${fileInfo.file_index}/${fileInfo.total_files}: ${fileInfo.file_name}`);\nconsole.log(`Content length: ${fullTextContent.length} characters`);\nconsole.log(`Extraction method: ${extractionMethod}`);\n\n// Return individual file data with extracted content\nreturn {\n  json: {\n    company_id: fileInfo.company_id,\n    company_name: fileInfo.company_name,\n    folder_id: fileInfo.folder_id,\n    file_name: fileInfo.file_name,\n    file_index: fileInfo.file_index,\n    total_files: fileInfo.total_files,\n    extracted_content: fullTextContent,\n    extraction_method: extractionMethod,\n    content_length: fullTextContent.length,\n    all_file_names: fileInfo.all_file_names\n  }\n};"
+      },
+      "id": "814d0028-0d6f-44d8-88d5-28f712b44a30",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "id": "d31eb05c-5552-4ef0-9e8a-5e971b2f1353",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "22267c69-12f7-40e3-8cb2-ab05104c416a",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -576,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Download and process ALL PDFs, merging their content\nconst mergeInfo = $input.first().json;\nconst sourceFiles = mergeInfo.source_files || [];\n\nconsole.log('=== DOWNLOADING ALL PDFs FOR MERGING ===');\nconsole.log(`Processing ${sourceFiles.length} PDF files`);\nconsole.log('Company:', mergeInfo.company_name);\nconsole.log('Company ID:', mergeInfo.company_id);\n\nif (sourceFiles.length === 0) {\n  console.error('❌ No source files to process!');\n  return {\n    json: {\n      error: 'No PDF files found',\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id\n    }\n  };\n}\n\n// Process ALL files and return them for individual download\nconst allFilesForProcessing = sourceFiles.map((file, index) => {\n  console.log(`Preparing file ${index + 1}/${sourceFiles.length}: ${file.name}`);\n  return {\n    json: {\n      // Consistent company ID\n      company_id: mergeInfo.company_id,\n      company_name: mergeInfo.company_name,\n      folder_id: mergeInfo.folder_id,\n      // Individual file info for download\n      file_id: file.id,\n      file_name: file.name,\n      file_size: file.size,\n      download_url: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,\n      file_index: index + 1,\n      total_files: sourceFiles.length,\n      // Metadata\n      all_file_names: sourceFiles.map(f => f.name).join(', '),\n      processing_status: 'ready_for_download'\n    }\n  };\n});\n\nconsole.log(`✅ Prepared ${allFilesForProcessing.length} files for individual processing`);\nconsole.log('All files will be downloaded and content merged');\n\nreturn allFilesForProcessing;"
+      },
+      "id": "04ed52f2-f73f-4aa0-a1f0-e6d8abe381de",
+      "name": "Prepare All PDFs for Download",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Merge all PDFs into a single document before processing\nconst allInputs = $input.all();\nconst firstInput = allInputs[0]?.json || {};\n\nconsole.log('=== PDF MERGING PROCESS ===');\nconsole.log(`Received ${allInputs.length} PDF files to merge`);\nconsole.log('Company:', firstInput.company_name);\nconsole.log('Folder ID:', firstInput.folder_id);\n\n// Collect all PDF file information\nconst pdfFiles = allInputs.map((input, index) => {\n  const file = input.json;\n  console.log(`PDF ${index + 1}: ${file.name} (${file.id}) - Size: ${file.size}`);\n  return {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    downloadUrl: `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`\n  };\n});\n\n// Sort files by name for consistent merging order\npdfFiles.sort((a, b) => a.name.localeCompare(b.name));\n\nconsole.log('Files will be merged in this order:');\npdfFiles.forEach((file, index) => {\n  console.log(`${index + 1}. ${file.name}`);\n});\n\n// Generate consistent company ID\nconst companyId = `comp_${firstInput.folder_id}_${firstInput.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${pdfFiles.length}files`;\n\nconsole.log(`Company ID: ${companyId}`);\nconsole.log('========================');\n\n// Return merged file information for processing\nreturn {\n  json: {\n    // Consistent company ID throughout workflow\n    company_id: companyId,\n    company_name: firstInput.company_name,\n    folder_id: firstInput.folder_id,\n    original_folder_name: firstInput.original_folder_name,\n    // Include all source files for download\n    source_files: pdfFiles,\n    file_count: pdfFiles.length,\n    merge_status: 'ready_for_download'\n  }\n};"
+      },
+      "id": "b5cf5a66-5cb0-4047-b44f-ecadf59b2271",
+      "name": "Merge PDFs Info",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the files list and add company info\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\n// Clean and extract proper company name from folder\nlet companyName = folderName || 'Unknown_Company';\n\n// Clean company name - remove common patterns that aren't company names\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')  // Replace underscores and dashes with spaces\n  .replace(/\\s+/g, ' ')    // Normalize spaces\n  .trim();\n\n// If it's too short or generic, mark as unknown\nif (companyName.length < 2 || /^(new|folder|doc|file|temp|test)$/i.test(companyName)) {\n  companyName = 'Unknown_Company';\n}\n\nconsole.log(`Original folder name: \"${folderName}\"`);\nconsole.log(`Cleaned company name: \"${companyName}\"`);\nconsole.log(`Processing ${files.length} PDF files from folder: ${folderName}`);\n\nconst results = files.map(file => {\n  console.log(`Preparing file: ${file.name} (${file.id})`);\n  return {\n    json: {\n      id: file.id,\n      name: file.name,\n      size: file.size,\n      mimeType: file.mimeType,\n      webViewLink: file.webViewLink,\n      webContentLink: file.webContentLink,\n      company_name: companyName,\n      folder_id: folderId,\n      original_folder_name: folderName\n    }\n  };\n});\n\nconsole.log(`Prepared ${results.length} PDFs for processing with company name: \"${companyName}\"`);\nreturn results;"
+      },
+      "id": "42053054-1c56-4a34-9e9a-7b22101fdc93",
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1184,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $node[\"Google Drive Trigger\"].json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "55e67813-615f-4483-9a27-ea3ce956adae",
+      "name": "List PDFs via HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1376,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Drop existing table and recreate with correct structure\nDROP TABLE IF EXISTS due_diligence_reports;\nDROP TABLE IF EXISTS company_data;\n\nCREATE TABLE company_data (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    folder_id VARCHAR(255) NOT NULL,\n    content TEXT NOT NULL,\n    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE due_diligence_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    introduction_engagement_context TEXT,\n    methodology_reliability_levels TEXT,\n    company_overview TEXT,\n    business_model_unit_economics TEXT,\n    products_technology TEXT,\n    target_market_competitive_set TEXT,\n    financials_multi_year TEXT,\n    cash_burn_runway TEXT,\n    revenue_quality_client_cohorts TEXT,\n    partnerships_ecosystem TEXT,\n    intellectual_property TEXT,\n    legal_regulatory TEXT,\n    governance_board_effectiveness TEXT,\n    capital_structure_dilution TEXT,\n    risk_matrix_mitigations TEXT,\n    gaps_uncertainties_disclaimers TEXT,\n    scenario_analysis TEXT,\n    strategic_options TEXT,\n    recommendations_next_steps TEXT,\n    source_map_integrity_log TEXT,\n    comprehensive_report_url TEXT,\n    status VARCHAR(100),\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (company_id) REFERENCES company_data(company_id)\n);",
+        "options": {}
+      },
+      "id": "053c9b6d-f177-4bc7-a91d-db21a14f55aa",
+      "name": "Setup Database Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1584,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list"
+        },
+        "event": "folderCreated"
+      },
+      "id": "7d1b37e8-dc73-4568-bdd3-daeffc23399a",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "you are s1 try you make section1 of the due dilligence report",
+        "workflowId": {
+          "__rl": true,
+          "value": "Y6YTaOxvZJD6vBFp",
+          "mode": "list",
+          "cachedResultName": "S1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        736,
+        560
+      ],
+      "id": "ffc28745-cc6b-430d-8c8e-664ec78e7844",
+      "name": "Call n8n Workflow Tool"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "work with sub flow \"S1\" to make section 1, it might have many mistakes, i need you to fix these mistakes.  remove any placeholders and replace them ",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        272
+      ],
+      "id": "412f07dd-422e-4250-bc40-46775f5583d0",
+      "name": "MAIN"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        432,
+        480
+      ],
+      "id": "fb5e6af1-df5b-4c56-ae5e-40def56480cc",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Generate Comprehensive Report": {
+      "main": [
+        [
+          {
+            "node": "Upload Report to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Complete Report Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Comprehensive Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Company Data": {
+      "main": [
+        [
+          {
+            "node": "MAIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Content": {
+      "main": [
+        [
+          {
+            "node": "Save Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare All PDFs for Download": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDFs Info": {
+      "main": [
+        [
+          {
+            "node": "Prepare All PDFs for Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Merge PDFs Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDFs via HTTP": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Database Table": {
+      "main": [
+        [
+          {
+            "node": "List PDFs via HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Setup Database Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "MAIN",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIN": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Complete Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "MAIN",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2ab9eee3-b92c-486e-bee5-da6d6e68e4d3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "wooV7r8keWLcZf8s",
+  "tags": []
+}

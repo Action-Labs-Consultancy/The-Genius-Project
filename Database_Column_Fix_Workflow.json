@@ -1,0 +1,85 @@
+{
+  "name": "Database Column Fix - Add Missing Sections",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Add missing columns to complete_dd_reports table\n-- This fixes the \"column does not exist\" errors\n\n-- Add methodology_source_validation column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'methodology_source_validation') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN methodology_source_validation TEXT;\n        RAISE NOTICE 'Added methodology_source_validation column';\n    ELSE\n        RAISE NOTICE 'methodology_source_validation column already exists';\n    END IF;\nEND $$;\n\n-- Add business_overview column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'business_overview') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN business_overview TEXT;\n        RAISE NOTICE 'Added business_overview column';\n    ELSE\n        RAISE NOTICE 'business_overview column already exists';\n    END IF;\nEND $$;\n\n-- Add company_overview column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'company_overview') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN company_overview TEXT;\n        RAISE NOTICE 'Added company_overview column';\n    ELSE\n        RAISE NOTICE 'company_overview column already exists';\n    END IF;\nEND $$;\n\n-- Add business_model column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'business_model') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN business_model TEXT;\n        RAISE NOTICE 'Added business_model column';\n    ELSE\n        RAISE NOTICE 'business_model column already exists';\n    END IF;\nEND $$;\n\n-- Add products_services column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'products_services') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN products_services TEXT;\n        RAISE NOTICE 'Added products_services column';\n    ELSE\n        RAISE NOTICE 'products_services column already exists';\n    END IF;\nEND $$;\n\n-- Add target_market_competitive_set column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'target_market_competitive_set') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN target_market_competitive_set TEXT;\n        RAISE NOTICE 'Added target_market_competitive_set column';\n    ELSE\n        RAISE NOTICE 'target_market_competitive_set column already exists';\n    END IF;\nEND $$;\n\n-- Add updated_at column if it doesn't exist\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns \n                   WHERE table_name = 'complete_dd_reports' AND column_name = 'updated_at') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;\n        RAISE NOTICE 'Added updated_at column';\n    ELSE\n        RAISE NOTICE 'updated_at column already exists';\n    END IF;\nEND $$;\n\nSELECT 'All missing columns have been added to complete_dd_reports table' as result;",
+        "options": {}
+      },
+      "id": "db-fix-node",
+      "name": "Add Missing Database Columns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 300],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Verify all columns were added successfully\nSELECT column_name, data_type \nFROM information_schema.columns \nWHERE table_name = 'complete_dd_reports' \nORDER BY column_name;",
+        "options": {}
+      },
+      "id": "verify-node",
+      "name": "Verify Database Schema",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1000, 300],
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual"
+      },
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [600, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Add Missing Database Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Missing Database Columns": {
+      "main": [
+        [
+          {
+            "node": "Verify Database Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "database-fix-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "database-column-fix",
+  "tags": ["database", "fix", "schema"]
+}

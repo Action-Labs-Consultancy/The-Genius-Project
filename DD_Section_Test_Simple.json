@@ -1,0 +1,113 @@
+{
+  "name": "DD_Section_01_Introduction_Simple_Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        400
+      ],
+      "id": "manual-trigger"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple test for HTTP request to Ollama\nconst testPrompt = 'Generate a brief 100-word introduction for a due diligence report about Test Company.';\n\nconsole.log('🧪 Testing with simple prompt:');\nconsole.log(testPrompt);\n\nreturn {\n  json: {\n    company_name: 'Test Company',\n    maker_prompt: testPrompt,\n    test_mode: true\n  }\n};"
+      },
+      "name": "Create Test Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "id": "create-test-prompt"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "={\n  \"model\": \"llama3\",\n  \"prompt\": \"{{ $json.maker_prompt }}\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.7,\n    \"max_tokens\": 200\n  }\n}",
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "name": "Test LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        400
+      ],
+      "id": "test-llm-call"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Display test results\nconst response = $input.first().json;\n\nconsole.log('🎉 Test Response:');\nconsole.log('Model:', response.model);\nconsole.log('Response length:', response.response ? response.response.length : 0);\nconsole.log('First 200 chars:', response.response ? response.response.substring(0, 200) : 'No response');\n\nreturn {\n  json: {\n    test_successful: true,\n    response_preview: response.response ? response.response.substring(0, 200) : 'No response',\n    full_response: response.response || 'No response received'\n  }\n};"
+      },
+      "name": "Display Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        400
+      ],
+      "id": "display-results"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create Test Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Test Prompt": {
+      "main": [
+        [
+          {
+            "node": "Test LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test LLM Call": {
+      "main": [
+        [
+          {
+            "node": "Display Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "test-v1.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "dd-section-test",
+  "tags": [
+    "test",
+    "ollama"
+  ]
+}

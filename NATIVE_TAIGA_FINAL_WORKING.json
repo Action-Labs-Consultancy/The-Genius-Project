@@ -1,0 +1,153 @@
+{
+  "name": "NATIVE Taiga Automation - FINAL",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "projectId": "1",
+        "resources": [
+          "userstory"
+        ],
+        "operations": [
+          "create",
+          "change"
+        ]
+      },
+      "id": "e89c4a75-cb6f-4c65-9f58-8d43c5e1bfd7",
+      "name": "Taiga Trigger",
+      "type": "n8n-nodes-base.taigaTrigger",
+      "typeVersion": 1,
+      "position": [
+        380,
+        240
+      ],
+      "credentials": {
+        "taigaApi": {
+          "id": "6HYGE576qRfaRDmB",
+          "name": "Taiga API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6a6b5e7c-4e8b-4f1d-8c3a-9b7e2d5f6a8c",
+              "leftValue": "={{ $json.data.subject }}",
+              "rightValue": "action",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "caseSensitive": false
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "f2b8d6a4-1e9c-4a7b-8d5f-3e2a1b9c8d7e",
+      "name": "Check for Action",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        580,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "projectId": "1",
+        "subject": "AUTO: {{ $json.data.subject }}",
+        "additionalFields": {
+          "description": "Auto-created task for story: {{ $json.data.subject }}\n\nOriginal Story ID: {{ $json.data.id }}",
+          "user_story": "={{ $json.data.id }}"
+        }
+      },
+      "id": "c3d7f5b2-8a4e-4c1b-9d6f-2e5a8b7c3d9f",
+      "name": "Create Task",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [
+        780,
+        180
+      ],
+      "credentials": {
+        "taigaApi": {
+          "id": "6HYGE576qRfaRDmB",
+          "name": "Taiga API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "userStory",
+        "operation": "update", 
+        "projectId": "1",
+        "userStoryId": "={{ $json.data.id }}",
+        "updateFields": {
+          "description": "{{ $json.data.description || '' }}\n\n✅ [AUTOMATED] Task created for this story"
+        }
+      },
+      "id": "a8b4c2d9-6e3f-4a5b-8c1d-9f7e4a2b6c8d",
+      "name": "Update Story",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [
+        780,
+        300
+      ],
+      "credentials": {
+        "taigaApi": {
+          "id": "6HYGE576qRfaRDmB",
+          "name": "Taiga API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Taiga Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check for Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Action": {
+      "main": [
+        [
+          {
+            "node": "Create Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-08-11T12:00:00.000Z",
+  "versionId": "native-final-v1"
+}

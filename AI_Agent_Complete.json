@@ -1,0 +1,263 @@
+{
+  "name": "AI Agent Auto-Provisioning System",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "f1f76d89-b47e-4f1a-a0a7-6c11bb15e78b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentConfig = {\n  \"Strategy\": {\n    projectName: \"🎯 AI Strategy Department\",\n    description: \"Strategic planning and competitive analysis AI agents\",\n    agents: [\n      { name: \"Strategic Planner AI\", username: \"ai-strategy-planner\", email: \"ai-strategy-planner@company.local\", role: \"Strategic planning and roadmap development\" },\n      { name: \"Market Analyst AI\", username: \"ai-market-analyst\", email: \"ai-market-analyst@company.local\", role: \"Market research and trend analysis\" }\n    ]\n  },\n  \"Marketing\": {\n    projectName: \"📈 AI Marketing Department\",\n    description: \"Content creation and digital marketing AI agents\",\n    agents: [\n      { name: \"Content Creator AI\", username: \"ai-content-creator\", email: \"ai-content-creator@company.local\", role: \"Blog posts, articles, and copy creation\" },\n      { name: \"Social Media Manager AI\", username: \"ai-social-manager\", email: \"ai-social-manager@company.local\", role: \"Social media content and scheduling\" }\n    ]\n  },\n  \"Development\": {\n    projectName: \"💻 AI Development Department\",\n    description: \"Software development and testing AI agents\",\n    agents: [\n      { name: \"Code Review AI\", username: \"ai-code-reviewer\", email: \"ai-code-reviewer@company.local\", role: \"Code review and quality assurance\" },\n      { name: \"Testing AI\", username: \"ai-tester\", email: \"ai-tester@company.local\", role: \"Automated testing and bug detection\" }\n    ]\n  }\n};\n\nreturn agentConfig;"
+      },
+      "id": "84a1cf72-724c-43b2-a3f1-338e47c4d3e8",
+      "name": "Load Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllProjects\",\n  \"id\": 1\n}"
+      },
+      "id": "b5b43ec8-d9cc-4c48-9d06-70d3fc14e31e",
+      "name": "Get Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "1",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the agent config from first input and existing projects from second input\nconst agentConfig = $input.first().json;\nconst existingProjects = $input.last().json.result || [];\n\n// Create map of existing projects by name\nconst existingProjectNames = new Set(existingProjects.map(p => p.name));\n\n// Process each department and find projects that need to be created\nconst projectsToCreate = [];\nconst usersToCreate = [];\n\nObject.entries(agentConfig).forEach(([deptName, deptInfo]) => {\n  // Check if project exists\n  if (!existingProjectNames.has(deptInfo.projectName)) {\n    projectsToCreate.push({\n      name: deptInfo.projectName,\n      description: deptInfo.description,\n      department: deptName\n    });\n  }\n  \n  // Add all agents from this department to users list\n  deptInfo.agents.forEach(agent => {\n    usersToCreate.push({\n      ...agent,\n      department: deptName,\n      projectName: deptInfo.projectName\n    });\n  });\n});\n\nreturn {\n  projectsToCreate,\n  usersToCreate,\n  totalProjects: projectsToCreate.length,\n  totalUsers: usersToCreate.length\n};"
+      },
+      "id": "c7d8e561-93c4-4f63-8bcd-9d9d7c0f841d",
+      "name": "Process Requirements",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fieldsToSplitOut": "projectsToCreate",
+        "options": {}
+      },
+      "id": "e8f29b61-84c5-4f64-9bce-1d2e3f4a5b6c",
+      "name": "Split Projects",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createProject\",\n  \"params\": {\n    \"name\": \"{{ $json.name }}\",\n    \"description\": \"{{ $json.description }}\"\n  },\n  \"id\": 2\n}"
+      },
+      "id": "d9e10f74-8b5c-4f63-9d07-70d3fc14e31f",
+      "name": "Create Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        200
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "1",
+          "name": "Kanboard Admin"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToSplitOut": "usersToCreate",
+        "options": {}
+      },
+      "id": "f7e41c72-95d6-4e75-8dcf-2e3f4a5b6c7d",
+      "name": "Split Users",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createUser\",\n  \"params\": {\n    \"username\": \"{{ $json.username }}\",\n    \"password\": \"aiagent123\",\n    \"name\": \"{{ $json.name }}\",\n    \"email\": \"{{ $json.email }}\",\n    \"role\": \"app-user\"\n  },\n  \"id\": 3\n}"
+      },
+      "id": "a6b5c4d3-e2f1-4a59-8b7c-3f4e5a6b7c8d",
+      "name": "Create Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        400
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "1",
+          "name": "Kanboard Admin"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Configuration": {
+      "main": [
+        [
+          {
+            "node": "Get Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Projects": {
+      "main": [
+        [
+          {
+            "node": "Process Requirements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Requirements": {
+      "main": [
+        [
+          {
+            "node": "Split Projects",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Projects": {
+      "main": [
+        [
+          {
+            "node": "Create Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Users": {
+      "main": [
+        [
+          {
+            "node": "Create Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2025-08-13T12:00:00.000Z",
+  "updatedAt": "2025-08-13T12:00:00.000Z",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": 3
+}

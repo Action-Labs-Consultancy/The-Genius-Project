@@ -1,0 +1,210 @@
+{
+  "name": "Kanboard AI Task Enhancer - FINAL WORKING",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */3 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Every 3 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "id": "cron-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        300
+      ],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get all tasks and find the FIRST one that needs AI enhancement\nconst tasks = $input.first().json.result || [];\n\nconsole.log(`Checking ${tasks.length} tasks for enhancement`);\n\n// Find first task needing enhancement\nfor (const task of tasks) {\n  const description = task.description ? task.description.toString() : '';\n  const title = task.title ? task.title.toString() : '';\n  \n  console.log(`Task ${task.id}: title=\"${title}\" desc_length=${description.trim().length}`);\n  \n  if (description.trim().length < 20 && title.trim().length > 0) {\n    console.log(`✅ Found task needing enhancement: \"${title}\" (ID: ${task.id})`);\n    \n    // Return the FIRST task data that needs enhancement\n    return {\n      json: {\n        task_id: task.id,\n        title: title.trim(),\n        description: description.trim(),\n        project_id: task.project_id || 1\n      }\n    };\n  }\n}\n\n// If no tasks need enhancement, stop execution gracefully\nconsole.log('ℹ️ No tasks need enhancement at this time - stopping workflow');\nthrow new Error('No tasks need enhancement - workflow completed successfully');"
+      },
+      "name": "Find Task to Enhance",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        300
+      ],
+      "id": "find-task"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "=Enhance this task: {{ $json.title }}\n\nCreate:\n1. Clear description (2-3 sentences)\n2. Complexity rating 1-5\n3. Three relevant tags\n\nRespond ONLY with JSON:\n{\n  \"description\": \"your description\",\n  \"complexity\": 3,\n  \"tags\": [\"tag1\", \"tag2\", \"tag3\"]\n}",
+          "stream": false
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "AI Enhance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        300
+      ],
+      "id": "ai-enhance"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get task data from Find Task node and AI response from AI Enhance node\nconst taskData = $('Find Task to Enhance').first().json;\nconst aiResponse = $input.first().json.response;\n\nconsole.log(`Processing task: ${taskData.title}`);\nconsole.log(`AI response length: ${aiResponse.length} characters`);\n\n// Parse AI response\nlet enhancedData;\ntry {\n  // Look for JSON in the response\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    enhancedData = JSON.parse(jsonMatch[0]);\n    console.log('AI JSON parsed successfully:', enhancedData.description.substring(0, 50) + '...');\n  } else {\n    throw new Error('No JSON found in AI response');\n  }\n} catch (error) {\n  console.log(`JSON parsing failed: ${error.message}`);\n  console.log('Using fallback enhancement');\n  \n  // Create a meaningful fallback based on the task title\n  enhancedData = {\n    description: `Enhanced: ${taskData.title}. This task requires careful analysis, proper planning, and systematic execution to achieve the desired outcome effectively.`,\n    complexity: 3,\n    tags: ['ai-enhanced', 'auto-generated', 'needs-review']\n  };\n}\n\n// Prepare enhanced description with formatting\nconst enhancedDescription = `${enhancedData.description}\\n\\n🤖 AI Enhancement Applied\\n📊 Complexity: ${enhancedData.complexity}/5\\n🏷️ Tags: ${enhancedData.tags.join(', ')}\\n⏰ Enhanced: ${new Date().toISOString()}`;\n\n// Prepare update data\nconst result = {\n  task_id: parseInt(taskData.task_id),\n  enhanced_description: enhancedDescription\n};\n\nconsole.log(`✅ Ready to update task ${result.task_id}`);\nreturn { json: result };"
+      },
+      "name": "Prepare Update",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ],
+      "id": "prepare-update"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "updateTask",
+          "id": 1,
+          "params": {
+            "id": "={{ $json.task_id }}",
+            "description": "={{ $json.enhanced_description }}"
+          }
+        },
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Update Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ],
+      "id": "update-task",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    }
+  ],
+  "connections": {
+    "Every 3 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find Task to Enhance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Task to Enhance": {
+      "main": [
+        [
+          {
+            "node": "AI Enhance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Enhance": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update": {
+      "main": [
+        [
+          {
+            "node": "Update Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "final-working-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "final-working-v1",
+  "tags": []
+}

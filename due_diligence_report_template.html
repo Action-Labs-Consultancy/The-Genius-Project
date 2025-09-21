@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Due Diligence Report</title>
+    <style>
+        /* General Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header Styles */
+        .report-header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 3px solid #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .report-title {
+            font-size: 2.8rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .report-subtitle {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            font-weight: 300;
+        }
+
+        /* Navigation/Table of Contents */
+        .table-of-contents {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .toc-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .toc-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+        }
+
+        .toc-item {
+            background-color: #fff;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .toc-item:hover {
+            background-color: #e3f2fd;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 12px 15px;
+            text-decoration: none;
+            color: #2c3e50;
+            font-weight: 500;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .toc-link:hover {
+            color: #1976d2;
+            transform: translateX(5px);
+        }
+
+        .section-number {
+            font-weight: bold;
+            color: #1976d2;
+            margin-right: 10px;
+        }
+
+        /* Section Styles */
+        .report-section {
+            margin-bottom: 50px;
+            padding: 30px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .section-heading {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+            position: relative;
+        }
+
+        .section-heading::before {
+            content: attr(data-section);
+            position: absolute;
+            left: -60px;
+            top: 0;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #bdc3c7;
+            opacity: 0.3;
+        }
+
+        .section-content {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #555;
+            padding-left: 20px;
+        }
+
+        .section-placeholder {
+            font-style: italic;
+            color: #7f8c8d;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+
+        /* Footer Styles */
+        .report-footer {
+            margin-top: 60px;
+            padding: 30px 0;
+            border-top: 3px solid #2c3e50;
+            text-align: center;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .page-info {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+
+        .confidentiality-note {
+            font-size: 0.85rem;
+            color: #e74c3c;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                max-width: 100%;
+                margin: 0;
+                padding: 0;
+                font-size: 12pt;
+                line-height: 1.4;
+            }
+
+            .report-header {
+                page-break-after: always;
+                margin-bottom: 0;
+            }
+
+            .table-of-contents {
+                page-break-after: always;
+                margin-bottom: 0;
+            }
+
+            .report-section {
+                page-break-before: always;
+                margin-bottom: 0;
+                padding: 20pt 0;
+            }
+
+            .report-section:first-of-type {
+                page-break-before: auto;
+            }
+
+            .section-heading {
+                font-size: 18pt;
+                margin-bottom: 15pt;
+            }
+
+            .section-heading::before {
+                display: none;
+            }
+
+            .section-content {
+                font-size: 11pt;
+                line-height: 1.5;
+                padding-left: 0;
+            }
+
+            .toc-list {
+                grid-template-columns: 1fr;
+            }
+
+            .report-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 50pt;
+                background-color: #f8f9fa;
+                border-top: 1pt solid #2c3e50;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            }
+
+            .page-info::after {
+                content: counter(page);
+            }
+
+            /* Ensure content doesn't overlap footer */
+            .report-section {
+                margin-bottom: 60pt;
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .report-title {
+                font-size: 2.2rem;
+            }
+
+            .section-heading {
+                font-size: 1.8rem;
+            }
+
+            .section-heading::before {
+                display: none;
+            }
+
+            .toc-list {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Report Header -->
+    <header class="report-header">
+        <h1 class="report-title">Due Diligence Report</h1>
+        <p class="report-subtitle">Comprehensive Business Analysis & Risk Assessment</p>
+    </header>
+
+    <!-- Table of Contents -->
+    <nav class="table-of-contents">
+        <h2 class="toc-title">Table of Contents</h2>
+        <ul class="toc-list">
+            <li class="toc-item">
+                <a href="#section-1" class="toc-link">
+                    <span class="section-number">1.</span>Executive Summary
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-2" class="toc-link">
+                    <span class="section-number">2.</span>Company Overview
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-3" class="toc-link">
+                    <span class="section-number">3.</span>Business Model & Strategy
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-4" class="toc-link">
+                    <span class="section-number">4.</span>Market Analysis
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-5" class="toc-link">
+                    <span class="section-number">5.</span>Competitive Landscape
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-6" class="toc-link">
+                    <span class="section-number">6.</span>Products & Services
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-7" class="toc-link">
+                    <span class="section-number">7.</span>Financial Analysis
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-8" class="toc-link">
+                    <span class="section-number">8.</span>Cash Flow Assessment
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-9" class="toc-link">
+                    <span class="section-number">9.</span>Revenue Quality Analysis
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-10" class="toc-link">
+                    <span class="section-number">10.</span>Management Team
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-11" class="toc-link">
+                    <span class="section-number">11.</span>Operations Review
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-12" class="toc-link">
+                    <span class="section-number">12.</span>Legal & Regulatory
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-13" class="toc-link">
+                    <span class="section-number">13.</span>Technology Infrastructure
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-14" class="toc-link">
+                    <span class="section-number">14.</span>Human Resources
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-15" class="toc-link">
+                    <span class="section-number">15.</span>Environmental & Social
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-16" class="toc-link">
+                    <span class="section-number">16.</span>Risk Assessment
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-17" class="toc-link">
+                    <span class="section-number">17.</span>Opportunities Analysis
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-18" class="toc-link">
+                    <span class="section-number">18.</span>Valuation Considerations
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-19" class="toc-link">
+                    <span class="section-number">19.</span>Recommendations
+                </a>
+            </li>
+            <li class="toc-item">
+                <a href="#section-20" class="toc-link">
+                    <span class="section-number">20.</span>Conclusion
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Report Sections -->
+    <main class="report-content">
+        <!-- Section 1: Executive Summary -->
+        <section id="section-1" class="report-section">
+            <h2 class="section-heading" data-section="01">Executive Summary</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will contain a comprehensive executive summary of the due diligence findings, highlighting key insights, major risks, opportunities, and overall investment recommendation.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Company Overview -->
+        <section id="section-2" class="report-section">
+            <h2 class="section-heading" data-section="02">Company Overview</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will provide detailed information about the company's history, mission, vision, corporate structure, key milestones, and current business status.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Business Model & Strategy -->
+        <section id="section-3" class="report-section">
+            <h2 class="section-heading" data-section="03">Business Model & Strategy</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will analyze the company's business model, revenue streams, strategic initiatives, competitive positioning, and growth strategy.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Market Analysis -->
+        <section id="section-4" class="report-section">
+            <h2 class="section-heading" data-section="04">Market Analysis</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will examine the target market size, growth trends, market dynamics, customer segments, and industry outlook.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Competitive Landscape -->
+        <section id="section-5" class="report-section">
+            <h2 class="section-heading" data-section="05">Competitive Landscape</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will analyze the competitive environment, key competitors, market share analysis, and competitive advantages/disadvantages.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Products & Services -->
+        <section id="section-6" class="report-section">
+            <h2 class="section-heading" data-section="06">Products & Services</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will detail the company's product/service portfolio, development pipeline, quality standards, and customer satisfaction metrics.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 7: Financial Analysis -->
+        <section id="section-7" class="report-section">
+            <h2 class="section-heading" data-section="07">Financial Analysis</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will provide comprehensive financial analysis including historical performance, profitability analysis, balance sheet review, and financial ratios.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 8: Cash Flow Assessment -->
+        <section id="section-8" class="report-section">
+            <h2 class="section-heading" data-section="08">Cash Flow Assessment</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will analyze cash flow patterns, working capital management, cash generation capabilities, and liquidity position.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 9: Revenue Quality Analysis -->
+        <section id="section-9" class="report-section">
+            <h2 class="section-heading" data-section="09">Revenue Quality Analysis</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will assess revenue sustainability, customer concentration, contract terms, recurring revenue components, and revenue recognition practices.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 10: Management Team -->
+        <section id="section-10" class="report-section">
+            <h2 class="section-heading" data-section="10">Management Team</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will evaluate the management team's experience, track record, leadership capabilities, and organizational structure.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 11: Operations Review -->
+        <section id="section-11" class="report-section">
+            <h2 class="section-heading" data-section="11">Operations Review</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will examine operational efficiency, supply chain management, production capabilities, and operational scalability.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 12: Legal & Regulatory -->
+        <section id="section-12" class="report-section">
+            <h2 class="section-heading" data-section="12">Legal & Regulatory</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will review legal structure, regulatory compliance, pending litigation, intellectual property, and regulatory risks.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 13: Technology Infrastructure -->
+        <section id="section-13" class="report-section">
+            <h2 class="section-heading" data-section="13">Technology Infrastructure</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will assess technology systems, IT infrastructure, cybersecurity measures, and digital transformation initiatives.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 14: Human Resources -->
+        <section id="section-14" class="report-section">
+            <h2 class="section-heading" data-section="14">Human Resources</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will evaluate workforce composition, talent retention, compensation structures, and human capital development.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 15: Environmental & Social -->
+        <section id="section-15" class="report-section">
+            <h2 class="section-heading" data-section="15">Environmental & Social</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will assess ESG factors, sustainability practices, social impact, and environmental compliance.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 16: Risk Assessment -->
+        <section id="section-16" class="report-section">
+            <h2 class="section-heading" data-section="16">Risk Assessment</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will identify and analyze key business risks, operational risks, financial risks, and mitigation strategies.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 17: Opportunities Analysis -->
+        <section id="section-17" class="report-section">
+            <h2 class="section-heading" data-section="17">Opportunities Analysis</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will highlight growth opportunities, market expansion possibilities, operational improvements, and strategic initiatives.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 18: Valuation Considerations -->
+        <section id="section-18" class="report-section">
+            <h2 class="section-heading" data-section="18">Valuation Considerations</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will discuss valuation methodologies, key value drivers, comparables analysis, and fair value assessment.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 19: Recommendations -->
+        <section id="section-19" class="report-section">
+            <h2 class="section-heading" data-section="19">Recommendations</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will provide specific recommendations based on the due diligence findings, including actionable next steps and strategic advice.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 20: Conclusion -->
+        <section id="section-20" class="report-section">
+            <h2 class="section-heading" data-section="20">Conclusion</h2>
+            <div class="section-content">
+                <div class="section-placeholder">
+                    This section will summarize the overall assessment, final recommendations, and key takeaways from the due diligence process.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Report Footer -->
+    <footer class="report-footer">
+        <div class="page-info">
+            Due Diligence Report | Page <span id="page-number"></span>
+        </div>
+        <div class="confidentiality-note">
+            Confidential & Proprietary Information - Not for Distribution
+        </div>
+    </footer>
+
+    <script>
+        // Simple page numbering for print (basic implementation)
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageNumber = document.getElementById('page-number');
+            if (pageNumber) {
+                pageNumber.textContent = '1';
+            }
+        });
+    </script>
+</body>
+</html>

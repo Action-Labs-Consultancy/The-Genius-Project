@@ -1,0 +1,100 @@
+{
+  "name": "PostgreSQL Database Management",
+  "displayName": "PostgreSQL Rollback",
+  "description": "Database rollback and recovery operations with PITR support",
+  "version": 1,
+  "defaults": {
+    "name": "PostgreSQL Rollback"
+  },
+  "inputs": ["main"],
+  "outputs": ["main"],
+  "properties": [
+    {
+      "displayName": "Operation",
+      "name": "operation",
+      "type": "options",
+      "options": [
+        {
+          "name": "Create Backup",
+          "value": "backup",
+          "description": "Create a full database backup"
+        },
+        {
+          "name": "Point-in-Time Recovery",
+          "value": "pitr",
+          "description": "Rollback database to specific timestamp"
+        },
+        {
+          "name": "Restore from Backup",
+          "value": "restore",
+          "description": "Restore database from backup file"
+        },
+        {
+          "name": "List Backups",
+          "value": "list",
+          "description": "List available backup files"
+        },
+        {
+          "name": "Check Status",
+          "value": "status",
+          "description": "Check database and service status"
+        }
+      ],
+      "default": "status",
+      "description": "Database operation to perform"
+    },
+    {
+      "displayName": "Recovery Timestamp",
+      "name": "timestamp",
+      "type": "dateTime",
+      "default": "",
+      "placeholder": "2024-01-15T10:30:00Z",
+      "description": "Target timestamp for point-in-time recovery",
+      "displayOptions": {
+        "show": {
+          "operation": ["pitr"]
+        }
+      }
+    },
+    {
+      "displayName": "Backup File",
+      "name": "backupFile",
+      "type": "string",
+      "default": "",
+      "placeholder": "n8n_backup_2024-01-15T10-30-00-000Z.sql",
+      "description": "Name of backup file to restore from",
+      "displayOptions": {
+        "show": {
+          "operation": ["restore"]
+        }
+      }
+    },
+    {
+      "displayName": "Confirmation Required",
+      "name": "confirmDestructive",
+      "type": "boolean",
+      "default": false,
+      "description": "I understand this operation may be destructive and have verified the parameters",
+      "displayOptions": {
+        "show": {
+          "operation": ["pitr", "restore"]
+        }
+      }
+    },
+    {
+      "displayName": "Database API URL",
+      "name": "apiUrl",
+      "type": "string",
+      "default": "http://localhost:10000",
+      "description": "URL of the database management API server"
+    }
+  ],
+  "icon": "file:postgresql.svg",
+  "credentials": [],
+  "requestDefaults": {
+    "headers": {
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+    }
+  }
+}

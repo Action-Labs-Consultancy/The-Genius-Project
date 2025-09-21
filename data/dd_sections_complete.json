@@ -1,0 +1,154 @@
+{
+  "name": "dd_sections",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "section1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "G5YYk9XK2tStRIU9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract input data\nconst companyName = $input.first().json.company_name || 'Unknown Company';\nconst companyId = $input.first().json.company_id || 'unknown';\nconst content = $input.first().json.content || '{}';\n\n// Prepare the prompt for Section 1 generation\nconst prompt = `You are generating Section 1: Introduction & Engagement Context for a due diligence report.\n\nCompany: ${companyName}\nCompany ID: ${companyId}\nCompany Data: ${content}\n\nGenerate ONLY the Section 1 content with the following structure:\n- Professional introduction to the company\n- Business context and market position\n- Key engagement objectives\n- Scope of due diligence review\n\nIMPORTANT REQUIREMENTS:\n- NO placeholders like [Company Name], {{variable}}, or TBD\n- Use the actual company name: ${companyName}\n- Provide specific, detailed content\n- Format as clean HTML with proper headings\n- Maximum 800 words\n- Professional tone suitable for executive review\n\nReturn ONLY the formatted HTML content, no explanations or metadata.`;\n\nreturn [{\n  json: {\n    prompt: prompt,\n    company_name: companyName,\n    company_id: companyId\n  }\n}];"
+      },
+      "id": "process-input",
+      "name": "Process Input Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mistral:latest"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "num_predict": 1024
+              }
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ollama-request",
+      "name": "Generate Section 1 Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the generated content from Ollama response\nconst response = $input.first().json;\nlet generatedContent = '';\n\nif (response.response) {\n  generatedContent = response.response;\n} else if (response.content) {\n  generatedContent = response.content;\n} else {\n  generatedContent = 'Error: No content generated';\n}\n\n// Clean up the content\ngeneratedContent = generatedContent.trim();\n\n// Ensure it's properly formatted HTML\nif (!generatedContent.includes('<h') && !generatedContent.includes('<p>')) {\n  // Add basic HTML structure if not present\n  const paragraphs = generatedContent.split('\\n\\n').map(p => `<p>${p.trim()}</p>`).join('\\n');\n  generatedContent = `<div class=\"section-1\">\\n${paragraphs}\\n</div>`;\n}\n\nreturn [{\n  json: {\n    section_1_content: generatedContent,\n    company_name: $('Process Input Data').first().json.company_name,\n    company_id: $('Process Input Data').first().json.company_id,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-output",
+      "name": "Format Section 1 Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "webhook-response",
+      "name": "Return Section 1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Input Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Input Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Section 1 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section 1 Content": {
+      "main": [
+        [
+          {
+            "node": "Format Section 1 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Section 1 Output": {
+      "main": [
+        [
+          {
+            "node": "Return Section 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "G5YYk9XK2tStRIU9",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "G5YYk9XK2tStRIU9",
+  "tags": []
+}

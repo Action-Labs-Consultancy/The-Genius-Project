@@ -1,0 +1,48 @@
+{
+  "name": "ultimate-rollback-system",
+  "version": "2.0.0",
+  "description": "Professional-grade rollback system for Kanboard and n8n with 100% functionality",
+  "main": "ultimate-rollback-server.js",
+  "scripts": {
+    "start": "node ultimate-rollback-server.js",
+    "ultimate": "node ultimate-rollback-server.js",
+    "stop": "node launch-system.js stop",
+    "status": "node launch-system.js status",
+    "test": "node launch-system.js test",
+    "server": "node ultimate-rollback-server.js",
+    "backup": "node daily-backup-system.js",
+    "dev": "nodemon ultimate-rollback-server.js"
+  },
+  "keywords": [
+    "kanboard",
+    "rollback",
+    "version-control",
+    "n8n",
+    "automation",
+    "backup",
+    "ai-confidence",
+    "task-management"
+  ],
+  "author": "Action Labs Consultancy",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.11.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Action-Labs-Consultancy/robust-kanboard-rollback.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Action-Labs-Consultancy/robust-kanboard-rollback/issues"
+  },
+  "homepage": "https://github.com/Action-Labs-Consultancy/robust-kanboard-rollback#readme"
+}

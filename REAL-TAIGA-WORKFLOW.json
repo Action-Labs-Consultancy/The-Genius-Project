@@ -1,0 +1,113 @@
+{
+  "name": "REAL Taiga Native Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "intervalType": "minutes",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "resource": "userStory",
+        "operation": "getAll",
+        "projectId": "1"
+      },
+      "id": "get-stories",
+      "name": "Get User Stories",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [400, 300],
+      "credentials": {
+        "taigaApi": {
+          "id": "1",
+          "name": "Taiga account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter for stories with 'action' in subject\nconst items = $input.all();\nconst filtered = [];\n\nfor (const item of items) {\n  const story = item.json;\n  if (story.subject && story.subject.toLowerCase().includes('action')) {\n    // Check if created in last 2 minutes\n    const created = new Date(story.created_date);\n    const now = new Date();\n    const diffMinutes = (now - created) / (1000 * 60);\n    \n    if (diffMinutes <= 2) {\n      filtered.push({\n        json: {\n          originalId: story.id,\n          projectId: story.project,\n          title: story.subject,\n          ref: story.ref,\n          assignedTo: story.assigned_to\n        }\n      });\n    }\n  }\n}\n\nreturn filtered;"
+      },
+      "id": "filter-recent-action",
+      "name": "Filter Recent Action Stories",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "resource": "userStory",
+        "operation": "create",
+        "projectId": "={{ $json.projectId }}",
+        "subject": "🔥 ACTION FOLLOW-UP: {{ $json.title }}",
+        "description": "**AUTO-GENERATED FOLLOW-UP**\n\nThis task was automatically created because the original task contained 'action'.\n\nOriginal Task: {{ $json.title }}\nOriginal ID: #{{ $json.ref }}\n\n✅ **Next Steps:**\n- Review the original task\n- Take appropriate action\n- Update when complete\n\n🤖 Created by automation",
+        "additionalFields": {
+          "assignedTo": "={{ $json.assignedTo }}",
+          "tags": ["action-item", "auto-generated", "follow-up"]
+        }
+      },
+      "id": "create-followup",
+      "name": "Create Follow-up Story",
+      "type": "n8n-nodes-base.taiga",
+      "typeVersion": 1,
+      "position": [800, 300],
+      "credentials": {
+        "taigaApi": {
+          "id": "1", 
+          "name": "Taiga account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Get User Stories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Stories": {
+      "main": [
+        [
+          {
+            "node": "Filter Recent Action Stories", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Recent Action Stories": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-up Story",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "taiga-native-v2",
+  "id": "real-taiga-workflow"
+}

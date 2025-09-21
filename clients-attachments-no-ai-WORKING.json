@@ -1,0 +1,255 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        -224
+      ],
+      "id": "2c3b8c54-1a10-41a3-aa47-f4184d3adcb5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 5,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -336,
+        -224
+      ],
+      "id": "58cc4342-4581-4efd-8d11-971138f23407",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Find tasks containing @CG with proper validation\nconst tasks = $input.first().json.result || [];\nconsole.log(`Checking ${tasks.length} tasks for @CG mentions`);\n\n// Look for tasks with \"@CG\" in title, description, or comments\nconst matchingTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // Check if it's an @CG task (case insensitive)\n  if (title.toLowerCase().includes('@cg') || \n      description.toLowerCase().includes('@cg')) {\n    \n    const taskDetails = {\n      task_id: task.id,\n      title: title.trim(),\n      description: description.trim(),\n      project_id: task.project_id || 1,\n      attachments: task.attachments || [],\n      match_location: [],\n      // Extract company name from title (everything before @CG)\n      company_name: title.split('@CG')[0].trim() || 'Unknown Company'\n    };\n\n    // Record where the match was found\n    if (title.toLowerCase().includes('@cg')) {\n      taskDetails.match_location.push('title');\n    }\n    if (description.toLowerCase().includes('@cg')) {\n      taskDetails.match_location.push('description');\n    }\n\n    console.log(`✅ Found @CG task: \"${title}\" (ID: ${task.id})`);\n    console.log(`Company: ${taskDetails.company_name}`);\n    console.log(`Match found in: ${taskDetails.match_location.join(', ')}`);\n    \n    matchingTasks.push(taskDetails);\n  }\n}\n\nif (matchingTasks.length > 0) {\n  return matchingTasks.map(task => ({ json: task }));\n}\n\n// If no tasks found, stop gracefully\nconsole.log('ℹ️ No @CG tasks found');\nthrow new Error('No @CG tasks found');"
+      },
+      "name": "Find @CG Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        -224
+      ],
+      "id": "e0896b6d-a08a-40c1-ba1e-77da7670a546"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the Pinecone Vector Store for relevant client documents and attachments. This database contains indexed information about clients, tasks, and uploaded documents. Use this tool to find relevant information before responding to user queries.",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "clients",
+          "mode": "list",
+          "cachedResultName": "clients"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        32
+      ],
+      "id": "3cb8da42-37dc-49af-beaa-af4b205a73bd",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "chat",
+        "text": "=I need you to search for information about {{ $json.company_name }} to answer this specific request:\n\n**COMPANY TO SEARCH FOR:** {{ $json.company_name }}\n**SPECIFIC REQUEST:** {{ $json.description }}\n**TASK TITLE:** {{ $json.title }}\n\nIMPORTANT INSTRUCTIONS:\n1. You MUST use the Pinecone Vector Store tool to search for \"{{ $json.company_name }}\"\n2. Search multiple times with different keywords if needed\n3. Look for documents, attachments, or information related to this company\n4. Do NOT respond with generic statements - provide specific information from the search results\n5. If you find documents, summarize the key details about {{ $json.company_name }}\n6. If no documents are found, clearly state you searched for \"{{ $json.company_name }}\" but found no results\n\nSearch now and provide a detailed response based on what you find!",
+        "options": {
+          "systemMessage": "You are an AI assistant with access to a Pinecone Vector Store tool containing client documents. CRITICAL: You must ALWAYS use the Pinecone Vector Store tool to search for information before responding. Never provide generic responses - only respond based on actual search results from Pinecone. If you cannot find specific information in Pinecone, clearly state what you searched for and that no results were found."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        -224
+      ],
+      "id": "30e68499-1586-4adb-b653-7840007d114d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        352,
+        192
+      ],
+      "id": "943a731c-352e-4429-9505-4d134b3a0004",
+      "name": "Embeddings Ollama",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        160,
+        16
+      ],
+      "id": "9b07a7a7-ee88-4065-90ee-1263ee88facb",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createComment\",\n  \"id\": 1,\n  \"params\": {\n    \"task_id\": $('Find @CG Tasks').item.json.task_id,\n    \"content\": `🤖 **@CG AI Response** (Generated on ${new Date().toLocaleString()})\\n\\n${$json.output || $json.text || $json.response || 'AI processing completed but no output received.'}\\n\\n---\\n💡 *This response was generated by searching our Pinecone vector database for relevant client documents.*`,\n    \"user_id\": 1\n  }\n} }}",
+        "options": {}
+      },
+      "name": "Post AI Response to Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        -224
+      ],
+      "id": "12483578-bada-4ead-8147-9a0785b2c586",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find @CG Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find @CG Tasks": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Post AI Response to Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  }
+}

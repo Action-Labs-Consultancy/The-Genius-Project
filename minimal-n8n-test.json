@@ -1,0 +1,96 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -128
+      ],
+      "id": "7cdeef3d-788a-4cc7-8904-df53ccad2846"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        -128
+      ],
+      "id": "aaef68f7-9c9d-43fd-aa32-ec63a0473d07",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Find tasks containing @CG with proper validation\nconst tasks = $input.first().json.result || [];\nconsole.log(`Checking ${tasks.length} tasks for @CG mentions`);\n\n// Look for tasks with \"@CG\" in title, description, or comments\nconst matchingTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString() : '';\n  const description = task.description ? task.description.toString() : '';\n  \n  // Check if it's an @CG task (case insensitive)\n  if (title.toLowerCase().includes('@cg') || \n      description.toLowerCase().includes('@cg')) {\n    \n    const taskDetails = {\n      task_id: task.id,\n      title: title.trim(),\n      description: description.trim(),\n      project_id: task.project_id || 1,\n      attachments: task.attachments || [],\n      match_location: []\n    };\n\n    // Record where the match was found\n    if (title.toLowerCase().includes('@cg')) {\n      taskDetails.match_location.push('title');\n    }\n    if (description.toLowerCase().includes('@cg')) {\n      taskDetails.match_location.push('description');\n    }\n\n    console.log(`✅ Found @CG task: \"${title}\" (ID: ${task.id})`);\n    console.log(`Match found in: ${taskDetails.match_location.join(', ')}`);\n    \n    matchingTasks.push(taskDetails);\n  }\n}\n\nif (matchingTasks.length > 0) {\n  return matchingTasks.map(task => ({ json: task }));\n}\n\n// If no tasks found, stop gracefully\nconsole.log('ℹ️ No @CG tasks found');\nthrow new Error('No @CG tasks found');"
+      },
+      "name": "Find @CG Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -128
+      ],
+      "id": "53009a35-a147-4082-926b-95b5a6a744bd"
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find @CG Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find @CG Tasks": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  }
+}

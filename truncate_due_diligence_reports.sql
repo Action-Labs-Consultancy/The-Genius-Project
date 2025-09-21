@@ -1,0 +1,1 @@
+TRUNCATE TABLE due_diligence_reports RESTART IDENTITY CASCADE;

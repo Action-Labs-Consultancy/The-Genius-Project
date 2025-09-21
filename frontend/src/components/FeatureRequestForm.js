@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
+import { API_BASE_URL } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import { featureRequestApi } from '../api/featureRequestApi';
 import './FeatureRequestForm.css';
@@ -110,7 +111,7 @@ const FeatureRequestForm = ({ user, onNavigate }) => {
 
     try {
       // Submit the feature request with proper credentials
-      const response = await fetch('http://192.168.100.63:10000/api/feature-requests', {
+      const response = await fetch(`${API_BASE_URL}/api/feature-requests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

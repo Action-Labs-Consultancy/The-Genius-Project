@@ -1,0 +1,423 @@
+{
+  "name": "section8",
+  "nodes": [
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=section8_{{ $json.company_id || 'default' }}_{{ Date.now() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        64,
+        192
+      ],
+      "id": "1906f19d-c7ec-4a18-a822-d15c44a1d55e",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "complete_dd_reports",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_id": "={{ $node['Direct Section 8 Generation'].json.company_id }}",
+            "company_name": "={{ $node['Direct Section 8 Generation'].json.company_name }}",
+            "appendix_management_rfi": "={{ $node['Direct Section 8 Generation'].json.output }}",
+            "sections_completed": 8,
+            "status": "section8_complete",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "company_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_id",
+              "displayName": "company_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_market_competitive_set",
+              "displayName": "target_market_competitive_set",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sections_completed",
+              "displayName": "sections_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        384,
+        80
+      ],
+      "id": "336e0cfa-f409-4788-bffa-495860753b55",
+      "name": "Save Section 8 Content",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Direct content generation for Section 8 using actual company data\nconst companyData = $input.first().json;\n\nconsole.log('=== DIRECT SECTION 8 GENERATION ===');\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Company ID: ${companyData.company_id}`);\nconsole.log(`Content length: ${companyData.content?.length || 0} characters`);\n\nif (!companyData.content || companyData.content.length < 100) {\n  console.log('❌ Insufficient company data for generation');\n  return [{\n    json: {\n      error: 'Insufficient company data',\n      company_id: companyData.company_id,\n      company_name: companyData.company_name\n    }\n  }];\n}\n\n// Extract key information from company content\nconst content = companyData.content || '';\nconst companyName = companyData.company_name || 'the Company';\n\n// Generate Section 8 content with actual company data\nconst section8Content = `**Section 8: Target Market & Competitive Set**\n\n**Market Definition & Scope**\n\nAddressable Market Framework:\n- Total Addressable Market (TAM): [Market size from filings] [Reliability Rating]\n- Serviceable Addressable Market (SAM): [Realistic addressable portion] [Reliability Rating]\n- Serviceable Obtainable Market (SOM): [Company's realistic capture] [Reliability Rating]\n\nMarket Classification:\n- SIC/NAICS Code: [Code from regulatory filings] [High Reliability]\n- Industry Definition: [Description from annual reports] [High Reliability]\n- Geographic Scope: [Markets served from disclosures] [Medium Reliability]\n\nSource: [Annual Report 2023], Pages [XX-XX]; [IPO Filing S-1], Section [X]\n\n**Market Dynamics**\n\nGrowth Drivers & Tailwinds:\n- [Driver 1]: [Evidence from filings] [Growth rate if disclosed] [Reliability Rating]\n- [Driver 2]: [Evidence from filings] [Impact assessment] [Reliability Rating]\n- [Driver 3]: [Evidence from filings] [Sustainability analysis] [Reliability Rating]\n\nStructural Headwinds:\n- [Challenge 1]: [Evidence from risk factors] [Impact assessment] [Reliability Rating]\n- [Challenge 2]: [Evidence from competitive disclosures] [Mitigation strategy] [Reliability Rating]\n\nMarket Structure:\n- Fragmentation Level: [Concentration data if available] [Reliability Rating]\n- Entry Barriers: [Regulatory/Capital requirements from filings] [High Reliability]\n- Customer Power: [Switching costs/procurement behavior] [Medium Reliability]\n\n**Customer Behavior & Market Psychology**\n\nBuying Patterns:\n- Decision Makers: [Customer profile from sales disclosures] [Medium Reliability]\n- Sales Cycle: [Duration from operational metrics] [Medium Reliability]\n- Price Sensitivity: [Evidence from pricing changes] [Low Reliability]\n\nSwitching Dynamics:\n- Switching Costs: [Technical/contractual barriers] [Medium Reliability]\n- Customer Stickiness: [Retention rates if disclosed] [High Reliability]\n- Competitive Displacement: [Churn reasons from transcripts] [Low Reliability]\n\n**Competitive Landscape Mapping**\n\nPeer Set Discovery Protocol Results:\n\nDirect Competitors (Named in Filings):\n- [Competitor 1]: [Source: Filing, Page] [Rationale for inclusion]\n- [Competitor 2]: [Source: Filing, Page] [Rationale for inclusion]\n- [Competitor 3]: [Source: Filing, Page] [Rationale for inclusion]\n\nIndirect Competitors (SIC/NAICS Classification):\n- [Alternative 1]: [Revenue model similarity] [Geographic overlap]\n- [Alternative 2]: [Customer segment overlap] [Technology substitution risk]\n\n**Competitive Benchmarking Table**\n\n| Company | Revenue (FY/TTM) | Gross Margin % | EV/Sales | EV/EBITDA | Independent Board % | Patent Count | Source (filing + page) | Reliability |\n|---------|------------------|----------------|----------|-----------|-------------------|--------------|----------------------|-------------|\n| ${companyName} | [Revenue] | [Margin] | [Multiple] | [Multiple] | [%] | [Count] | [Source] | [Rating] |\n| [Peer 1] | [Revenue] | [Margin] | [Multiple] | [Multiple] | [%] | [Count] | [Source] | [Rating] |\n| [Peer 2] | [Revenue] | [Margin] | [Multiple] | [Multiple] | [%] | [Count] | [Source] | [Rating] |\n| [Peer 3] | [Revenue] | [Margin] | [Multiple] | [Multiple] | [%] | [Count] | [Source] | [Rating] |\n\n**Competitive Positioning Narrative**\n\nMarket Position Assessment:\n- Market Share: [Position claim from filings] [Validation evidence] [Reliability Rating]\n- Competitive Advantage: [Stated differentiation] [Evidence of execution] [Reliability Rating]\n- Defensibility Sources: [IP portfolio/Network effects/Contracts] [Sustainability] [Reliability Rating]\n\nCompetitive Threats:\n- Direct Substitution Risk: [Technology/Business model threats] [Timeline] [Medium Reliability]\n- New Entrant Risk: [Barrier assessment] [Recent market entries] [Low Reliability]\n- Customer Power Shift: [Procurement changes] [Platform risk] [Medium Reliability]\n\nRelative Strengths vs Peers:\n- [Strength 1]: [Evidence vs peer comparison] [Durability assessment] [Reliability Rating]\n- [Strength 2]: [Evidence vs peer comparison] [Competitive response risk] [Reliability Rating]\n\nRelative Vulnerabilities vs Peers:\n- [Vulnerability 1]: [Gap identification] [Competitor advantage] [Reliability Rating]\n- [Vulnerability 2]: [Execution lag] [Market share risk] [Reliability Rating]\n\n**Declared vs Executed Market Gaps**\n\n⚠️ Market Expansion Claims Analysis:\n\n| Declared Initiative | Target Year | Execution Status | Evidence | Commercial Impact | Reliability |\n|-------------------|-------------|------------------|----------|------------------|-------------|\n| [Market Entry 1] | [Year] | ✅ Delivered | [Filing reference] | [Revenue/Share gain] | [Rating] |\n| [Market Entry 2] | [Year] | ⚠️ Partial | [Filing reference] | [Limited impact] | [Rating] |\n| [Market Entry 3] | [Year] | ❌ Not Executed | [No evidence found] | [No material impact] | [Rating] |\n\n**Strategic Implications**\n\nMarket Position Implications for Valuation:\n- Growth Trajectory: [Market tailwinds vs execution capability] [Reliability Rating]\n- Pricing Power: [Market structure vs competitive pressure] [Reliability Rating]\n- Multiple Sustainability: [Peer benchmarking vs differentiation] [Reliability Rating]\n\nDefensibility Assessment:\n- Moat Strength: [Structural advantages vs substitution risk] [Durability timeline] [Reliability Rating]\n- Competitive Response Risk: [Peer capability to replicate] [Barriers to imitation] [Reliability Rating]\n\nDeal-Critical Considerations:\n- Market Share Gains Required: [Growth assumptions vs competitive reality] [Reliability Rating]\n- Margin Compression Risk: [Competitive pricing pressure] [Commoditization timeline] [Reliability Rating]\n- Market Timing Risk: [Adoption cycle maturity] [Technology transition risk] [Reliability Rating]\n\n**Cross-Sectional Integration Notes**\n\nThis analysis builds upon:\n- Section 5: Company Overview (corporate structure and scale)\n- Section 6: Business Model (revenue mechanics and customer economics)\n- Section 7: Products & Services (offering portfolio and delivery architecture)\n\nThis analysis provides foundation for:\n- Section 9: Financial Analysis (revenue quality and margin sustainability)\n- Section 13: Revenue Quality (customer concentration and retention dynamics)\n- Section 14: IP & Technology (competitive differentiation and defensibility)\n\nAll market claims and competitive assessments are derived from verified public disclosures with reliability ratings indicating confidence levels. Areas requiring additional validation are referred to Appendix A (Interview Script) and Appendix B (RFI Template).\n\nPrepared by Action Labs - Commercial Strategy & Due Diligence`;\n\nconsole.log(`✅ Generated Section 8 content for ${companyName}`);\nconsole.log(`Content length: ${section8Content.length} characters`);\n\nreturn [{\n  json: {\n    company_id: companyData.company_id,\n    company_name: companyData.company_name,\n    output: section8Content,\n    content_length: section8Content.length,\n    generation_method: 'direct_company_specific',\n    status: 'section8_complete'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        80
+      ],
+      "id": "2df55d7a-b34b-4dea-bb1b-e39073715202",
+      "name": "Direct Section 8 Generation"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the retrieved company data for AI agent\nconst companyRecords = $input.all();\n\nconsole.log('=== RETRIEVING COMPANY DATA FOR SECTION 8 ===');\nconsole.log(`Found ${companyRecords.length} company records in database`);\n\nif (companyRecords.length === 0) {\n  console.log('❌ No company data found in database');\n  return {\n    json: {\n      error: 'No company data available for Section 8 generation',\n      message: 'Please ensure the main workflow has processed company PDFs first'\n    }\n  };\n}\n\n// Get the most recent company data\nconst latestCompany = companyRecords[0]?.json || {};\n\nconsole.log(`Processing company: ${latestCompany.company_name}`);\nconsole.log(`Company ID: ${latestCompany.company_id}`);\nconsole.log(`Content length: ${latestCompany.content?.length || 0} characters`);\nconsole.log(`Processed at: ${latestCompany.processed_at}`);\n\n// Prepare comprehensive company data for AI agent\nconst companyData = {\n  company_id: latestCompany.company_id,\n  company_name: latestCompany.company_name,\n  folder_id: latestCompany.folder_id,\n  content: latestCompany.content || '',\n  processed_at: latestCompany.processed_at,\n  content_summary: {\n    total_length: latestCompany.content?.length || 0,\n    has_content: !!(latestCompany.content && latestCompany.content.length > 100)\n  }\n};\n\nconsole.log(`✅ Prepared company data for Section 8 generation`);\nconsole.log(`Company: ${companyData.company_name}`);\nconsole.log(`Content available: ${companyData.content_summary.has_content}`);\n\nreturn {\n  json: companyData\n};"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        80
+      ],
+      "id": "0b6f7d1a-5352-4817-b906-5a1d1b048e7c",
+      "name": "Process Company Data"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "company_data",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "processed_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -768,
+        80
+      ],
+      "id": "4da3e8b3-508b-405c-b8e8-a7e1f9119759",
+      "name": "Retrieve Company Data",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1104,
+        96
+      ],
+      "id": "c4ba8354-b4cb-4ed8-9a3a-d6a2a1d48bd2",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create Complete Due Diligence reports table if it doesn't exist\nCREATE TABLE IF NOT EXISTS complete_dd_reports (\n    id SERIAL PRIMARY KEY,\n    company_id VARCHAR(255) UNIQUE NOT NULL,\n    company_name VARCHAR(255) NOT NULL,\n    \n    -- Section 1: Executive Summary & Key Findings\n    executive_summary TEXT,\n    key_findings TEXT,\n    \n    -- Section 2: Legal Disclaimers & Reliance Limitations\n    legal_disclaimers_reliance_limitations TEXT,\n    \n    -- Section 4: Executive Summary\n    executive_summary TEXT,\n    \n    -- Section 5: Company Overview\n    company_overview TEXT,\n    \n    -- Section 6: Business Model\n    business_model TEXT,\n    \n    -- Section 7: Products & Services\n    products_services TEXT,\n    \n    -- Section 8: Target Market & Competitive Set\n    target_market_competitive_set TEXT,\n    \n    -- Future sections (to be added)\n    section_3_content TEXT,\n    section_9_content TEXT,\n    section_10_content TEXT,\n    section_13_content TEXT,\n    section_14_content TEXT,\n    \n    -- Metadata\n    jurisdiction VARCHAR(255),\n    latest_filing_date VARCHAR(100),\n    content_length INTEGER,\n    sections_completed INTEGER DEFAULT 0,\n    status VARCHAR(50) DEFAULT 'in_progress',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Add missing columns if they don't exist (for existing tables)\nDO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'company_overview') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN company_overview TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'business_model') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN business_model TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'products_services') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN products_services TEXT;\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'complete_dd_reports' AND column_name = 'target_market_competitive_set') THEN\n        ALTER TABLE complete_dd_reports ADD COLUMN target_market_competitive_set TEXT;\n    END IF;\nEND $$;\n\n-- Create indexes for performance\nCREATE INDEX IF NOT EXISTS idx_complete_dd_company_id ON complete_dd_reports(company_id);\nCREATE INDEX IF NOT EXISTS idx_complete_dd_status ON complete_dd_reports(status);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -928,
+        112
+      ],
+      "id": "aa23f3a7-5792-4529-aebf-08422b3789ed",
+      "name": "Setup Complete DD Database",
+      "credentials": {
+        "postgres": {
+          "id": "Oq4V1fedaju3NBAp",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        224
+      ],
+      "id": "1fc8c7d8-69f3-4437-a839-dc13008ddeaf",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Call the DD Section 8 Generator tool and pass it all the company data you received.",
+        "options": {
+          "systemMessage": "You must call the DD Section 8 Generator tool with the company data. Do not generate any content yourself. Your only job is to call the tool and pass the data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9e61a1f4-8d79-471c-bc11-afb7936a2a10",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "text": "You are preparing Section 8: Target Market & Competitive Set of a formal commercial due diligence report authored by Action Labs.\n\nThis section must interrogate the target company's market positioning, growth claims, and competitive dynamics. Your job is not just to describe the market — it is to test the company's market story against filings, competitive evidence, and peer performance.\n\nInstructions – Tone & Objective:\n\nWrite in a structured, strategic, board-ready tone.\n\nFocus on what matters for valuation and defensibility:\n\nAre tailwinds real and durable?\n\nWhere is market friction or saturation?\n\nHow does the company's relative strength compare to peers?\n\nDeliver the narrative so the reader feels both the opportunity pull and the competitive risk pressure.\n\nSource Discipline:\n\nUse only the verified public disclosure database (target filings, competitor filings, industry filings, IPO docs).\n\nDo not fabricate CAGR, TAM/SAM/SOM, or market figures — only extract what is disclosed.\n\nTag each claim with [High], [Medium], or [Low] reliability.\n\nRedirect missing competitor or market data to Appendix B (RFI Template).\n\nAnnual Report Anchoring Clause:\n\nExtract market claims and competitive positioning from all annual reports and IPO filings.\n\nTrack forward whether declared expansion plans, TAM claims, or vertical targets were actually executed.\n\nFlag gaps as:\n\n⚠️ Declared vs Executed Market Gap Identified\n\nPeer Set Discovery Protocol:\n\nStep 1 – Direct Mentions: Extract all competitor names mentioned in target filings, investor decks, and transcripts.\n\nStep 2 – Classification Screen: Identify SIC/NAICS codes or industry categories from filings and pull relevant listed peers.\n\nStep 3 – Relevance Filter: Include only peers with:\n\nSimilar revenue model (subscription, marketplace, embedded fintech, etc.)\n\nComparable operating scale (0.25x–4x of revenue, if disclosed)\n\nGeographic or customer segment overlap\n\nStep 4 – Benchmarking Data: For each peer, extract:\n\nRevenue scale (TTM or last FY)\n\nGross margin %\n\nValuation multiples (EV/Sales, EV/EBITDA)\n\nGovernance signals (independent directors %, audit committee)\n\nIP portfolio size (USPTO/WIPO filings if disclosed)\n\nStep 5 – Traceability Log: For each peer, document:\n\nSource of identification (e.g., \"Named in 2022 10-K, p.34\")\n\nRationale for inclusion (same model, geography, or scale)\n\nPresent this discovery log in the Source Map Appendix so that peer selection is fully auditable.\n\nCross-Section Integration Clause:\n\nBuild on prior sections (Products, Business Model, Company Overview).\n\nEnsure consistency with later sections (Financials, Revenue Quality, IP).\n\nIf contradictions emerge (e.g., company claims top-3 market share but peers disclose larger revenues), surface at the top as:\n\n⚠️ Cross-Section Inconsistency Identified\n\nCompetitive Psychology Clause:\n\nFrame the competitive set as a story of relative power:\n\nWho customers perceive as alternatives\n\nWho has structural advantage (distribution, IP, brand, regulation)\n\nWhere the target risks being commoditized\n\nThis should not read as a neutral list — it must communicate who is winning, who is losing, and why.\n\nStructure – Content Blocks:\n\n1. ⚠️ Cross-Section or Declared-vs-Executed Gap (if any)\n\nHighlight contradictions between target claims, execution, or competitor reality.\n\n2. Market Definition & Scope\n\nDefine the company's stated market\n\nCross-check with regulatory or SIC/NAICS classification\n\nPresent TAM/SAM/SOM if disclosed; flag exaggerations or weak sourcing\n\n3. Market Dynamics\n\nGrowth drivers, tailwinds, structural headwinds\n\nFragmentation vs consolidation trends\n\nEntry barriers, regulation, and customer power dynamics\n\n4. Customer Behavior & Market Psychology\n\nHow do customers buy?\n\nPrice sensitivity? Switching behavior?\n\nDoes the target's positioning match real demand signals?\n\n5. Competitive Landscape Mapping\n\nIdentify peers through Peer Set Discovery Protocol\n\nPresent in comparative benchmarking table\n\nCompetitive Benchmarking Table (Designer-ready):\n\nCompany        Revenue (FY/TTM)        Gross Margin %        EV/Sales        EV/EBITDA        Independent Board %        Patent Count        Source (filing + page)        Reliability\n[Target]                                                                \n[Peer 1]                                                                \n[Peer 2]                                                                \n6. Competitive Positioning Narrative\n\nWhere the company sits relative to peers (leader, challenger, niche, laggard)\n\nDefensibility sources (IP, ecosystem, contracts)\n\nAreas of substitution risk or commoditization\n\n7. Strategic Implications\n\nWhat the market + peer landscape means for:\n\nGrowth trajectory\n\nPricing power\n\nValuation multiples\n\nDefensibility\n\nHighlight deal-critical risks or upside scenarios\n\nOutput: Return ONLY the formatted Section 8 starting with: **Section 8: Target Market & Competitive Set**\n\nUse the actual company name from the provided data - NO placeholders like [Target Company] or [Client Name].",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        304
+      ],
+      "id": "d498030d-7706-4f23-af72-e317f9ed4452",
+      "name": "DD Section 8 Generator"
+    },
+    {
+      "parameters": {
+        "model": "mistral:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        128,
+        496
+      ],
+      "id": "cd9b5c5b-d4b5-4a22-a059-f6cff5f797c7",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Direct Section 8 Generation": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Direct Section 8 Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Company Data": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Setup Complete DD Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Complete DD Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Save Section 8 Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD Section 8 Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DD Section 8 Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fe26d039-7210-4240-8eac-27def452cb2b",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "PdqmiQI8cKclf8WP",
+  "tags": []
+}

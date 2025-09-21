@@ -1,0 +1,369 @@
+{
+  "name": "My workflow 90",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        32
+      ],
+      "id": "d8e0b082-ded6-4a6c-baf9-08d937fe4bf0"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllProjects",
+          "id": 1,
+          "params": {}
+        },
+        "options": {}
+      },
+      "name": "Get All Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -992,
+        32
+      ],
+      "id": "628c5fd0-6ea0-4fa7-a7ee-eb1776eeaccd",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Find the 'clients' project from all projects\nconst projects = $input.first().json.result || [];\nconsole.log(`Checking ${projects.length} projects for 'clients' project`);\n\nlet clientsProject = null;\n\nfor (const project of projects) {\n  const projectName = project.name ? project.name.toString().toLowerCase() : '';\n  \n  if (projectName === 'clients') {\n    clientsProject = project;\n    console.log(`✅ Found clients project: \"${project.name}\" (ID: ${project.id})`);\n    break;\n  }\n}\n\nif (!clientsProject) {\n  console.log('❌ Clients project not found');\n  console.log('Available projects:', projects.map(p => p.name).join(', '));\n  throw new Error('Clients project not found');\n}\n\n// Return the project details for the next node\nreturn [{ json: { project_id: clientsProject.id, project_name: clientsProject.name } }];"
+      },
+      "name": "Find Clients Project",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        32
+      ],
+      "id": "e125cd35-b1d1-404e-9103-17b4479450e6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllTasks\",\n  \"id\": 2,\n  \"params\": {\n    \"project_id\": $json.project_id,\n    \"status_id\": 1\n  }\n} }}",
+        "options": {}
+      },
+      "name": "Get Tasks from Clients Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -608,
+        32
+      ],
+      "id": "d58affe9-a101-41c2-a031-59f07ee6df36",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process tasks from clients project and prepare for attachment fetching\nconst response = $input.first().json;\nconst tasks = response.result || [];\nconst projectData = $input.all()[0].json;\n\nconsole.log(`Processing ${tasks.length} tasks from clients project (${projectData.project_name})`);\n\nconst clientTasks = [];\n\nfor (const task of tasks) {\n  // Extract company name from task title (assuming title contains company name)\n  const companyName = task.title ? task.title.trim() : 'Unknown Company';\n  \n  const taskDetails = {\n    task_id: task.id,\n    title: task.title ? task.title.trim() : 'Untitled Task',\n    company_name: companyName,\n    description: task.description ? task.description.trim() : '',\n    project_id: task.project_id,\n    project_name: projectData.project_name,\n    column_id: task.column_id,\n    column_name: task.column_name || 'Unknown Column',\n    color_id: task.color_id,\n    owner_id: task.owner_id,\n    creator_id: task.creator_id,\n    date_creation: task.date_creation,\n    date_modification: task.date_modification,\n    date_due: task.date_due || null,\n    priority: task.priority || 0,\n    score: task.score || null,\n    category_id: task.category_id || null,\n    swimlane_id: task.swimlane_id || null,\n    tags: task.tags || [],\n    is_active: task.is_active,\n    status: task.is_active === '1' ? 'Active' : 'Inactive'\n  };\n\n  console.log(`📋 Task: \"${taskDetails.title}\" (Company: ${companyName}, ID: ${task.id})`);\n  clientTasks.push(taskDetails);\n}\n\nif (clientTasks.length > 0) {\n  console.log(`✅ Returning ${clientTasks.length} tasks to check for attachments`);\n  return clientTasks.map(task => ({ json: task }));\n}\n\nconsole.log('ℹ️ No tasks found in clients project');\nreturn [{ json: { message: 'No tasks found', project_name: projectData.project_name, task_count: 0 } }];"
+      },
+      "name": "Process Client Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        32
+      ],
+      "id": "278c527c-41f9-4d03-99dc-c173dde956f6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllTaskFiles\",\n  \"id\": 3,\n  \"params\": {\n    \"task_id\": $json.task_id\n  }\n} }}",
+        "options": {}
+      },
+      "name": "Get Task Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -224,
+        32
+      ],
+      "id": "85319030-720f-4560-be50-79a67250d4cc",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process attachments and prepare for Pinecone without AI embeddings\nconst attachmentsResponse = $input.first().json;\nconst taskData = $input.all()[0].json;\nconst attachments = attachmentsResponse.result || [];\n\nconsole.log(`Processing ${attachments.length} attachments for task: ${taskData.title}`);\n\nif (attachments.length === 0) {\n  console.log(`ℹ️ No attachments found for task: ${taskData.title}`);\n  return [];\n}\n\nconst documentsToIndex = [];\n\nfor (const attachment of attachments) {\n  // Create a simple hash/vector using basic text processing (no AI needed)\n  const content = `Company: ${taskData.company_name}\\nTask: ${taskData.title}\\nFile: ${attachment.name || 'Unknown File'}\\nDescription: ${taskData.description}`;\n  \n  // Create a simple vector from text content (character-based approach)\n  const simpleVector = Array(1024).fill(0);\n  const textForVector = content.toLowerCase();\n  \n  // Simple character frequency-based vector generation\n  for (let i = 0; i < textForVector.length && i < 1024; i++) {\n    const charCode = textForVector.charCodeAt(i);\n    simpleVector[i % 1024] = (simpleVector[i % 1024] + charCode / 1000) % 1;\n  }\n  \n  // Normalize the vector\n  const magnitude = Math.sqrt(simpleVector.reduce((sum, val) => sum + val * val, 0));\n  const normalizedVector = magnitude > 0 ? simpleVector.map(val => val / magnitude) : simpleVector;\n  \n  const documentData = {\n    id: `${taskData.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${attachment.id}`,\n    values: normalizedVector,\n    metadata: {\n      company_name: taskData.company_name,\n      task_title: taskData.title,\n      task_id: taskData.task_id.toString(),\n      file_name: attachment.name || 'Unknown File',\n      file_size: attachment.size || 0,\n      column_name: taskData.column_name,\n      date_creation: taskData.date_creation,\n      document_type: 'task_attachment',\n      content_preview: content.substring(0, 200)\n    }\n  };\n\n  console.log(`📎 Prepared attachment: \"${attachment.name}\" for company \"${taskData.company_name}\"`);\n  documentsToIndex.push(documentData);\n}\n\nif (documentsToIndex.length > 0) {\n  console.log(`✅ Prepared ${documentsToIndex.length} documents for indexing (no AI needed)`);\n  return documentsToIndex.map(doc => ({ json: doc }));\n}\n\nreturn [];"
+      },
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        32
+      ],
+      "id": "ea255dfa-79e6-4ed5-a1e6-b11b23c85007"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clients-4z78dac.svc.aped-4627-b74a.pinecone.io/vectors/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Api-Key",
+              "value": "pcsk_6NAWER_3PE8zvT4EcPZ4VKTvu8h1gXFFQPyzGPM9z4KF9H7zP8gasFoGLvvwKQY3SYUn9s"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"vectors\": [\n    {\n      \"id\": $json.id,\n      \"values\": $json.values,\n      \"metadata\": $json.metadata\n    }\n  ],\n  \"namespace\": \"client-documents\"\n} }}",
+        "options": {}
+      },
+      "name": "Index in Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        32
+      ],
+      "id": "b72b8c9d-3c3a-43a0-ac64-c36ababe5696"
+    }
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "pineconeApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"input\": $json.text,\n  \"model\": \"text-embedding-ada-002\"\n} }}",
+        "options": {}
+      },
+      "name": "Generate Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        32
+      ],
+      "id": "9c5bc18c-4231-4736-a103-300ec2e2a580",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PQOY48LEbLnLiCeq",
+          "name": "Header Auth account"
+        },
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://client-tasks-YOUR_PROJECT_ID.svc.YOUR_REGION.pinecone.io/vectors/upsert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "pineconeApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Api-Key",
+              "value": "pcsk_6NAWER_3PE8zvT4EcPZ4VKTvu8h1gXFFQPyzGPM9z4KF9H7zP8gasFoGLvvwKQY3SYUn9s"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"vectors\": [\n    {\n      \"id\": $json.id,\n      \"values\": $('Generate Embeddings').item.json.data[0].embedding,\n      \"metadata\": $json.metadata\n    }\n  ],\n  \"namespace\": \"client-tasks\"\n} }}",
+        "options": {}
+      },
+      "name": "Index in Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        544,
+        32
+      ],
+      "id": "e3f8abd7-1fac-44c4-9cde-9717e1b470cd",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PQOY48LEbLnLiCeq",
+          "name": "Header Auth account"
+        },
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get All Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Projects": {
+      "main": [
+        [
+          {
+            "node": "Find Clients Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Clients Project": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks from Clients Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks from Clients Project": {
+      "main": [
+        [
+          {
+            "node": "Process Client Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Client Tasks": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Pinecone": {
+      "main": [
+        [
+          {
+            "node": "Create Pinecone Index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Pinecone Index": {
+      "main": [
+        [
+          {
+            "node": "Check Index Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Index Status": {
+      "main": [
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Index in Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "33aa41f2-1e96-4d7d-8d5c-0009b45427ab",
+  "meta": {
+    "instanceId": "950df8d6c0a857c95f608d705d57aaaaaad246a251cef19e05c98f664cc0b615"
+  },
+  "id": "yFuVTZQB2zY724Pl",
+  "tags": []
+}

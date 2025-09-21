@@ -1,0 +1,972 @@
+{
+  "name": "Complete Due Diligence Kanboard Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [100, 300],
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 1,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Kanboard Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 300],
+      "id": "get-kanboard-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract Due Diligence tasks from Kanboard\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} total tasks from Kanboard`);\n\nconst dueDiligenceTasks = [];\n\nfor (const task of tasks) {\n  const title = task.title ? task.title.toString().trim() : '';\n  const description = task.description ? task.description.toString().trim() : '';\n  \n  // Check if title contains \"Due Diligence\" (case insensitive)\n  const titleLower = title.toLowerCase();\n  if (titleLower.includes('due diligence')) {\n    let companyName = '';\n    \n    // Extract company name from title\n    const colonPattern = /due diligence:\\s*(.+)/i;\n    const colonMatch = title.match(colonPattern);\n    if (colonMatch) {\n      companyName = colonMatch[1].trim().replace(/^[\"']+|[\"']+$/g, '');\n    } else {\n      const afterDD = title.substring(title.toLowerCase().indexOf('due diligence') + 13).trim();\n      companyName = afterDD.replace(/^[:\\s\"']+/, '').replace(/[\"']+$/, '').trim() || 'Unknown Company';\n    }\n    \n    // Extract website from description\n    const urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\n    const urls = description.match(urlRegex) || [];\n    const website = urls.length > 0 ? urls[0] : '';\n    \n    console.log(`✅ Found Due Diligence task: \"${companyName}\" (ID: ${task.id})`);\n    \n    dueDiligenceTasks.push({\n      json: {\n        kanboard_task_id: task.id,\n        title: title,\n        company_name: companyName,\n        website: website,\n        description: description,\n        project_id: task.project_id || 1,\n        status: 'pending',\n        created_at: new Date().toISOString(),\n        updated_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nif (dueDiligenceTasks.length === 0) {\n  console.log('ℹ️ No Due Diligence tasks found');\n  return [{ json: { message: 'No Due Diligence tasks found', skip: true } }];\n}\n\nconsole.log(`📋 Processing ${dueDiligenceTasks.length} Due Diligence tasks`);\nreturn dueDiligenceTasks;"
+      },
+      "name": "Extract DD Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "id": "extract-dd-tasks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllTaskFiles\",\n  \"id\": 1,\n  \"params\": {\n    \"task_id\": $json.kanboard_task_id\n  }\n} }}",
+        "options": {}
+      },
+      "name": "Get Task Attachments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300],
+      "id": "get-attachments",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process attachments and prepare for file extraction\nconst taskData = $('Extract DD Tasks').first().json;\nconst attachmentResponse = $input.first().json;\nconst attachments = attachmentResponse.result || [];\n\nconsole.log(`Found ${attachments.length} attachments for task ${taskData.kanboard_task_id}`);\n\nif (attachments.length === 0) {\n  return [{\n    json: {\n      ...taskData,\n      attachments: [],\n      attachment_info: 'No attachments found',\n      extracted_content: '',\n      hasAttachments: false\n    }\n  }];\n}\n\n// Process each attachment\nconst processedAttachments = [];\nfor (const attachment of attachments) {\n  if (attachment.name && (attachment.name.toLowerCase().endsWith('.pdf') || \n                         attachment.name.toLowerCase().endsWith('.doc') ||\n                         attachment.name.toLowerCase().endsWith('.docx') ||\n                         attachment.name.toLowerCase().endsWith('.txt'))) {\n    processedAttachments.push({\n      id: attachment.id,\n      name: attachment.name,\n      size: attachment.size,\n      download_url: `http://localhost:8000/?controller=FileViewerController&action=download&file_id=${attachment.id}&project_id=${taskData.project_id}`\n    });\n  }\n}\n\nreturn [{\n  json: {\n    ...taskData,\n    attachments: processedAttachments,\n    attachment_info: processedAttachments.map(a => `${a.name} (${a.size} bytes)`).join(', '),\n    extracted_content: '',\n    hasAttachments: processedAttachments.length > 0\n  }\n}];"
+      },
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "id": "process-attachments"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              },
+              "leftValue": "={{ $json.hasAttachments }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-attachments",
+      "name": "Has Attachments?",
+      "type": "n8n-nodes-base.if",
+      "position": [1100, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "attachments",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1300, 200],
+      "id": "split-attachments",
+      "name": "Split Attachments"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 200],
+      "id": "download-attachment",
+      "name": "Download Attachment"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [1700, 200],
+      "id": "extract-file-content",
+      "name": "Extract File Content"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "extractedText"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1900, 200],
+      "id": "combine-extracted-text",
+      "name": "Combine Extracted Text"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2100, 300],
+      "id": "merge-task-with-content",
+      "name": "Merge Task with Content"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "kanboard_task_id",
+              "condition": "equal",
+              "value": "={{ $json.kanboard_task_id }}"
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Check Report Exists",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2300, 300],
+      "id": "check-report-exists",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "number",
+                "operation": "equal"
+              },
+              "leftValue": "={{ $('Check Report Exists').all().length }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "is-new-task",
+      "name": "Is New Task?",
+      "type": "n8n-nodes-base.if",
+      "position": [2500, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kanboard_task_id": "={{ $('Merge Task with Content').first().json.kanboard_task_id }}",
+            "company_name": "={{ $('Merge Task with Content').first().json.company_name }}",
+            "website": "={{ $('Merge Task with Content').first().json.website }}",
+            "description": "={{ $('Merge Task with Content').first().json.description }}",
+            "attachment_info": "={{ $('Merge Task with Content').first().json.attachment_info }}",
+            "status": "in_progress"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Create New Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2700, 200],
+      "id": "create-new-report",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "status",
+              "condition": "equal",
+              "value": "in_progress"
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Get In-Progress Reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2300, 500],
+      "id": "get-in-progress",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check which sections are missing for each report\nconst reports = $input.all();\nconst sectionsToGenerate = [];\n\n// Define all 20 due diligence sections\nconst ddSections = [\n  'introduction_engagement_context',\n  'methodology_reliability_levels',\n  'company_overview',\n  'business_model_unit_economics',\n  'products_technology',\n  'target_market_competitive_set',\n  'financials_multi_year',\n  'cash_burn_runway',\n  'revenue_quality_client_cohorts',\n  'partnerships_ecosystem',\n  'intellectual_property',\n  'legal_regulatory',\n  'governance_board_effectiveness',\n  'capital_structure_dilution',\n  'risk_matrix_mitigations',\n  'gaps_uncertainties_disclaimers',\n  'scenario_analysis',\n  'strategic_options',\n  'recommendations_next_steps',\n  'source_map_integrity_log'\n];\n\nfor (const report of reports) {\n  const reportJson = report.json;\n  \n  for (const section of ddSections) {\n    // Check if section is null or empty\n    if (!reportJson[section] || reportJson[section].trim() === '') {\n      sectionsToGenerate.push({\n        json: {\n          id: reportJson.id,\n          kanboard_task_id: reportJson.kanboard_task_id,\n          company_name: reportJson.company_name,\n          website: reportJson.website,\n          description: reportJson.description,\n          attachment_info: reportJson.attachment_info,\n          section_name: section,\n          section_title: section.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase()),\n          existing_sections: ddSections.filter(s => reportJson[s] && reportJson[s].trim() !== '').join(', ')\n        }\n      });\n      break; // Generate one section at a time per report\n    }\n  }\n}\n\nconsole.log(`📊 Found ${sectionsToGenerate.length} sections to generate`);\n\nif (sectionsToGenerate.length === 0) {\n  return [{ json: { message: 'All reports complete', skip: true } }];\n}\n\nreturn sectionsToGenerate;"
+      },
+      "name": "Find Missing Sections",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2500, 500],
+      "id": "find-missing-sections"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              },
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-sections-to-generate",
+      "name": "Has Sections to Generate?",
+      "type": "n8n-nodes-base.if",
+      "position": [2700, 500],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate AI prompt for the specific DD section\nconst sectionData = $input.first().json;\n\nconst prompt = `You are an expert financial analyst conducting comprehensive due diligence on ${sectionData.company_name}.\n\nCOMPANY INFORMATION:\n- Name: ${sectionData.company_name}\n- Website: ${sectionData.website || 'Not provided'}\n- Description: ${sectionData.description || 'Not provided'}\n- Attachments: ${sectionData.attachment_info || 'No attachments'}\n\nPREVIOUSLY COMPLETED SECTIONS:\n${sectionData.existing_sections || 'None yet'}\n\nTASK: Generate the \"${sectionData.section_title}\" section for this due diligence report.\n\nSECTION-SPECIFIC REQUIREMENTS:\n\n${getSectionRequirements(sectionData.section_name)}\n\nGENERAL REQUIREMENTS:\n- Be specific and factual\n- Use professional financial analysis language\n- Minimum 400 words\n- Include key metrics, risks, and insights\n- Reference the company's actual business model and industry\n- Provide actionable analysis\n\nGenerate ONLY the content for the \"${sectionData.section_title}\" section:`;\n\nfunction getSectionRequirements(sectionName) {\n  const requirements = {\n    'introduction_engagement_context': 'Provide context for the engagement, scope of work, limitations, and executive summary of key findings.',\n    'methodology_reliability_levels': 'Detail the methodology used, data sources, reliability levels of information, and confidence ratings.',\n    'company_overview': 'Comprehensive overview including history, mission, business model, key personnel, and corporate structure.',\n    'business_model_unit_economics': 'Analyze revenue streams, cost structure, unit economics, scalability, and business model sustainability.',\n    'products_technology': 'Detailed analysis of products/services, technology stack, IP, competitive advantages, and development roadmap.',\n    'target_market_competitive_set': 'Market size, growth, competitive landscape, positioning, and market share analysis.',\n    'financials_multi_year': 'Multi-year financial analysis including P&L, balance sheet, cash flow, and key financial ratios.',\n    'cash_burn_runway': 'Current cash position, burn rate analysis, runway calculations, and funding requirements.',\n    'revenue_quality_client_cohorts': 'Revenue quality assessment, client concentration, retention rates, and cohort analysis.',\n    'partnerships_ecosystem': 'Strategic partnerships, supplier relationships, distribution channels, and ecosystem analysis.',\n    'intellectual_property': 'IP portfolio, patents, trademarks, trade secrets, and IP protection strategy.',\n    'legal_regulatory': 'Legal structure, compliance status, regulatory risks, litigation, and legal considerations.',\n    'governance_board_effectiveness': 'Corporate governance, board composition, management quality, and organizational effectiveness.',\n    'capital_structure_dilution': 'Current cap table, ownership structure, dilution analysis, and liquidation preferences.',\n    'risk_matrix_mitigations': 'Comprehensive risk assessment with mitigation strategies and risk ratings.',\n    'gaps_uncertainties_disclaimers': 'Information gaps, areas of uncertainty, limitations of analysis, and important disclaimers.',\n    'scenario_analysis': 'Base, optimistic, and pessimistic scenarios with probability assessments and key assumptions.',\n    'strategic_options': 'Strategic alternatives, growth options, exit strategies, and strategic recommendations.',\n    'recommendations_next_steps': 'Clear recommendations, action items, next steps, and decision framework.',\n    'source_map_integrity_log': 'Complete source documentation, data integrity checks, and verification methods used.'\n  };\n  return requirements[sectionName] || 'Provide comprehensive analysis relevant to this section.';\n}\n\nconsole.log(`🤖 Generating prompt for ${sectionData.section_title} section`);\n\nreturn [{\n  json: {\n    ...sectionData,\n    ai_prompt: prompt\n  }\n}];"
+      },
+      "name": "Create Section Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2900, 400],
+      "id": "create-section-prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "mistral:latest",
+          "prompt": "={{ $json.ai_prompt }}",
+          "stream": false,
+          "options": {
+            "num_predict": 3000,
+            "temperature": 0.3
+          }
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "name": "Generate Section",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3100, 400],
+      "id": "generate-section"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process AI response and prepare for database update\nconst sectionData = $('Create Section Prompt').first().json;\nconst aiResponse = $input.first().json;\n\nconst generatedContent = aiResponse.response || '';\nconst cleanContent = generatedContent.trim();\n\nconsole.log(`📝 Generated ${sectionData.section_title}: ${cleanContent.substring(0, 100)}...`);\n\nreturn [{\n  json: {\n    id: sectionData.id,\n    section_name: sectionData.section_name,\n    section_content: cleanContent,\n    updated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Process Section Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3300, 400],
+      "id": "process-section-content"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "updateKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "{{ $json.section_name }}": "={{ $json.section_content }}",
+            "updated_at": "={{ $json.updated_at }}"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Update Section in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [3500, 400],
+      "id": "update-section-db",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "status",
+              "condition": "equal",
+              "value": "in_progress"
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Get Complete Reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2300, 700],
+      "id": "get-complete-reports",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Check if reports are complete (all 20 sections filled)\nconst reports = $input.all();\nconst completeReports = [];\n\nconst ddSections = [\n  'introduction_engagement_context', 'methodology_reliability_levels', 'company_overview',\n  'business_model_unit_economics', 'products_technology', 'target_market_competitive_set',\n  'financials_multi_year', 'cash_burn_runway', 'revenue_quality_client_cohorts',\n  'partnerships_ecosystem', 'intellectual_property', 'legal_regulatory',\n  'governance_board_effectiveness', 'capital_structure_dilution', 'risk_matrix_mitigations',\n  'gaps_uncertainties_disclaimers', 'scenario_analysis', 'strategic_options',\n  'recommendations_next_steps', 'source_map_integrity_log'\n];\n\nfor (const report of reports) {\n  const reportJson = report.json;\n  \n  // Check if all sections are completed\n  const completedSections = ddSections.filter(section => \n    reportJson[section] && reportJson[section].trim() !== ''\n  );\n  \n  if (completedSections.length === ddSections.length) {\n    console.log(`✅ Report complete for ${reportJson.company_name}`);\n    completeReports.push({\n      json: {\n        ...reportJson,\n        isComplete: true\n      }\n    });\n  }\n}\n\nif (completeReports.length === 0) {\n  return [{ json: { message: 'No complete reports found', skip: true } }];\n}\n\nreturn completeReports;"
+      },
+      "name": "Check Complete Reports",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2500, 700],
+      "id": "check-complete-reports"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-1",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              },
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "id": "has-complete-reports",
+      "name": "Has Complete Reports?",
+      "type": "n8n-nodes-base.if",
+      "position": [2700, 700],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate complete HTML report for PDF generation\nconst reportData = $input.first().json;\n\nconst htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <title>Due Diligence Report: ${reportData.company_name}</title>\n    <style>\n        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; color: #333; }\n        h1 { color: #1e3a8a; text-align: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; }\n        h2 { color: #1e40af; margin-top: 30px; margin-bottom: 15px; border-left: 4px solid #1e40af; padding-left: 15px; }\n        .section { background-color: #f8fafc; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #e2e8f0; }\n        .company-header { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white; padding: 30px; text-align: center; border-radius: 10px; margin-bottom: 30px; }\n        .section-content { font-size: 14px; line-height: 1.7; text-align: justify; }\n        .metadata { font-size: 12px; color: #64748b; margin-top: 10px; }\n        @page { margin: 20mm; }\n    </style>\n</head>\n<body>\n    <div class=\"company-header\">\n        <h1>Due Diligence Report</h1>\n        <h2 style=\"color: white; border: none; margin: 0; padding: 0;\">${reportData.company_name}</h2>\n        <p style=\"margin: 10px 0 0 0; opacity: 0.9;\">${reportData.website || 'Website not provided'}</p>\n    </div>\n\n    <div class=\"section\">\n        <h2>Introduction & Engagement Context</h2>\n        <div class=\"section-content\">${reportData.introduction_engagement_context || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Methodology & Reliability Levels</h2>\n        <div class=\"section-content\">${reportData.methodology_reliability_levels || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Company Overview</h2>\n        <div class=\"section-content\">${reportData.company_overview || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Business Model & Unit Economics</h2>\n        <div class=\"section-content\">${reportData.business_model_unit_economics || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Products & Technology</h2>\n        <div class=\"section-content\">${reportData.products_technology || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Target Market & Competitive Set</h2>\n        <div class=\"section-content\">${reportData.target_market_competitive_set || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Financials (Multi-Year, Reconciled & Recomputed)</h2>\n        <div class=\"section-content\">${reportData.financials_multi_year || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Cash Burn & Runway</h2>\n        <div class=\"section-content\">${reportData.cash_burn_runway || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Revenue Quality & Client Cohorts</h2>\n        <div class=\"section-content\">${reportData.revenue_quality_client_cohorts || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Partnerships & Ecosystem</h2>\n        <div class=\"section-content\">${reportData.partnerships_ecosystem || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Intellectual Property</h2>\n        <div class=\"section-content\">${reportData.intellectual_property || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Legal & Regulatory</h2>\n        <div class=\"section-content\">${reportData.legal_regulatory || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Governance & Board Effectiveness</h2>\n        <div class=\"section-content\">${reportData.governance_board_effectiveness || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Capital Structure & Dilution</h2>\n        <div class=\"section-content\">${reportData.capital_structure_dilution || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Risk Matrix & Mitigations</h2>\n        <div class=\"section-content\">${reportData.risk_matrix_mitigations || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Gaps, Uncertainties & Disclaimers</h2>\n        <div class=\"section-content\">${reportData.gaps_uncertainties_disclaimers || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Scenario Analysis</h2>\n        <div class=\"section-content\">${reportData.scenario_analysis || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Strategic Options</h2>\n        <div class=\"section-content\">${reportData.strategic_options || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Recommendations & Next Steps</h2>\n        <div class=\"section-content\">${reportData.recommendations_next_steps || 'Not available'}</div>\n    </div>\n\n    <div class=\"section\">\n        <h2>Source Map & Integrity Log</h2>\n        <div class=\"section-content\">${reportData.source_map_integrity_log || 'Not available'}</div>\n    </div>\n\n    <div class=\"metadata\">\n        <p><strong>Report Generated:</strong> ${new Date().toISOString()}</p>\n        <p><strong>Company:</strong> ${reportData.company_name}</p>\n        <p><strong>Kanboard Task ID:</strong> ${reportData.kanboard_task_id}</p>\n        <p><strong>Attachments:</strong> ${reportData.attachment_info || 'None'}</p>\n    </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...reportData,\n    htmlContent: htmlContent,\n    pdfFilename: `DD_Report_${reportData.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`\n  }\n}];"
+      },
+      "name": "Generate HTML Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2900, 600],
+      "id": "generate-html-report"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://rest-us.apitemplate.io/v2/create-pdf-from-html",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "apiTemplateIoApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filename",
+              "value": "={{ $json.pdfFilename }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"body\": \"{{ $json.htmlContent.replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n') }}\",\n  \"settings\": {\n    \"paper_size\": \"A4\",\n    \"orientation\": \"1\",\n    \"margin_top\": \"20\",\n    \"margin_right\": \"15\",\n    \"margin_bottom\": \"20\",\n    \"margin_left\": \"15\",\n    \"print_background\": \"1\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3100, 600],
+      "id": "generate-pdf",
+      "name": "Generate PDF"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3300, 600],
+      "id": "download-pdf",
+      "name": "Download PDF"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createTaskFile\",\n  \"id\": 1,\n  \"params\": {\n    \"project_id\": {{ $('Generate HTML Report').first().json.project_id || 1 }},\n    \"task_id\": {{ $('Generate HTML Report').first().json.kanboard_task_id }},\n    \"filename\": \"{{ $('Generate HTML Report').first().json.pdfFilename }}\",\n    \"blob\": \"{{ $json.data }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3500, 600],
+      "id": "upload-to-kanboard",
+      "name": "Upload PDF to Kanboard",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "your-kanboard-credentials-id",
+          "name": "Kanboard API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "due_diligence_reports"
+        },
+        "updateKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "completed",
+            "pdf_filename": "={{ $('Generate HTML Report').first().json.pdfFilename }}",
+            "completed_at": "={{ new Date().toISOString() }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {
+          "alwaysOutputData": true
+        }
+      },
+      "name": "Mark Report Complete",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [3700, 600],
+      "id": "mark-complete",
+      "credentials": {
+        "postgres": {
+          "id": "your-postgres-credentials-id",
+          "name": "PostgreSQL DD Database"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Kanboard Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kanboard Tasks": {
+      "main": [
+        [
+          {
+            "node": "Extract DD Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract DD Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Task Attachments",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get In-Progress Reports",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Complete Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task Attachments": {
+      "main": [
+        [
+          {
+            "node": "Process Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Attachments": {
+      "main": [
+        [
+          {
+            "node": "Has Attachments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Task with Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attachments": {
+      "main": [
+        [
+          {
+            "node": "Download Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Attachment": {
+      "main": [
+        [
+          {
+            "node": "Extract File Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File Content": {
+      "main": [
+        [
+          {
+            "node": "Combine Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Merge Task with Content",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Task with Content": {
+      "main": [
+        [
+          {
+            "node": "Check Report Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Report Exists": {
+      "main": [
+        [
+          {
+            "node": "Is New Task?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Task?": {
+      "main": [
+        [
+          {
+            "node": "Create New Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get In-Progress Reports": {
+      "main": [
+        [
+          {
+            "node": "Find Missing Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Missing Sections": {
+      "main": [
+        [
+          {
+            "node": "Has Sections to Generate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Sections to Generate?": {
+      "main": [
+        [
+          {
+            "node": "Create Section Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create Section Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Section",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section": {
+      "main": [
+        [
+          {
+            "node": "Process Section Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Section Content": {
+      "main": [
+        [
+          {
+            "node": "Update Section in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Complete Reports": {
+      "main": [
+        [
+          {
+            "node": "Check Complete Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Complete Reports": {
+      "main": [
+        [
+          {
+            "node": "Has Complete Reports?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Complete Reports?": {
+      "main": [
+        [
+          {
+            "node": "Generate HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Upload PDF to Kanboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload PDF to Kanboard": {
+      "main": [
+        [
+          {
+            "node": "Mark Report Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dd-kanboard-complete-final",
+  "meta": {
+    "instanceId": "dd-kanboard-complete"
+  },
+  "id": "dd-kanboard-complete-workflow",
+  "tags": [
+    "due-diligence",
+    "kanboard",
+    "postgresql",
+    "ai-powered",
+    "pdf-generation",
+    "complete"
+  ]
+}

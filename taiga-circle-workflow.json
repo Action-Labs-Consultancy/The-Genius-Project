@@ -1,0 +1,310 @@
+{
+  "name": "Auto Taiga Task Analysis Circle",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "id": "task-poller",
+      "name": "Check for New Tasks",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "GET", 
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_TAIGA_TOKEN"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "created__gte",
+              "value": "={{ DateTime.now().minus({minutes: 2}).toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "get-new-tasks",
+      "name": "Get New Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Only process if we have new tasks\nif (!Array.isArray($input.all()) || $input.all().length === 0) {\n  return [];\n}\n\nconst results = [];\nfor (const item of $input.all()) {\n  if (item.json && Array.isArray(item.json)) {\n    for (const task of item.json) {\n      // Check if task was created in last 2 minutes and doesn't have analysis tag\n      const createdTime = new Date(task.created_date);\n      const now = new Date();\n      const timeDiff = (now - createdTime) / 1000 / 60; // minutes\n      \n      const hasAnalysisTag = task.tags && task.tags.some(tag => \n        tag.includes('auto-analyzed') || tag.includes('human-review')\n      );\n      \n      if (timeDiff <= 2 && !hasAnalysisTag) {\n        results.push({\n          json: {\n            task_id: task.id,\n            project_id: task.project,\n            user_id: task.assigned_to,\n            title: task.subject || 'Task',\n            description: task.description || '',\n            status: task.status_extra_info?.name || 'New',\n            created_date: task.created_date,\n            analysis_prompt: `Analyze this task: \"${task.subject}\". Description: \"${task.description}\". Determine if it needs human attention and suggest subtasks.`\n          }\n        });\n      }\n    }\n  }\n}\n\nreturn results;"
+      },
+      "id": "filter-new-tasks",
+      "name": "Filter Really New Tasks", 
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/v1/chat/completions",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "model", 
+              "value": "mistral"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\": \"system\", \"content\": \"You are a task analyzer. Return ONLY valid JSON: {\\\"needs_human\\\": true/false, \\\"reason\\\": \\\"explanation\\\", \\\"subtasks\\\": [\\\"specific task 1\\\", \\\"specific task 2\\\"]}\"}, {\"role\": \"user\", \"content\": $json.analysis_prompt}]"
+            },
+            {
+              "name": "max_tokens",
+              "value": "200"
+            },
+            {
+              "name": "temperature",
+              "value": "0.3"
+            }
+          ]
+        }
+      },
+      "id": "analyze-task",
+      "name": "AI Analyze Task",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 3,
+      "position": [900, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "functionCode": "const taskData = $json;\nconst llmResponse = $json.choices?.[0]?.message?.content || '{}';\n\n// Clean up the LLM response - remove any markdown formatting\nlet cleanResponse = llmResponse.trim();\nif (cleanResponse.startsWith('```json')) {\n  cleanResponse = cleanResponse.replace(/^```json\\s*/, '').replace(/\\s*```$/, '');\n}\nif (cleanResponse.startsWith('```')) {\n  cleanResponse = cleanResponse.replace(/^```\\s*/, '').replace(/\\s*```$/, '');\n}\n\nlet analysis;\ntry {\n  analysis = JSON.parse(cleanResponse);\n} catch (e) {\n  console.log('Failed to parse LLM response:', cleanResponse);\n  analysis = {\n    needs_human: true,\n    reason: 'Analysis failed - needs human review',\n    subtasks: ['Review and clarify task requirements', 'Break down into actionable steps']\n  };\n}\n\n// Ensure subtasks is always an array\nif (!Array.isArray(analysis.subtasks)) {\n  analysis.subtasks = ['Review task requirements'];\n}\n\nreturn {\n  json: {\n    task_id: taskData.task_id,\n    project_id: taskData.project_id,\n    user_id: taskData.user_id,\n    title: taskData.title,\n    description: taskData.description,\n    needs_human: analysis.needs_human,\n    reason: analysis.reason,\n    subtasks: analysis.subtasks\n  }\n};"
+      },
+      "id": "parse-analysis",
+      "name": "Parse AI Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_human }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-human-needed",
+      "name": "Needs Human Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create multiple subtasks for human review path\nconst results = [];\nconst data = $json;\n\n// Main human review task\nresults.push({\n  json: {\n    project: data.project_id,\n    subject: `🚨 NEEDS REVIEW: ${data.title}`,\n    description: `**HUMAN ATTENTION REQUIRED**\\n\\nOriginal Task: ${data.title}\\n\\nReason: ${data.reason}\\n\\nNext Steps Required:\\n${data.subtasks.map(task => `• ${task}`).join('\\n')}\\n\\n⚠️ Please review and break this down further.`,\n    assigned_to: data.user_id,\n    tags: ['human-review', 'urgent', 'auto-generated'],\n    priority: 3\n  }\n});\n\n// Create individual subtasks\nfor (let i = 0; i < data.subtasks.length; i++) {\n  results.push({\n    json: {\n      project: data.project_id,\n      subject: `📋 Subtask ${i + 1}: ${data.subtasks[i]}`,\n      description: `**AUTO-GENERATED SUBTASK**\\n\\nParent Task: ${data.title}\\n\\nAction Required: ${data.subtasks[i]}\\n\\nThis task was automatically created based on AI analysis.`,\n      assigned_to: data.user_id,\n      tags: ['subtask', 'auto-generated', 'human-review'],\n      priority: 2\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "create-human-tasks",
+      "name": "Create Human Review Tasks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create automated subtasks for simple tasks\nconst results = [];\nconst data = $json;\n\n// Main completion task  \nresults.push({\n  json: {\n    project: data.project_id,\n    subject: `✅ READY: ${data.title}`,\n    description: `**AUTO-ANALYSIS COMPLETE**\\n\\nTask: ${data.title}\\n\\nAI Analysis: ${data.reason}\\n\\nRecommended Actions:\\n${data.subtasks.map(task => `• ${task}`).join('\\n')}\\n\\n🤖 This task has been pre-analyzed and is ready for execution.`,\n    assigned_to: data.user_id,\n    tags: ['auto-analyzed', 'ready', 'auto-generated'],\n    priority: 1\n  }\n});\n\n// Create action items\nfor (let i = 0; i < data.subtasks.length; i++) {\n  results.push({\n    json: {\n      project: data.project_id,\n      subject: `⚡ Action ${i + 1}: ${data.subtasks[i]}`,\n      description: `**AUTO-GENERATED ACTION ITEM**\\n\\nParent Task: ${data.title}\\n\\nAction: ${data.subtasks[i]}\\n\\nThis is ready to execute based on AI analysis.`,\n      assigned_to: data.user_id,\n      tags: ['action-item', 'auto-generated', 'ready'],\n      priority: 1\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "create-auto-tasks",
+      "name": "Create Auto Action Items",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/api/v1/userstories",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_TAIGA_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonParameters": true,
+        "parameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "={{ $json.project }}"
+            },
+            {
+              "name": "subject",
+              "value": "={{ $json.subject }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.description }}"
+            },
+            {
+              "name": "assigned_to",
+              "value": "={{ $json.assigned_to }}"
+            },
+            {
+              "name": "tags",
+              "value": "={{ $json.tags }}"
+            },
+            {
+              "name": "priority",
+              "value": "={{ $json.priority }}"
+            }
+          ]
+        }
+      },
+      "id": "create-tasks-in-taiga",
+      "name": "Create Tasks in Taiga",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1780, 300],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Check for New Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get New Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Tasks": {
+      "main": [
+        [
+          {
+            "node": "Filter Really New Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Really New Tasks": {
+      "main": [
+        [
+          {
+            "node": "AI Analyze Task",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyze Task": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Needs Human Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Human Review?": {
+      "main": [
+        [
+          {
+            "node": "Create Human Review Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Auto Action Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Human Review Tasks": {
+      "main": [
+        [
+          {
+            "node": "Create Tasks in Taiga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Auto Action Items": {
+      "main": [
+        [
+          {
+            "node": "Create Tasks in Taiga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "auto-taiga-circle-v1",
+  "id": "auto-taiga-task-analysis-circle"
+}

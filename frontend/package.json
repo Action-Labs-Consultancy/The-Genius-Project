@@ -17,7 +17,10 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
     "lucide-react": "^0.525.0",
+    "moment": "^2.30.1",
+    "pg": "^8.16.3",
     "react": "18.3.1",
+    "react-big-calendar": "^1.19.4",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "18.3.1",
     "react-dropzone": "^14.3.8",
@@ -25,8 +28,9 @@
     "react-router-dom": "^7.6.3",
     "react-scripts": "5.0.1",
     "reactflow": "^11.11.4",
-    "recharts": "^3.1.0",
+    "recharts": "^3.2.1",
     "socket.io-client": "^4.8.1",
+    "sqlite3": "^5.1.7",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.5"
@@ -36,6 +40,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:2345": "set PORT=2345 && react-scripts start",
+    "start:2346": "set PORT=2346&& set HOST=0.0.0.0 && react-scripts start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "release": "standard-version"

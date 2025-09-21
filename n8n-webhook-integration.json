@@ -1,0 +1,213 @@
+{
+  "name": "Frontend Integration Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-section",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_generate_section",
+      "name": "Frontend Section Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "generate-section"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract webhook payload\nconst payload = $input.first().json;\n\nconsole.log('=== FRONTEND SECTION GENERATION REQUEST ===');\nconsole.log('Company ID:', payload.companyId);\nconsole.log('Section ID:', payload.sectionId);\nconsole.log('Section Name:', payload.sectionName);\nconsole.log('Section Column:', payload.sectionColumn);\nconsole.log('Previous Sections Count:', payload.previousSections?.length || 0);\n\n// Validate required fields\nif (!payload.companyId || !payload.sectionId || !payload.sectionColumn) {\n  throw new Error('Missing required fields: companyId, sectionId, or sectionColumn');\n}\n\n// Build context from previous sections\nlet contextText = '';\nif (payload.previousSections && payload.previousSections.length > 0) {\n  contextText = payload.previousSections\n    .map(section => `${section.name}:\\n${section.content}`)\n    .join('\\n\\n---\\n\\n');\n  console.log('Context sections available:', payload.previousSections.length);\n}\n\n// Generate prompt for AI\nconst prompt = `You are a professional due diligence analyst. Generate comprehensive content for the \"${payload.sectionName}\" section of a due diligence report.\n\n${contextText ? `Context from previous sections:\\n${contextText}\\n\\n` : ''}\n\nPlease generate detailed, professional content for this section. The content should be:\n1. Comprehensive and thorough\n2. Professional in tone\n3. Well-structured with clear headings\n4. Relevant to the section's purpose\n${contextText ? '5. Building upon insights from previous sections' : ''}\n\nGenerate the content in HTML format for proper display.`;\n\nreturn {\n  json: {\n    companyId: payload.companyId,\n    sectionId: payload.sectionId,\n    sectionName: payload.sectionName,\n    sectionColumn: payload.sectionColumn,\n    prompt: prompt,\n    contextAvailable: !!contextText,\n    previousSectionsCount: payload.previousSections?.length || 0\n  }\n};"
+      },
+      "id": "process_frontend_request",
+      "name": "Process Frontend Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3:latest",
+        "prompt": "={{ $json.prompt }}",
+        "options": {
+          "temperature": 0.7,
+          "top_p": 0.9,
+          "max_tokens": 2000
+        }
+      },
+      "id": "generate_ai_content",
+      "name": "Generate AI Content",
+      "type": "n8n-nodes-base.ollama",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE complete_dd_reports SET {{ $node['Process Frontend Request'].json.sectionColumn }} = $1, updated_at = CURRENT_TIMESTAMP WHERE company_id = $2",
+        "additionalFields": {
+          "mode": "independently"
+        },
+        "options": {},
+        "queryReplacement": "=$node['Generate AI Content'].json.response",
+        "parametersUi": {
+          "parameter": [
+            {
+              "name": "$1",
+              "value": "={{ $node['Generate AI Content'].json.response }}"
+            },
+            {
+              "name": "$2",
+              "value": "={{ $node['Process Frontend Request'].json.companyId }}"
+            }
+          ]
+        }
+      },
+      "id": "update_database",
+      "name": "Update Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:10000/api/due-diligence/webhook/section-complete",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "companyId",
+              "value": "={{ $node['Process Frontend Request'].json.companyId }}"
+            },
+            {
+              "name": "sectionId",
+              "value": "={{ $node['Process Frontend Request'].json.sectionId }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $node['Generate AI Content'].json.response }}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify_frontend",
+      "name": "Notify Frontend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Section {{ $node['Process Frontend Request'].json.sectionId }} generated successfully\",\n  \"sectionId\": {{ $node['Process Frontend Request'].json.sectionId }},\n  \"sectionName\": \"{{ $node['Process Frontend Request'].json.sectionName }}\",\n  \"companyId\": \"{{ $node['Process Frontend Request'].json.companyId }}\",\n  \"generated_at\": \"{{ new Date().toISOString() }}\",\n  \"content_length\": {{ ($node['Generate AI Content'].json.response || '').length }}\n}",
+        "options": {}
+      },
+      "id": "webhook_response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Frontend Section Request": {
+      "main": [
+        [
+          {
+            "node": "Process Frontend Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Frontend Request": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Content": {
+      "main": [
+        [
+          {
+            "node": "Update Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Database": {
+      "main": [
+        [
+          {
+            "node": "Notify Frontend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Frontend": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "your-instance-id-here"
+  },
+  "id": "frontend-integration-webhook",
+  "versionId": "latest"
+}

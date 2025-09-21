@@ -1,0 +1,130 @@
+{
+  "name": "Simple @CG Test Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "manual-trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "jsonrpc": "2.0",
+          "method": "getAllTasks",
+          "id": 1,
+          "params": {
+            "project_id": 5,
+            "status_id": 1
+          }
+        },
+        "options": {}
+      },
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        0
+      ],
+      "id": "get-tasks",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple test - find @CG tasks and create response\nconst tasks = $input.first().json.result || [];\nconsole.log(`Found ${tasks.length} tasks`);\n\nfor (const task of tasks) {\n  const title = task.title || '';\n  const description = task.description || '';\n  \n  if (title.includes('@CG') || description.includes('@CG')) {\n    console.log(`Found @CG task: ${title}`);\n    \n    // Extract company name\n    const companyName = title.split('@CG')[0].trim();\n    \n    return [{\n      json: {\n        task_id: task.id,\n        company_name: companyName,\n        title: title,\n        description: description,\n        test_response: `Test response for ${companyName} - this is a simple test without Pinecone to verify basic functionality works.`\n      }\n    }];\n  }\n}\n\nthrow new Error('No @CG tasks found');"
+      },
+      "name": "Process @CG Task",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ],
+      "id": "process-cg"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"createComment\",\n  \"id\": 1,\n  \"params\": {\n    \"task_id\": $json.task_id,\n    \"content\": `🧪 **Simple Test Response**\\n\\n${$json.test_response}\\n\\n---\\n*Generated: ${new Date().toLocaleString()}*`,\n    \"user_id\": 1\n  }\n} }}",
+        "options": {}
+      },
+      "name": "Post Test Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "id": "post-comment",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Gs1DQD2k5J8I9nZ8",
+          "name": "KanBoard"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Process @CG Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process @CG Task": {
+      "main": [
+        [
+          {
+            "node": "Post Test Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "SimpleCGTest"
+}

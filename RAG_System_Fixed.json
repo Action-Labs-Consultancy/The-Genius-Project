@@ -1,0 +1,309 @@
+{
+  "name": "RAG System - Fixed Dimensions",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1hDbczPdamC3FDROskKamg9MdCYV5PY06",
+          "mode": "list",
+          "cachedResultName": "Due",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1hDbczPdamC3FDROskKamg9MdCYV5PY06"
+        },
+        "event": "folderCreatedA"
+      },
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-2560, 48],
+      "id": "2b8a5eff-3d9b-4fe3-9c84-c04f715dfadf",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files?q=parents in '{{ $json.id }}' and mimeType='application/pdf'&fields=files(id,name,size,mimeType,webViewLink,webContentLink)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "List PDF Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-2368, 48],
+      "id": "9f26d903-58f0-4711-8515-9a4a6c675647",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process files and extract company name from folder\nconst folderName = $node[\"Google Drive Trigger\"].json.name;\nconst folderId = $node[\"Google Drive Trigger\"].json.id;\nconst response = $input.first().json;\n\nconst files = response.files || [];\n\nif (files.length === 0) {\n  console.log('No PDF files found in the new folder');\n  return [];\n}\n\n// Extract company name from folder name\nlet companyName = folderName || 'Unknown_Company';\ncompanyName = companyName\n  .replace(/^(new folder|folder|untitled|document)$/i, 'Unknown_Company')\n  .replace(/[_-]+/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nif (companyName.length < 2 || /^(new|folder|doc|file|temp|test)$/i.test(companyName)) {\n  companyName = 'Unknown_Company';\n}\n\nconsole.log(`Processing ${files.length} PDF files for company: ${companyName}`);\n\nreturn files.map(file => ({\n  json: {\n    id: file.id,\n    name: file.name,\n    size: file.size,\n    mimeType: file.mimeType,\n    company_name: companyName,\n    folder_id: folderId,\n    original_folder_name: folderName,\n    processed: false\n  }\n}));"
+      },
+      "name": "Process Files List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-2160, 48],
+      "id": "d3e54bba-55fd-4290-8753-f364c3d4b5db"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1968, 48],
+      "id": "c6545105-0788-4cc7-946f-00afe5be487e",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "OG8UMiExTSVUzBmH",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 100
+        }
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-1776, 48],
+      "id": "extract-pdf-text"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process extracted PDF text and prepare for vector storage\nconst extractedData = $input.first().json;\nconst fileList = $node[\"Process Files List\"].json;\n\n// Get the extracted text\nlet fullText = '';\nif (extractedData && extractedData.data) {\n  fullText = extractedData.data;\n} else if (typeof extractedData === 'string') {\n  fullText = extractedData;\n}\n\nif (!fullText || fullText.length < 100) {\n  console.error('PDF text extraction failed or text too short');\n  return {\n    json: {\n      error: 'Text extraction failed',\n      file_name: fileList.name || 'Unknown',\n      company_name: fileList.company_name || 'Unknown'\n    }\n  };\n}\n\nconsole.log(`Extracted ${fullText.length} characters from ${fileList.name}`);\n\n// Split text into chunks for better vector storage\nconst chunkSize = 1000; // characters per chunk\nconst overlap = 200; // overlap between chunks\nconst chunks = [];\n\nfor (let i = 0; i < fullText.length; i += (chunkSize - overlap)) {\n  const chunk = fullText.substring(i, i + chunkSize);\n  if (chunk.trim().length > 50) { // Only include meaningful chunks\n    chunks.push({\n      content: chunk.trim(),\n      metadata: {\n        file_name: fileList.name,\n        company_name: fileList.company_name,\n        file_id: fileList.id,\n        folder_id: fileList.folder_id,\n        chunk_index: chunks.length,\n        total_chunks: Math.ceil(fullText.length / (chunkSize - overlap)),\n        extracted_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nconsole.log(`Created ${chunks.length} text chunks for vector storage`);\n\n// Return all chunks as separate items\nreturn chunks.map(chunk => ({\n  json: {\n    pageContent: chunk.content,\n    metadata: chunk.metadata\n  }\n}));"
+      },
+      "name": "Prepare Text Chunks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-1584, 48],
+      "id": "prepare-text-chunks"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [-1392, 48],
+      "id": "901021d8-e6fa-470b-9993-43fdd69fcc19",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [-1392, -128],
+      "id": "fc552882-d89b-41ef-9900-f67cc214b909",
+      "name": "Embeddings Ollama (mxbai-embed-large)",
+      "credentials": {
+        "ollamaApi": {
+          "id": "cGmcFHhiVZA3AmtD",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [-1200, 48],
+      "id": "66b41b75-2ba8-47ea-932e-6b2fba5973d4",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "N8PyI62raKeDY3jI",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log successful vector storage with detailed information\nconst input = $input.first().json;\nconst metadata = input.metadata || {};\n\nconsole.log('✅ Successfully stored vectors in Pinecone');\nconsole.log('📄 File processed:', metadata.file_name || 'Unknown file');\nconsole.log('🏢 Company:', metadata.company_name || 'Unknown');\nconsole.log('📊 Chunk:', `${metadata.chunk_index + 1}/${metadata.total_chunks}`);\nconsole.log('🕐 Timestamp:', new Date().toISOString());\n\nreturn {\n  json: {\n    success: true,\n    message: '✅ Vector storage completed successfully',\n    file_processed: metadata.file_name || 'Unknown',\n    company: metadata.company_name || 'Unknown',\n    chunk_info: `${metadata.chunk_index + 1}/${metadata.total_chunks}`,\n    file_id: metadata.file_id,\n    folder_id: metadata.folder_id,\n    timestamp: new Date().toISOString(),\n    vector_dimensions: '1024 (mxbai-embed-large)',\n    pinecone_index: 'n8n'\n  }\n};"
+      },
+      "name": "Log Success",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-1008, 48],
+      "id": "log-success"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final completion summary\nconst allResults = $input.all();\nconst successCount = allResults.filter(r => r.json.success).length;\nconst totalChunks = allResults.length;\n\nconst firstResult = allResults[0]?.json || {};\nconst company = firstResult.company || 'Unknown';\nconst fileName = firstResult.file_processed || 'Unknown';\n\nconsole.log('🎉 RAG PROCESSING COMPLETE!');\nconsole.log(`📊 Successfully processed: ${successCount}/${totalChunks} chunks`);\nconsole.log(`🏢 Company: ${company}`);\nconsole.log(`📄 File: ${fileName}`);\nconsole.log('💾 Vectors stored in Pinecone index: n8n');\nconsole.log('🔍 Ready for RAG queries!');\n\nreturn {\n  json: {\n    processing_complete: true,\n    success_rate: `${successCount}/${totalChunks}`,\n    company_processed: company,\n    file_processed: fileName,\n    total_chunks: totalChunks,\n    successful_chunks: successCount,\n    pinecone_index: 'n8n',\n    embedding_model: 'mxbai-embed-large (1024 dimensions)',\n    timestamp: new Date().toISOString(),\n    status: '🎉 Ready for RAG queries!'\n  }\n};"
+      },
+      "name": "Processing Complete Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-816, 48],
+      "id": "processing-complete"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "List PDF Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List PDF Files": {
+      "main": [
+        [
+          {
+            "node": "Process Files List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Files List": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Text Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Text Chunks": {
+      "main": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama (nomic-embed-text)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Processing Complete Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

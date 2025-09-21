@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 const AdminIceBox = ({ user }) => {
   const [requests, setRequests] = useState([]);
@@ -27,7 +28,7 @@ const AdminIceBox = ({ user }) => {
       setError('');
       
       // Direct fetch without session
-      const response = await fetch('http://192.168.100.63:10000/api/admin/feature-requests', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/feature-requests`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -105,7 +106,7 @@ const AdminIceBox = ({ user }) => {
       ));
       
       // Try to update on server
-      const response = await fetch(`http://192.168.100.63:10000/api/admin/feature-requests/${requestId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/feature-requests/${requestId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

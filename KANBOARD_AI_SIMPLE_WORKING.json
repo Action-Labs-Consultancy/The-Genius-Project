@@ -1,0 +1,217 @@
+{
+  "name": "Kanboard AI Task Enhancer - SIMPLE & WORKING",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression", 
+              "expression": "0 */2 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Every 2 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "id": "cron"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"getAllTasks\",\n  \"id\": 1,\n  \"params\": {\n    \"project_id\": 1,\n    \"status_id\": 1\n  }\n}"
+        }
+      },
+      "name": "Get Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300],
+      "id": "getTasks",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get all tasks and find the first one that needs AI enhancement\nconst tasks = $input.first().json.result || [];\n\nconsole.log(`Checking ${tasks.length} tasks`);\n\n// Find first task needing enhancement\nfor (const task of tasks) {\n  const description = task.description || '';\n  const title = task.title || '';\n  \n  if (description.trim().length < 20 && title.trim().length > 0) {\n    console.log(`Found task needing enhancement: \"${title}\" (ID: ${task.id})`);\n    return {\n      json: {\n        task_id: task.id,\n        title: title,\n        description: description,\n        project_id: task.project_id || 1\n      }\n    };\n  }\n}\n\n// If no tasks need enhancement, return a skip signal\nconsole.log('No tasks need enhancement');\nreturn {\n  json: {\n    skip: true,\n    message: 'No tasks need enhancement'\n  }\n};"
+      },
+      "name": "Find Task to Enhance",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "id": "findTask"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should_process",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check if Should Process",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "id": "checkProcess"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"mistral:latest\",\n  \"prompt\": \"Enhance this task: {{ $json.title }}\\n\\nCreate:\\n1. Clear description (2-3 sentences)\\n2. Complexity rating 1-5\\n3. Three relevant tags\\n\\nRespond ONLY with JSON:\\n{\\n  \\\"description\\\": \\\"your description\\\",\\n  \\\"complexity\\\": 3,\\n  \\\"tags\\\": [\\\"tag1\\\", \\\"tag2\\\", \\\"tag3\\\"]\\n}\",\n  \"stream\": false\n}"
+        }
+      },
+      "name": "AI Enhance",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4.2,
+      "position": [950, 300],
+      "id": "aiEnhance"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get task data and AI response\nconst taskData = $('Find Task to Enhance').first().json;\nconst aiResponse = $input.first().json.response;\n\nconsole.log(`Processing task: ${taskData.title}`);\n\n// Parse AI response\nlet enhancedData;\ntry {\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*?\\}/);\n  if (jsonMatch) {\n    enhancedData = JSON.parse(jsonMatch[0]);\n    console.log('AI JSON parsed successfully');\n  } else {\n    throw new Error('No JSON found');\n  }\n} catch (error) {\n  console.log('Using fallback enhancement');\n  enhancedData = {\n    description: `Enhanced: ${taskData.title}. This task requires proper planning and execution.`,\n    complexity: 3,\n    tags: ['ai-enhanced', 'auto-generated', 'todo']\n  };\n}\n\n// Prepare update data\nconst result = {\n  task_id: taskData.task_id,\n  enhanced_description: `${enhancedData.description}\\n\\n🤖 AI Enhancement Applied\\n📊 Complexity: ${enhancedData.complexity}/5\\n🏷️ Tags: ${enhancedData.tags.join(', ')}`\n};\n\nconsole.log(`Ready to update task ${result.task_id}`);\nreturn { json: result };"
+      },
+      "name": "Prepare Update",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1150, 300],
+      "id": "prepareUpdate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/jsonrpc.php",
+        "authentication": "basicAuth",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"updateTask\",\n  \"id\": 1,\n  \"params\": {\n    \"id\": {{ $json.task_id }},\n    \"description\": \"{{ $json.enhanced_description }}\"\n  }\n}"
+        }
+      },
+      "name": "Update Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1350, 300],
+      "id": "updateTask",
+      "credentials": {
+        "httpBasicAuth": "KanBoard"
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Find Task to Enhance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Task to Enhance": {
+      "main": [
+        [
+          {
+            "node": "Check if Should Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Should Process": {
+      "main": [
+        [
+          {
+            "node": "AI Enhance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "AI Enhance": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update": {
+      "main": [
+        [
+          {
+            "node": "Update Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "simple-working",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "simple-working",
+  "tags": []
+}
